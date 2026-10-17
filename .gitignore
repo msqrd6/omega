@@ -1,0 +1,12 @@
+# Temporary / Scratch files
+scratch/
+dom_dump*.html
+battle_tokens_out.txt
+debug.log
+TEMP.md
+
+# Editor & OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
