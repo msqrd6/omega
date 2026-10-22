@@ -12,7 +12,7 @@ import {
   INITIAL_PIECE_KEYS,
   SELECTABLE_HERO_KEYS,
   DEFAULT_ROSTER
-} from './config.js';
+} from './config.js?v=20261023_02';
 import {
   board,
   traps,
@@ -39,7 +39,7 @@ import {
   isVectorBunkerActive,
   getPlayerTokens,
   isLocalPlayer
-} from './board.js';
+} from './board.js?v=20261023_02';
 
 export let tileElements = [];
 export let isBoardFlipped = false;
@@ -510,6 +510,7 @@ export function renderHeroControlPanel({
   // コア・オブジェクト選択時のシンプルカード
   if (isCore || isBarricade || isTurret) {
     const shieldVal = getShieldVal(hero);
+    const canDestroyBarricade = isBarricade && !isEnemy;
     panel.innerHTML = `
       <div class="object-detail-card">
         <div class="odc-header">
@@ -538,6 +539,18 @@ export function renderHeroControlPanel({
           ` : ''}
         </div>
         <div class="odc-desc">${heroDef.desc}</div>
+        ${isBarricade ? `
+          <div class="odc-actions">
+            ${canDestroyBarricade ? `
+              <button id="btn-destroy-barricade" class="odc-destroy-btn" onclick="window.__onDestroyBarricade(${selectedPos.r}, ${selectedPos.c})">
+                <span class="odc-btn-icon">💥</span>
+                <span class="odc-btn-text">防壁を破壊する</span>
+              </button>
+            ` : `
+              <div class="odc-hint">※自軍ターン中に破壊可能です</div>
+            `}
+          </div>
+        ` : ''}
       </div>
     `;
     return;
@@ -611,11 +624,11 @@ export function renderHeroControlPanel({
     } else if (hero.typeKey === 'POISON') {
       note = `<span class="pac-live-active">🧪 毒床上の敵へ通常攻撃時 +10 DMG</span>`;
     } else if (hero.typeKey === 'VULCAN') {
-      note = `<span class="pac-live-active">🗼 タレット射程内の敵へ通常攻撃時 +8 DMG & ノックバック</span>`;
+      note = `<span class="pac-live-active">⚙️ 設置タレット破壊時、タレットストックを即座に1回復</span>`;
     } else if (hero.typeKey === 'CYPHER') {
       note = `<span class="pac-live-active">📡 デバフ状態の敵へ通常攻撃時 +5 DMG</span>`;
     } else if (hero.typeKey === 'DISRUPTOR') {
-      note = `<span class="pac-live-active">🌀 ワープ着地時、周囲2マス敵全員に弱体化(1.5倍)付与</span>`;
+      note = `<span class="pac-live-active">🌀 ワープ着地時、周囲1マス敵全員に弱体化(1.5倍)付与</span>`;
     } else if (hero.typeKey === 'MEDIC') {
       note = `<span class="pac-live-active">💉 ターン終了時、直線上最寄り味方HP5自動回復</span>`;
     } else if (hero.typeKey === 'HACKER') {

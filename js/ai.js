@@ -2,7 +2,7 @@
    ai.js: CPU (AI) 思考ルーチン - スマート連携・キル優先・ハザード回避対応
    (大型アップデート: スキルトークン廃止・Bスキル廃止対応)
    ============================================================== */
-import { ROWS, COLS } from './config.js';
+import { ROWS, COLS } from './config.js?v=20261023_02';
 import {
   board,
   inBounds,
@@ -16,9 +16,9 @@ import {
   hasDebuff,
   hasActionToken,
   getActionTokens
-} from './board.js';
-import { executeMove, executeAttack, executeSkill } from './actions.js';
-import { addLog } from './ui.js';
+} from './board.js?v=20261023_02';
+import { executeMove, executeAttack, executeSkill } from './actions.js?v=20261023_02';
+import { addLog } from './ui.js?v=20261023_02';
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 

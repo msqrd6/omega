@@ -1,4 +1,4 @@
-import { ROWS, COLS, DEPLOYABLE_ROWS, INITIAL_PIECE_KEYS, SELECTABLE_HERO_KEYS, DEFAULT_ROSTER, HERO_TYPES } from './config.js';
+import { ROWS, COLS, DEPLOYABLE_ROWS, INITIAL_PIECE_KEYS, SELECTABLE_HERO_KEYS, DEFAULT_ROSTER, HERO_TYPES } from './config.js?v=20261023_02';
 import {
   board,
   initBoard,
@@ -22,16 +22,17 @@ import {
   isCore,
   isObject,
   setLocalPlayerRole
-} from './board.js';
+} from './board.js?v=20261023_02';
 import {
   executeMove,
   executeAttack,
   executeSkill,
+  destroyBarricade,
   tickTurnEffects,
   processTurretAttacks,
   processTurnStartHazards,
   processTurnEndPassives
-} from './actions.js';
+} from './actions.js?v=20261023_02';
 import {
   tileElements,
   createBoardDOMOnce,
@@ -46,9 +47,9 @@ import {
   showHazardToast,
   addLog,
   setBoardPerspective
-} from './ui.js';
-import { runAITurn } from './ai.js';
-import { network } from './network.js';
+} from './ui.js?v=20261023_02';
+import { runAITurn } from './ai.js?v=20261023_02';
+import { network } from './network.js?v=20261023_02';
 
 // ゲーム進行ステート
 // 'TITLE' -> 'PICK_P1' -> 'DEPLOY_P1' -> 'DEPLOY_P2' -> 'BATTLE'
@@ -319,7 +320,7 @@ function onTileClick(r, c) {
       return;
     } else {
       // 別の自軍駒をクリックした場合はスムーズに選択切り替え
-      if (clickedUnit && clickedUnit.owner === turn && isUnit(clickedUnit)) {
+      if (clickedUnit && clickedUnit.owner === turn) {
         selectHero(r, c);
         return;
       }
@@ -385,7 +386,7 @@ function onTileClick(r, c) {
       }
 
       // B-4. 別の自軍駒をクリック ➔ スムーズに選択切り替え
-      if (clickedUnit && clickedUnit.owner === turn && isUnit(clickedUnit)) {
+      if (clickedUnit && clickedUnit.owner === turn) {
         selectHero(r, c);
         return;
       }
@@ -393,7 +394,7 @@ function onTileClick(r, c) {
   }
 
   // C. 駒の新規選択、またはハザード確認、選択解除
-  if (clickedUnit && clickedUnit.typeKey !== 'BARRICADE') {
+  if (clickedUnit) {
     selectedHazardPos = null;
     selectHero(r, c);
   } else {
@@ -426,7 +427,9 @@ function selectHero(r, c) {
 
   if (unit.owner !== turn) {
     // 敵ユニットの偵察モード
-    document.getElementById('phase-instruction').innerText = `🔍 ${unit.name} (敵ユニット) を偵察中。${hazardNote}ステータスや受けている状態異常を確認できます`;
+    document.getElementById('phase-instruction').innerText = `🔍 ${unit.name} (敵${unit.typeKey === 'BARRICADE' ? '防壁' : 'ユニット'}) を偵察中。${hazardNote}ステータスを確認できます`;
+  } else if (unit.typeKey === 'BARRICADE') {
+    document.getElementById('phase-instruction').innerText = `🧱 ${unit.name} を選択中。${hazardNote}「防壁を破壊する」ボタンで撤去できます`;
   } else {
     document.getElementById('phase-instruction').innerText = `${unit.name} を選択中。${hazardNote}緑枠クリック/ドラッグで移動、赤枠クリック/ドラッグで攻撃、またはスキルカードを使用！`;
   }
@@ -466,6 +469,34 @@ export function setCommandMode(mode) {
 
   renderAll();
 }
+
+export function handleDestroyBarricade(r, c) {
+  if (isGameOver) return;
+  if (gamePhase !== 'BATTLE') return;
+  if (gameMode === 'online' && turn !== myOnlineRole) return;
+
+  const unit = board[r]?.[c];
+  if (!unit || unit.typeKey !== 'BARRICADE') return;
+  if (unit.owner !== turn) return;
+
+  if (gameMode === 'online') {
+    network.send('ACTION', {
+      action: 'DESTROY_BARRICADE',
+      pos: { r, c }
+    });
+  }
+
+  destroyBarricade(r, c);
+  clearSelection();
+}
+
+window.__onDestroyBarricade = (r, c) => {
+  if (r !== undefined && c !== undefined) {
+    handleDestroyBarricade(r, c);
+  } else if (selectedPos) {
+    handleDestroyBarricade(selectedPos.r, selectedPos.c);
+  }
+};
 
 export function manualEndTurn() {
   if (isGameOver) return;
@@ -1222,6 +1253,14 @@ network.onMessage = (msg) => {
     } else if (action === 'SKILL') {
       executeSkill(msg.payload.heroPos, msg.payload.targetPos, msg.payload.slot, triggerGameOver);
       renderAll();
+    } else if (action === 'DESTROY_BARRICADE') {
+      const { pos } = msg.payload;
+      destroyBarricade(pos.r, pos.c);
+      if (selectedPos && selectedPos.r === pos.r && selectedPos.c === pos.c) {
+        clearSelection();
+      } else {
+        renderAll();
+      }
     } else if (action === 'END_TURN') {
       addLog(`${turn === 'P1' ? '青' : '赤'} がターンを終了しました`, turn.toLowerCase());
       executeTurnChange();

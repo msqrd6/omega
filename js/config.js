@@ -184,7 +184,7 @@ export const HERO_TYPES = {
     roleClass: "role-assault",
     icon: "💣",
     maxHp: 100,
-    atk: 20,
+    atk: 25,
     desc: "前線へ切り込み、不可視の地雷と自身の肉体を爆破兵器に変える狂気の突撃爆破兵。高いHPと通常攻撃力を持ち、死の間際に最も危険な起爆装置と化す。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
@@ -196,8 +196,8 @@ export const HERO_TYPES = {
     skills: {
       A: {
         name: "マイン・プラント",
-        maxStock: 3,
-        desc: "半径2マス以内の指定空きマスに「マイン（トラップ / 20 DMG）」を仕掛ける（敵には不可視、ニトロ破壊後も存続）。",
+        maxStock: 2,
+        desc: "前方6マスの指定空きマスに「マイン（トラップ / 20 DMG）」を仕掛ける（敵には不可視、ニトロ破壊後も存続）。",
         type: "PLACE_MINE_TRAP",
         range: 2,
         damage: 20
@@ -205,9 +205,9 @@ export const HERO_TYPES = {
       ULT: {
         name: "マキシマム・エクスプロージョン",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "自身を中心とする半径2マス以内のすべての敵味方ユニット・敵味方オブジェクト・敵味方コアに 35 ダメージの超大爆破（自身も35被弾）。",
+        desc: "自身を中心とする半径2マス以内のすべての敵味方ユニット・敵味方オブジェクト・敵味方コアに 20 ダメージの超大爆破（自身も20被弾）。",
         type: "MAXIMUM_EXPLOSION",
-        damage: 35,
+        damage: 20,
         range: 2
       }
     }
@@ -256,7 +256,7 @@ export const HERO_TYPES = {
     roleName: "センチネル",
     roleClass: "role-sentinel",
     icon: "⚙️",
-    maxHp: 105,
+    maxHp: 100,
     atk: 16,
     desc: "自動防衛タレットの開発と陣地構築を得意とする工兵エンジニア。タレットとの連携集中砲火で敵を寄せ付けない。",
     moveOffsets: SURROUND_8_OFFSETS,
@@ -329,14 +329,14 @@ export const HERO_TYPES = {
     roleClass: "role-disruptor",
     icon: "🌀",
     maxHp: 90,
-    atk: 18,
+    atk: 15,
     desc: "空間座標を歪めて味方アサルトのもとへ跳躍し、着地時の時空衝撃波で敵を一気に弱体化させる異能のトリックスター。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
       name: "ディメンション・チャージ",
       icon: "🌀",
-      desc: "ワープ移動時、ワープ先のマスから半径2マス以内の敵ユニットに【弱体化 (1T / 被ダメ1.5倍)】を付与。"
+      desc: "ワープ移動時、ワープ先のマスから半径1マス以内の敵ユニットに【弱体化 (1T / 被ダメ1.5倍)】を付与。"
     },
     skills: {
       A: {
@@ -491,7 +491,7 @@ export const HERO_TYPES = {
     icon: "🧱",
     maxHp: 30,
     atk: 0,
-    desc: "ベクターが設置した防護壁（クラス: オブジェクト / HP 30）。移動・攻撃は不可。敵味方ともに通行不能。破壊可能（設置者破壊後も存続）。",
+    desc: "ベクターが設置した防護壁（クラス: オブジェクト / HP 30）。移動・攻撃は不可。敵味方ともに通行不能。破壊可能（設置者破壊後も存続、破壊ボタンで任意破壊可能）。",
     moveOffsets: [],
     atkOffsets: []
   },
@@ -504,7 +504,7 @@ export const HERO_TYPES = {
     icon: "🗼",
     maxHp: 20,
     atk: 10,
-    desc: "ヴァルカンが設置した自動砲台（クラス: オブジェクト / HP 20, ATK 10）。自軍ターン終了時に前方6マスのすべての敵ユニットへ 10 ダメージを自動射撃！（設置者破壊後も存続、迎撃ダメージはウルト蓄積対象外）",
+    desc: "ヴァルカンが設置した自動砲台（クラス: オブジェクト / HP 20, ATK 10）。自軍ターン終了時に周囲8マスのすべての敵ユニットへ 10 ダメージを自動射撃！（設置者破壊後も存続、迎撃ダメージはウルト蓄積対象外）",
     moveOffsets: [],
     atkOffsets: []
   }

@@ -2,7 +2,7 @@
    actions.js: ゲーム内アクション（移動・攻撃・スキル・撃破・バフ/デバフ管理）
    (大型アップデート: スキルトークン廃止・Bスキル廃止・通常攻撃のみウルトチャージ・ハザード連動破壊対応)
    ============================================================== */
-import { HERO_TYPES, ROWS, COLS, STATUS_EFFECT_DEFS, ULT_REQUIRED_DAMAGE } from './config.js';
+import { HERO_TYPES, ROWS, COLS, STATUS_EFFECT_DEFS, ULT_REQUIRED_DAMAGE } from './config.js?v=20261023_02';
 import {
   board,
   inBounds,
@@ -29,8 +29,8 @@ import {
   isCore,
   isObject,
   isLocalPlayer
-} from './board.js';
-import { addLog, showDamagePopup } from './ui.js';
+} from './board.js?v=20261023_02';
+import { addLog, showDamagePopup } from './ui.js?v=20261023_02';
 
 // ダメージ付与 ＆ 衰弱増幅 ＆ シールド吸収 ＆ チームウルトゲージチャージ処理
 // ★isNormalAttack: true の場合のみチームウルトゲージに加算（スキルやウルト、設置物ダメージは除外）
@@ -409,7 +409,7 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver, onResetMoveRi
     // ==========================================
     case 'BOMBER': {
       if (slot === 'A') {
-        // マイン・プラント: 半径2マスの空きマスにマイン設置
+        // マイン・プラント: 前方6マスの指定空きマスにマイン設置
         if (!hasHazardOrTrapAt(targetPos.r, targetPos.c)) {
           traps.push({
             r: targetPos.r,
@@ -429,9 +429,10 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver, onResetMoveRi
           }
         }
       } else if (slot === 'ULT') {
-        // マキシマム・エクスプロージョン: 半径2マス全軍に 35 ダメージ（自身も被弾）
+        // マキシマム・エクスプロージョン: 半径2マス全軍に 20 ダメージ（自身も被弾）
+        const ultDmg = skillDef.damage || 20;
         showDamagePopup(heroPos.r, heroPos.c, `マキシマム・エクスプロージョン!!`, '#ff0055');
-        addLog(`💥💣🔥 ${hero.name} がウルト『マキシマム・エクスプロージョン』発動！自身を含む半径2マス全域へ 35 ダメージの大爆破！`, 'skill');
+        addLog(`💥💣🔥 ${hero.name} がウルト『マキシマム・エクスプロージョン』発動！自身を含む半径2マス全域へ ${ultDmg} ダメージの大爆破！`, 'skill');
 
         const affectedPositions = [];
         for (let dr = -2; dr <= 2; dr++) {
@@ -447,8 +448,8 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver, onResetMoveRi
         }
 
         affectedPositions.forEach(({ r: ar, c: ac, unit: targetUnit }) => {
-          showDamagePopup(ar, ac, `-35💥`, '#ff0055');
-          dealDamage(hero, targetUnit, skillDef.damage || 35, { r: ar, c: ac }, false);
+          showDamagePopup(ar, ac, `-${ultDmg}💥`, '#ff0055');
+          dealDamage(hero, targetUnit, ultDmg, { r: ar, c: ac }, false);
           checkDeath(ar, ac, hero.owner, onGameOver);
         });
       }
@@ -605,7 +606,7 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver, onResetMoveRi
         addLog(`🌀 ${hero.name} が『グラビティ・ワープ』発動！味方アサルトの隣接マスへ空間跳躍！`, 'skill');
 
         // ★【固有パッシブ】ディメンション・チャージ:
-        // ワープ着地時、半径2マスの敵ユニット全員に【弱体化 (1T / 被ダメ1.5倍)】付与！
+        // ワープ着地時、半径1マスの敵ユニット全員に【弱体化 (1T / 被ダメ1.5倍)】付与！
         triggerGlitchDimensionCharge(targetPos, enemyOwner);
       } else if (slot === 'ULT') {
         // 緊急回避: 盤面の任意の空きマスへ完全脱出ワープ
@@ -778,8 +779,9 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver, onResetMoveRi
 // グリッチの固有パッシブ『ディメンション・チャージ』処理ヘルパー
 function triggerGlitchDimensionCharge(landingPos, enemyOwner) {
   let count = 0;
-  for (let dr = -2; dr <= 2; dr++) {
-    for (let dc = -2; dc <= 2; dc++) {
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
       const nr = landingPos.r + dr, nc = landingPos.c + dc;
       if (inBounds(nr, nc)) {
         const u = board[nr][nc];
@@ -944,11 +946,11 @@ export function processTurretAttacks(currentTurn, onGameOver) {
         const hitEnemies = [];
         const forwardDir = (u.owner === 'P1') ? -1 : 1; // P1(青)は上方向(-1)、P2(赤)は下方向(+1)
 
-        // 前方6マス: 自軍の前方2行 × 横3列 = 計6マス
-        for (let step = 1; step <= 2; step++) {
-          const fr = r + forwardDir * step;
+        // 周囲8マス迎撃
+        for (let dr = -1; dr <= 1; dr++) {
           for (let dc = -1; dc <= 1; dc++) {
-            const fc = c + dc;
+            if (dr === 0 && dc === 0) continue;
+            const fr = r + dr, fc = c + dc;
             if (inBounds(fr, fc)) {
               const t = board[fr][fc];
               // Whitelisting Rule: 「敵ユニット」のみ迎撃（コア・オブジェクトは対象外）
@@ -963,7 +965,7 @@ export function processTurretAttacks(currentTurn, onGameOver) {
           hitEnemies.forEach(({ r: er, c: ec, unit: eu }) => {
             dealDamage(u, eu, u.atk, { r: er, c: ec }, false);
             showDamagePopup(er, ec, `🗼迎撃! -${u.atk}`, '#f43f5e');
-            addLog(`🗼 自動防衛タレットが前方迎撃ゾーンの敵ユニット ${eu.name} に自動迎撃！(${u.atk} DMG)`, 'skill');
+            addLog(`🗼 自動防衛タレットが周囲迎撃ゾーンの敵ユニット ${eu.name} に自動迎撃！(${u.atk} DMG)`, 'skill');
             checkDeath(er, ec, u.owner, onGameOver);
           });
         }
@@ -991,4 +993,16 @@ export function processTurnStartHazards(currentTurn, onGameOver) {
       }
     }
   }
+}
+
+// バリケードの任意破壊（破壊ボタン機能）
+export function destroyBarricade(r, c) {
+  const unit = board[r]?.[c];
+  if (!unit || unit.typeKey !== 'BARRICADE') return false;
+
+  showDamagePopup(r, c, `💥防壁破壊!`, '#ef4444');
+  addLog(`🧱💥 ${unit.owner === 'P1' ? 'BLUE' : 'RED'} の防壁（バリケード）が破壊ボタンにより破壊された！`, 'system');
+
+  board[r][c] = null;
+  return true;
 }

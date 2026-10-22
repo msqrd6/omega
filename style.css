@@ -2928,3 +2928,50 @@ h1 {
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
 }
 
+.odc-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.odc-destroy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  border: 1px solid #f87171;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.5px;
+}
+
+.odc-destroy-btn:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.5);
+  border-color: #fca5a5;
+}
+
+.odc-destroy-btn:active {
+  transform: translateY(0);
+}
+
+.odc-destroy-btn .odc-btn-icon {
+  font-size: 1.1rem;
+}
+
+.odc-hint {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  text-align: center;
+  padding: 4px;
+}

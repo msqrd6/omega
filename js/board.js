@@ -11,7 +11,7 @@ import {
   INITIAL_PIECE_KEYS,
   DEFAULT_ROSTER,
   DEFAULT_ACTION_TOKENS
-} from './config.js';
+} from './config.js?v=20261023_02';
 
 export let board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
 export let traps = [];        // [{ r, c, owner, damage, type, sourceHeroId }]
@@ -630,24 +630,12 @@ export function getAttackRangeCells(r, c) {
   if (!unit || unit.atk === 0) return [];
   const cells = [];
 
-  if (unit.typeKey === 'TURRET') {
-    // タレットの迎撃射程セル: 自軍の前方2行 × 横3列 = 6マス
-    const forwardDir = (unit.owner === 'P1') ? -1 : 1;
-    for (let step = 1; step <= 2; step++) {
-      const fr = r + forwardDir * step;
-      for (let dc = -1; dc <= 1; dc++) {
-        const fc = c + dc;
-        if (inBounds(fr, fc)) cells.push({ r: fr, c: fc });
-      }
-    }
-  } else {
-    // 全ヒーロー共通: 周囲8方向 1マス
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        if (dr === 0 && dc === 0) continue;
-        const nr = r + dr, nc = c + dc;
-        if (inBounds(nr, nc)) cells.push({ r: nr, c: nc });
-      }
+  // タレットおよび全ヒーロー共通: 周囲8方向 1マス
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = r + dr, nc = c + dc;
+      if (inBounds(nr, nc)) cells.push({ r: nr, c: nc });
     }
   }
 
@@ -726,11 +714,12 @@ export function getValidSkillTargets(r, c, slot) {
     // 1-3. アサルト (ニトロ) ★アサルト
     case 'BOMBER': {
       if (slot === 'A') {
-        // マイン・プラント: 半径2マスの任意の空きマスにマイン（トラップ）を仕掛ける (ハザード・トラップ重複不可)
-        for (let dr = -2; dr <= 2; dr++) {
-          for (let dc = -2; dc <= 2; dc++) {
-            if (dr === 0 && dc === 0) continue;
-            const nr = r + dr, nc = c + dc;
+        // マイン・プラント: 前方6マスの指定空きマスにマイン（トラップ）を仕掛ける (ハザード・トラップ重複不可)
+        const forwardDir = (unit.owner === 'P1') ? -1 : 1; // P1(青)は上方向(-1)、P2(赤)は下方向(+1)
+        for (let step = 1; step <= 2; step++) {
+          const nr = r + forwardDir * step;
+          for (let dc = -1; dc <= 1; dc++) {
+            const nc = c + dc;
             if (inBounds(nr, nc) && !board[nr][nc] && !hasHazardOrTrapAt(nr, nc)) {
               targets.push({ r: nr, c: nc });
             }
