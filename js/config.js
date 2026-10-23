@@ -124,18 +124,17 @@ export const HERO_TYPES = {
       A: {
         name: "オーバードライブ",
         maxStock: 2,
-        desc: "自身に【攻撃力増強 (+10 / 1T)】を付与する（通常ATK 25 ➔ 35）。",
+        desc: "自身に【攻撃力増強 (+5 / このターン中)】を付与する（通常ATK 25 ➔ 30）。",
         type: "SELF_BUFF_ATK",
-        atkBonus: 10,
+        atkBonus: 5,
         range: 0
       },
       ULT: {
-        name: "オメガ・ストライク",
+        name: "ライトニング・ラッシュ",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "自身を中心とする半径2マス以内の敵ユニット・敵オブジェクトに 20 ダメージを一斉放射！",
-        type: "AOE_BURST",
-        damage: 20,
-        range: 2
+        desc: "自身にキネシス専用の【追加攻撃トークン (+1 ATTACK)】を即座に 1枚 付与する！",
+        type: "EXTRA_ATTACK_TOKEN",
+        range: 0
       }
     }
   },
@@ -147,7 +146,7 @@ export const HERO_TYPES = {
     roleName: "アサルト",
     roleClass: "role-assault",
     icon: "👤",
-    maxHp: 85,
+    maxHp: 80,
     atk: 30,
     desc: "自らの初期配置位置に影の領域（ディメンション・ゾーン）を敷設し、そこを起点として自在に戦場を跳梁する異相の暗殺者。全ユニット最高峰の素の通常攻撃力（30 DMG）を誇る。",
     moveOffsets: SURROUND_8_OFFSETS,
@@ -155,7 +154,7 @@ export const HERO_TYPES = {
     passive: {
       name: "シャドウ・オリジン",
       icon: "👤",
-      desc: "バトル開始時、初期配置マスに「ディメンション・ゾーン」を自動展開。自身は全ハザードのダメージ・悪影響を受けない。"
+      desc: "バトル開始時、初期配置マスに「ディメンション・ゾーン（侵入敵に弱体化付与）」を自動展開。"
     },
     skills: {
       A: {
@@ -166,12 +165,11 @@ export const HERO_TYPES = {
         range: 99
       },
       ULT: {
-        name: "フェイズ・カタストロフ",
+        name: "シャドウ・ドレイン",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "自軍ディメンション・ゾーンマスおよび周囲8マスの敵ユニット・敵オブジェクトに 35 ダメージの大爆発！",
-        type: "PHANTOM_CATASTROPHE",
-        damage: 35,
-        range: 99
+        desc: "この自軍ターン中に自身が敵に与えた合計ダメージ分、自身のHPを即座に回復（吸収）する！",
+        type: "SHADOW_DRAIN",
+        range: 0
       }
     }
   },
@@ -184,14 +182,14 @@ export const HERO_TYPES = {
     roleClass: "role-assault",
     icon: "💣",
     maxHp: 100,
-    atk: 25,
-    desc: "前線へ切り込み、不可視の地雷と自身の肉体を爆破兵器に変える狂気の突撃爆破兵。高いHPと通常攻撃力を持ち、死の間際に最も危険な起爆装置と化す。",
+    atk: 20,
+    desc: "前線へ切り込み、不可視の地雷と自身の肉体を爆破兵器に変える狂気の突撃爆破兵。高いHPを持ち、攻撃してきた敵へ即座に反撃爆破を浴びせ、自爆で一帯を焦土に変える。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
-      name: "ラスト・デトネーション",
+      name: "カウンター・デトネーション",
       icon: "💣",
-      desc: "自身撃破時、即座に周囲8マスの敵ユニット・敵オブジェクト・敵コアに 20 ダメージの道連れ自爆！"
+      desc: "自身が敵ユニットに攻撃された場合、攻撃してきた敵ユニットに即座に 10 ダメージの爆破反撃を行う！"
     },
     skills: {
       A: {
@@ -336,7 +334,7 @@ export const HERO_TYPES = {
     passive: {
       name: "ディメンション・チャージ",
       icon: "🌀",
-      desc: "ワープ移動時、ワープ先のマスから半径1マス以内の敵ユニットに【弱体化 (1T / 被ダメ1.5倍)】を付与。"
+      desc: "ワープ移動時、ワープ先のマスから半径1マス以内の敵ユニットに【弱体化 (このターン中 / 被ダメ1.5倍)】を付与。"
     },
     skills: {
       A: {
@@ -365,22 +363,22 @@ export const HERO_TYPES = {
     icon: "🔇",
     maxHp: 95,
     atk: 20,
-    desc: "敵のスキル発動機構を強制シャットダウンする電子戦スペシャリスト。直線ビームによる遠隔ジャミングと、敵全軍を完全停止させるブラックアウトで戦場を掌握する。",
+    desc: "戦場の電子グリッドを横一直線に滑走する電子戦スペシャリスト。左右への高速スライド移動で瞬時に射線を合わせ、直線ビームによる味方強化・敵武装解除、そして敵全軍を停止させるブラックアウトで戦況を完全支配する。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
-      name: "エクスプロイト・ハック",
+      name: "ホライゾン・シフト",
       icon: "🔇",
-      desc: "状態異常（沈黙・衰弱・弱体化・行動阻害等）にかかっている敵ユニットへの通常攻撃が +5 DMG (20➔25) に増加。"
+      desc: "周囲8マス移動に加え、左右の横一直線方向へ障害物に衝突する直前まで無制限にスライド移動可能。"
     },
     skills: {
       A: {
         name: "シグナル・ジャミング",
         maxStock: 2,
-        desc: "自身の前方一直線（上一直線）上のうち初弾ユニットに干渉。味方ユニットなら【攻撃力増強 (+15 / 1T)】、敵ユニットなら【スキル阻害 (`silence`) (2T)】を付与！",
+        desc: "自身の前方一直線（上一直線）上のうち初弾ユニットに干渉。味方ユニットなら【攻撃力増強 (+15 / このターン中)】、敵ユニットなら【攻撃阻害 (`disarm`) (1T)】を付与！",
         type: "LINE_FIRST_HIT",
         atkBonus: 15,
-        silenceTurns: 2,
+        disarmTurns: 1,
         range: 99
       },
       ULT: {
@@ -471,13 +469,11 @@ export const HERO_TYPES = {
   // 防衛コア (クラス: コア)
   CORE: {
     name: "防衛コア",
-    role: "CORE",
-    roleName: "重要拠点（コア）",
-    roleClass: "role-core",
+    classType: "コア",
     icon: "💎",
     maxHp: 100,
     atk: 0,
-    desc: "自軍の最重要拠点（クラス: コア）。移動・攻撃は不可。破壊されると即座に敗北！シールド付与可能。",
+    desc: "自軍の最重要防衛目標。移動・攻撃は不可。破壊されると即座に敗北！シールド付与可能。",
     moveOffsets: [],
     atkOffsets: []
   },
@@ -485,26 +481,22 @@ export const HERO_TYPES = {
   // 設置物 (クラス: オブジェクト)
   BARRICADE: {
     name: "防壁",
-    role: "OBJECT",
-    roleName: "オブジェクト（防護壁）",
-    roleClass: "role-structure",
+    classType: "オブジェクト",
     icon: "🧱",
     maxHp: 30,
     atk: 0,
-    desc: "ベクターが設置した防護壁（クラス: オブジェクト / HP 30）。移動・攻撃は不可。敵味方ともに通行不能。破壊可能（設置者破壊後も存続、破壊ボタンで任意破壊可能）。",
+    desc: "ベクターが設置した防護壁。移動・攻撃は不可。敵味方ともに通行不能。破壊可能（設置者撃破後も存続、自軍ターン中に任意破壊可能）。",
     moveOffsets: [],
     atkOffsets: []
   },
 
   TURRET: {
     name: "自動タレット",
-    role: "OBJECT",
-    roleName: "オブジェクト（固定砲台）",
-    roleClass: "role-structure",
+    classType: "オブジェクト",
     icon: "🗼",
     maxHp: 20,
     atk: 10,
-    desc: "ヴァルカンが設置した自動砲台（クラス: オブジェクト / HP 20, ATK 10）。自軍ターン終了時に周囲8マスのすべての敵ユニットへ 10 ダメージを自動射撃！（設置者破壊後も存続、迎撃ダメージはウルト蓄積対象外）",
+    desc: "ヴァルカンが設置した自動砲台。自軍ターン終了時に周囲8マスのすべての敵ユニットへ 10 ダメージを自動射撃！（設置者撃破後も存続、迎撃ダメージはウルト蓄積対象外）",
     moveOffsets: [],
     atkOffsets: []
   }

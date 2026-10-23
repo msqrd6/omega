@@ -810,12 +810,80 @@ h1 {
 .piece.structure.p2 { border-color: #f43f5e; box-shadow: 0 0 6px rgba(244, 63, 94, 0.4); }
 
 
-/* サイド情報パネル */
+/* サイド情報パネル (盤面 462px と常に完全同期固定) */
 .side-panel {
   width: 380px;
+  height: 462px;
+  max-height: 462px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
+  box-sizing: border-box;
+}
+
+.character-action-card {
+  height: 462px;
+  max-height: 462px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 10px 12px;
+}
+
+#unit-detail-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-right: 2px;
+}
+
+/* カスタムスクロールバー */
+#unit-detail-panel::-webkit-scrollbar {
+  width: 5px;
+}
+#unit-detail-panel::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+#unit-detail-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+#unit-detail-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* 駒未選択時ガイド */
+.empty-selection-guide {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--text-muted);
+}
+.empty-selection-guide .esg-icon {
+  font-size: 2.2rem;
+  margin-bottom: 8px;
+  opacity: 0.8;
+}
+.empty-selection-guide .esg-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #f1f5f9;
+  margin-bottom: 6px;
+}
+.empty-selection-guide .esg-desc {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #94a3b8;
+  max-width: 280px;
 }
 
 .card {
@@ -2974,4 +3042,674 @@ h1 {
   color: #94a3b8;
   text-align: center;
   padding: 4px;
+}
+
+/* 初期配置フェーズ用ヘッダーバー（サイドパネル上部） */
+.deploy-mode-indicator-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.deploy-mode-indicator-bar.p1 {
+  border-left: 4px solid var(--p1-color);
+}
+
+.deploy-mode-indicator-bar.p2 {
+  border-left: 4px solid var(--p2-color);
+}
+
+.dmib-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dmib-badge {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 0.5px;
+}
+
+.deploy-mode-indicator-bar.p2 .dmib-badge {
+  color: #fb7185;
+}
+
+.dmib-desc {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.dmib-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dmib-btn-confirm {
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #ffffff;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+}
+
+.dmib-btn-confirm.p1 {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  border: 1px solid #38bdf8;
+}
+
+.dmib-btn-confirm.p1:hover {
+  background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+  transform: translateY(-1px);
+}
+
+.dmib-btn-confirm.p2 {
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+  border: 1px solid #fb7185;
+}
+
+.dmib-btn-confirm.p2:hover {
+  background: linear-gradient(135deg, #be123c 0%, #9f1239 100%);
+  transform: translateY(-1px);
+}
+
+/* 上部アクションステータスバー内の初期配置スタイル */
+.deploy-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dbi-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+}
+
+.dbi-badge.p1 {
+  background: rgba(2, 132, 199, 0.25);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.dbi-badge.p2 {
+  background: rgba(225, 29, 72, 0.25);
+  color: #fb7185;
+  border: 1px solid rgba(251, 113, 133, 0.4);
+}
+
+.dbi-desc {
+  font-size: 0.75rem;
+  color: #cbd5e1;
+}
+
+.btn-deploy-sub-mini {
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-deploy-sub-mini:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.btn-deploy-confirm-top {
+  font-size: 0.88rem !important;
+  font-weight: 800 !important;
+  padding: 8px 16px !important;
+}
+
+.btn-deploy-confirm-top.p1 {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+  border-color: #38bdf8 !important;
+}
+
+.btn-deploy-confirm-top.p2 {
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%) !important;
+  border-color: #fb7185 !important;
+}
+
+/* 可能でない場合（不可時）: 灰色（グレースケール・減光）で表現 */
+.token-chip.token-disabled {
+  background: rgba(30, 41, 59, 0.7) !important;
+  border: 1px solid rgba(148, 163, 184, 0.3) !important;
+  color: #94a3b8 !important;
+  opacity: 0.6;
+  filter: grayscale(85%);
+  box-shadow: none !important;
+  cursor: not-allowed;
+}
+
+.token-chip.token-disabled .token-chip-icon {
+  filter: grayscale(100%);
+  opacity: 0.55;
+}
+
+.token-chip.token-disabled .token-chip-scope {
+  background: rgba(100, 116, 139, 0.25);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #94a3b8;
+}
+
+/* ==============================================================
+   キャラクターアクションUI - ヘッダー & ステータス改善
+   ============================================================== */
+.hero-card-header {
+  background: #141829;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ロールごとのアクセントテーマ */
+.hero-card-header.theme-assault,
+.hero-card-header.theme-duelist {
+  border-left: 4px solid #f97316;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.1), #141829 55%);
+}
+.hero-card-header.theme-sentinel,
+.hero-card-header.theme-guardian {
+  border-left: 4px solid #10b981;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), #141829 55%);
+}
+.hero-card-header.theme-disruptor {
+  border-left: 4px solid #a855f7;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), #141829 55%);
+}
+.hero-card-header.theme-support,
+.hero-card-header.theme-medic {
+  border-left: 4px solid #06b6d4;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), #141829 55%);
+}
+
+.hch-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hch-icon-box {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4);
+}
+
+.hch-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.hch-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hch-name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+}
+
+.hch-role-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hch-owner-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hch-owner-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  letter-spacing: 0.5px;
+}
+.hch-owner-tag.p1 {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+.hch-owner-tag.p2 {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.hch-enemy-inspect-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+/* HP・ATK・状態効果 同列ステータスグリッド */
+.hch-stats-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.65fr 1.2fr;
+  gap: 6px;
+  align-items: stretch;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hch-stat-box {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.hch-hp-box {
+  padding: 4px 7px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.hch-stat-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  line-height: 1.2;
+}
+
+.hch-stat-label {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hch-stat-value {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+
+.hch-stat-value strong {
+  font-size: 0.95rem;
+  color: #4ade80;
+  font-weight: 800;
+}
+
+.hch-shield-text {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #00d2ff;
+  margin-left: 2px;
+}
+
+.hch-hp-bar-bg {
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 3px;
+  display: flex;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+.hch-hp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #4ade80);
+  transition: width 0.25s ease;
+}
+
+.hch-shield-bar-fill {
+  height: 100%;
+  background: #00d2ff;
+  box-shadow: 0 0 4px #00d2ff;
+  transition: width 0.25s ease;
+}
+
+.hch-atk-box {
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.hch-atk-number {
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: #fbbf24;
+  line-height: 1.1;
+  text-shadow: 0 0 6px rgba(251, 191, 36, 0.35);
+}
+
+/* 状態効果ボックス (同列3カラム目) */
+.hch-status-box {
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.hch-status-pill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+  margin-top: 3px;
+  max-height: 42px;
+  overflow-y: auto;
+}
+
+.hch-status-pill-list::-webkit-scrollbar {
+  width: 3px;
+}
+.hch-status-pill-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.hch-pill {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  line-height: 1.15;
+}
+
+.hch-pill small {
+  font-size: 0.52rem;
+  opacity: 0.85;
+}
+
+.hch-pill.buff {
+  background: rgba(14, 165, 233, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.hch-pill.debuff {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.hch-pill-none {
+  font-size: 0.65rem;
+  color: #64748b;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* 敵ウルト準備完了バッジ */
+.badge-enemy-ult {
+  background: rgba(239, 68, 68, 0.25) !important;
+  color: #fca5a5 !important;
+  border: 1px solid rgba(239, 68, 68, 0.5) !important;
+  font-weight: 800 !important;
+  animation: pulse-enemy-ult 1.5s infinite;
+}
+
+@keyframes pulse-enemy-ult {
+  0%, 100% { box-shadow: 0 0 4px rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.8); }
+}
+
+/* 固有パッシブ発動中（ベクター要塞隣接、キネシス専用移動可能等）の外周発光 */
+.passive-ability-card.pac-active-glow {
+  border: 1px solid #eab308 !important;
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.45) !important;
+  animation: specialTokenPulse 2.5s infinite ease-in-out !important;
+}
+
+.pac-badge.pac-badge-active {
+  background: rgba(234, 179, 8, 0.25) !important;
+  color: #fef08a !important;
+  border-color: #eab308 !important;
+  font-weight: 800 !important;
+}
+
+/* コア・オブジェクト・ハザード用テーマ */
+.hero-card-header.theme-core {
+  border-left: 4px solid #f59e0b;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), #141829 55%);
+}
+
+.hero-card-header.theme-structure {
+  border-left: 4px solid #94a3b8;
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.1), #141829 55%);
+}
+
+.hero-card-header.theme-turret {
+  border-left: 4px solid #f97316;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.12), #141829 55%);
+}
+
+.hero-card-header.theme-hazard {
+  border-left: 4px solid #06b6d4;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), #141829 55%);
+}
+
+/* 防壁任意破壊アクションカードボタン */
+.action-card-btn.acb-destroy-barricade {
+  background: rgba(225, 29, 72, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  cursor: pointer;
+  margin-top: 6px;
+}
+.action-card-btn.acb-destroy-barricade:hover {
+  background: rgba(225, 29, 72, 0.28);
+  border-color: #f43f5e;
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.35);
+}
+.action-card-btn.acb-destroy-barricade .acb-title {
+  color: #fb7185;
+}
+
+/* 足元ハザードのコンパクトバー */
+.hazard-foot-compact-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hazard-foot-compact-bar:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #f87171;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+  transform: translateY(-1px);
+}
+
+.hfcb-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hfcb-icon {
+  font-size: 0.95rem;
+}
+
+.hfcb-title {
+  font-size: 0.72rem;
+  color: #fca5a5;
+  white-space: nowrap;
+}
+
+.hfcb-title strong {
+  color: #fff;
+  font-weight: 800;
+}
+
+.hfcb-cat {
+  font-size: 0.6rem;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.2);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.hfcb-link {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.hazard-foot-compact-bar:hover .hfcb-link {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* クラスバッジ（コア・オブジェクト・ハザード共通） */
+.hch-class-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+.hch-class-badge.class-core {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+.hch-class-badge.class-structure {
+  background: rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+}
+.hch-class-badge.class-hazard {
+  background: rgba(6, 182, 212, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(6, 182, 212, 0.4);
+}
+
+.hch-owner-tag.neutral {
+  background: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.4);
+}
+
+/* 1カラム（全幅HP耐久値）用グリッド */
+.hch-stats-grid.hch-stats-single {
+  grid-template-columns: 1fr;
+}
+
+/* 2カラム（HP耐久値 + 迎撃ATK）用グリッド */
+.hch-stats-grid.hch-stats-dual {
+  grid-template-columns: 1fr auto;
+}
+
+/* 足元ハザードの極小シンプルバー (説明文やリンクを排除し、最小限の記述で表示) */
+.hazard-foot-simple {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 5px;
+  padding: 3px 8px;
+  margin-bottom: 6px;
+  font-size: 0.72rem;
+  color: #fca5a5;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hazard-foot-simple:hover {
+  background: rgba(239, 68, 68, 0.24);
+  border-color: #f87171;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.35);
+  transform: translateY(-1px);
+}
+
+.hch-class-badge.class-unit {
+  background: rgba(168, 85, 247, 0.2);
+  color: #d8b4fe;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
+.hazard-foot-simple .hfs-icon {
+  font-size: 0.82rem;
+}
+
+.hazard-foot-simple strong {
+  color: #fff;
+  font-weight: 700;
 }

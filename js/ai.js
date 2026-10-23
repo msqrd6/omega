@@ -2,7 +2,7 @@
    ai.js: CPU (AI) 思考ルーチン - スマート連携・キル優先・ハザード回避対応
    (大型アップデート: スキルトークン廃止・Bスキル廃止対応)
    ============================================================== */
-import { ROWS, COLS } from './config.js?v=20261023_02';
+import { ROWS, COLS } from './config.js?v=20261023_20';
 import {
   board,
   inBounds,
@@ -16,9 +16,9 @@ import {
   hasDebuff,
   hasActionToken,
   getActionTokens
-} from './board.js?v=20261023_02';
-import { executeMove, executeAttack, executeSkill } from './actions.js?v=20261023_02';
-import { addLog } from './ui.js?v=20261023_02';
+} from './board.js?v=20261023_20';
+import { executeMove, executeAttack, executeSkill } from './actions.js?v=20261023_20';
+import { addLog } from './ui.js?v=20261023_20';
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -239,19 +239,19 @@ function scoreSkillAction(h, slot, tPos) {
     score = hasNearbyPrey ? 65 : 25;
   }
 
-  // 5. 範囲攻撃 (キネシス ULT: オメガ・ストライク)
+  // 5. 追加攻撃トークン (キネシス ULT: ライトニング・ラッシュ)
   else if (hero.typeKey === 'DUELIST' && slot === 'ULT') {
-    let enemiesInRange = 0;
-    for (let dr = -2; dr <= 2; dr++) {
-      for (let dc = -2; dc <= 2; dc++) {
+    let hasTarget = false;
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
         const nr = h.r + dr, nc = h.c + dc;
         if (inBounds(nr, nc)) {
           const e = board[nr][nc];
-          if (e && e.owner === 'P1') enemiesInRange++;
+          if (e && e.owner === 'P1') hasTarget = true;
         }
       }
     }
-    score = enemiesInRange * 40;
+    score = hasTarget ? 90 : 30;
   }
 
   // 6. テレポート (フェイズ A)
@@ -259,9 +259,11 @@ function scoreSkillAction(h, slot, tPos) {
     score = 45;
   }
 
-  // 7. フェイズ・カタストロフ (フェイズ ULT)
+  // 7. シャドウ・ドレイン (フェイズ ULT)
   else if (hero.typeKey === 'PHANTOM' && slot === 'ULT') {
-    score = 75;
+    const drain = hero.turnDamageDealt || 0;
+    const needHeal = hero.maxHp - hero.hp;
+    score = (drain > 0 && needHeal >= 15) ? 85 : 0;
   }
 
   // 8. 防壁設置 (ベクター A)
@@ -328,10 +330,18 @@ function scoreSkillAction(h, slot, tPos) {
 
   // 20. シグナル・ジャミング (サイファー A)
   else if (hero.typeKey === 'CYPHER' && slot === 'A') {
-    const enemy = board[tPos.r][tPos.c];
-    if (enemy && enemy.owner === 'P1' && !hasDebuff(enemy, 'silence')) {
-      score = 55;
-      if (enemy.typeKey === 'DUELIST' || enemy.typeKey === 'MEDIC') score += 25;
+    const target = board[tPos.r][tPos.c];
+    if (target) {
+      if (target.owner === 'P1') {
+        // 敵なら攻撃阻害 (1T)
+        if (!hasDebuff(target, 'disarm')) {
+          score = 60;
+          if (target.typeKey === 'DUELIST' || target.typeKey === 'PHANTOM') score += 25;
+        }
+      } else if (target.owner === 'P2') {
+        // 味方なら攻撃力増強 (+15)
+        score = 50;
+      }
     }
   }
 

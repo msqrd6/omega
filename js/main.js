@@ -1,4 +1,4 @@
-import { ROWS, COLS, DEPLOYABLE_ROWS, INITIAL_PIECE_KEYS, SELECTABLE_HERO_KEYS, DEFAULT_ROSTER, HERO_TYPES } from './config.js?v=20261023_02';
+import { ROWS, COLS, DEPLOYABLE_ROWS, INITIAL_PIECE_KEYS, SELECTABLE_HERO_KEYS, DEFAULT_ROSTER, HERO_TYPES } from './config.js?v=20261023_20';
 import {
   board,
   initBoard,
@@ -22,7 +22,7 @@ import {
   isCore,
   isObject,
   setLocalPlayerRole
-} from './board.js?v=20261023_02';
+} from './board.js?v=20261023_20';
 import {
   executeMove,
   executeAttack,
@@ -32,7 +32,7 @@ import {
   processTurretAttacks,
   processTurnStartHazards,
   processTurnEndPassives
-} from './actions.js?v=20261023_02';
+} from './actions.js?v=20261023_20';
 import {
   tileElements,
   createBoardDOMOnce,
@@ -47,9 +47,9 @@ import {
   showHazardToast,
   addLog,
   setBoardPerspective
-} from './ui.js?v=20261023_02';
-import { runAITurn } from './ai.js?v=20261023_02';
-import { network } from './network.js?v=20261023_02';
+} from './ui.js?v=20261023_20';
+import { runAITurn } from './ai.js?v=20261023_20';
+import { network } from './network.js?v=20261023_20';
 
 // ゲーム進行ステート
 // 'TITLE' -> 'PICK_P1' -> 'DEPLOY_P1' -> 'DEPLOY_P2' -> 'BATTLE'
@@ -82,6 +82,52 @@ let validTargets = [];
 // 初期配置時のステート
 let selectedDeployPiece = 'CORE';
 let selectedDeployPos = null;
+
+
+// 初期配置時に各陣営の先頭駒を自動選択
+function selectFirstDeployPiece(owner) {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c] && board[r][c].owner === owner) {
+        selectedPos = { r, c };
+        selectedDeployPos = { r, c };
+        selectedDeployPiece = board[r][c].typeKey;
+        return;
+      }
+    }
+  }
+}
+
+// 初期配置フェーズ用のアクションステータスバー更新
+function updateDeployBanner(owner) {
+  const container = document.getElementById('action-tokens-container');
+  const endTurnBtn = document.getElementById('btn-end-turn');
+  const bannerTitle = document.querySelector('.tokens-banner-title');
+
+  if (bannerTitle) bannerTitle.innerText = '配置状況:';
+
+  if (container) {
+    container.innerHTML = `
+      <div class="deploy-banner-info">
+        <span class="dbi-badge ${owner.toLowerCase()}">${owner === 'P1' ? 'BLUE' : 'RED'} 初期配置中</span>
+        <span class="dbi-desc">自陣縦3マス以内でドラッグ移動（味方上で位置スワップ）</span>
+        <button class="btn-deploy-sub-mini" onclick="window.__onAutoDeploy()" title="おすすめ配置に戻す">🎲 おすすめ配置</button>
+      </div>
+    `;
+  }
+
+  if (endTurnBtn) {
+    const isP1 = (owner === 'P1');
+    endTurnBtn.className = `btn-end-turn btn-deploy-confirm-top ${owner.toLowerCase()}`;
+    endTurnBtn.innerText = isP1 
+      ? (gameMode === 'online' ? '先行・配置完了（送信 ➔）' : '先行・配置完了（後攻へ ➔）')
+      : '後攻・配置完了（⚔️ バトル開始！）';
+    endTurnBtn.onclick = () => window.__onConfirmDeploy();
+    endTurnBtn.disabled = false;
+    endTurnBtn.style.opacity = '1';
+    endTurnBtn.style.cursor = 'pointer';
+  }
+}
 
 export function updateModeBadge() {
   const badge = document.getElementById('current-mode-badge');
@@ -144,24 +190,39 @@ function renderAll() {
   const isDeployPhase = (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_P2' || gamePhase === 'DEPLOY_WAIT_P1' || gamePhase === 'DEPLOY_WAIT_P2');
   const isPickPhase = (gamePhase === 'PICK_P1' || gamePhase === 'PICK_P2');
 
-  // アクション権限バナーの表示切り替え（初期配置・ピック中は非表示）
+  // 要件３: アクション権限バナー（所持トークンバー）は初期配置中およびピック中は非表示にする
   const bannerEl = document.querySelector('.action-status-banner');
   if (bannerEl) {
     bannerEl.style.display = (isDeployPhase || isPickPhase) ? 'none' : 'flex';
   }
 
-  if (isDeployPhase) {
-    const curOwner = (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_WAIT_P2') ? 'P1' : 'P2';
+  const isDeployWait = (gameMode === 'online' && (
+    gamePhase === 'DEPLOY_WAIT_P1' || 
+    gamePhase === 'DEPLOY_WAIT_P2' || 
+    (gamePhase === 'DEPLOY_P1' && myOnlineRole === 'P2') || 
+    (gamePhase === 'DEPLOY_P2' && myOnlineRole === 'P1')
+  ));
+
+  if (isDeployWait) {
     renderDeployPanel({
       gamePhase,
       selectedDeployPiece,
-      roster: teamRoster[curOwner],
+      roster: teamRoster[myOnlineRole || 'P1'],
       gameMode,
       myOnlineRole
     });
   } else if (!isPickPhase) {
-    updateRightsDisplay(turn);
-    renderHeroControlPanel({ turn, selectedPos, selectedHazardPos, commandMode });
+    const curOwner = (gamePhase === 'DEPLOY_P1') ? 'P1' : ((gamePhase === 'DEPLOY_P2') ? 'P2' : turn);
+    if (!isDeployPhase) {
+      updateRightsDisplay(turn, selectedPos, gamePhase);
+    }
+    renderHeroControlPanel({
+      turn: curOwner,
+      selectedPos,
+      selectedHazardPos,
+      commandMode: isDeployPhase ? null : commandMode,
+      gamePhase
+    });
   }
 
   updateStatus(turn, gameMode, gamePhase);
@@ -233,15 +294,18 @@ function onTileClick(r, c) {
 
     if (clickedUnit) {
       if (clickedUnit.owner === curOwner) {
-        // 自軍の配置済み駒をクリック -> 再配置対象として選択
+        // 自軍駒をクリック: 性能カードを表示 & 移動対象として選択
         selectedDeployPos = { r, c };
+        selectedPos = { r, c };
         selectedDeployPiece = clickedUnit.typeKey;
-        addLog(`📌 ${clickedUnit.name} を選択中。自陣の別の空きマスをクリックすると移動できます。`, curOwner.toLowerCase());
+        addLog(`📌 ${clickedUnit.name} を選択中。空きマスへ移動、または味方へドラッグで位置スワップできます。`, curOwner.toLowerCase());
         renderAll();
         return;
       } else {
-        // 敵駒（P1の駒）をクリックした時（P2配置時）
-        addLog(`先行 BLUE の ${clickedUnit.name} です（敵陣確認中）。自陣の赤枠エリアに味方を配置してください。`, 'system');
+        // 敵駒をクリック（P2視察時）: 性能カードを偵察表示
+        selectedPos = { r, c };
+        addLog(`🔍 先行 BLUE の ${clickedUnit.name} を偵察中。`, 'system');
+        renderAll();
         return;
       }
     } else {
@@ -251,35 +315,14 @@ function onTileClick(r, c) {
         return;
       }
 
-      // 盤面上の既存駒を移動する場合
-      if (selectedDeployPos) {
-        board[r][c] = board[selectedDeployPos.r][selectedDeployPos.c];
+      // 盤面上の既存駒を空きマスへ移動する場合
+      if (selectedDeployPos && board[selectedDeployPos.r]?.[selectedDeployPos.c]) {
+        const movingUnit = board[selectedDeployPos.r][selectedDeployPos.c];
+        board[r][c] = movingUnit;
         board[selectedDeployPos.r][selectedDeployPos.c] = null;
-        addLog(`🔄 ${board[r][c].name} の位置を変更しました。`, curOwner.toLowerCase());
-        selectedDeployPos = null;
-        renderAll();
-        return;
-      }
-
-      // パレットで選択中の未配置駒を配置する場合
-      if (selectedDeployPiece) {
-        // すでに盤面上にあるなら古い位置をクリア
-        for (let tr = 0; tr < ROWS; tr++) {
-          for (let tc = 0; tc < COLS; tc++) {
-            if (board[tr][tc] && board[tr][tc].owner === curOwner && board[tr][tc].typeKey === selectedDeployPiece) {
-              board[tr][tc] = null;
-            }
-          }
-        }
-        spawnHero(selectedDeployPiece, curOwner, r, c);
-        addLog(`✨ ${board[r][c].name} を配置しました。`, curOwner.toLowerCase());
-
-        // 次の未配置の駒を自動選択
-        const deployed = getDeployedPieces(curOwner).map(p => p.typeKey);
-        const pieceKeys = ['CORE', ...teamRoster[curOwner]];
-        const nextPiece = pieceKeys.find(k => !deployed.includes(k));
-        selectedDeployPiece = nextPiece || null;
-
+        addLog(`🔄 ${movingUnit.name} の位置を変更しました。`, curOwner.toLowerCase());
+        selectedPos = { r, c };
+        selectedDeployPos = { r, c };
         renderAll();
         return;
       }
@@ -498,6 +541,26 @@ window.__onDestroyBarricade = (r, c) => {
   }
 };
 
+window.__onInspectHazardAt = (r, c) => {
+  const hazard = getHazardInfoAt(r, c);
+  if (hazard) {
+    selectedHazardPos = { r, c };
+    selectedPos = null;
+    commandMode = null;
+    validTargets = [];
+    document.getElementById('phase-instruction').innerText = `${hazard.icon} 【${hazard.name}】(${hazard.category}): ${hazard.desc}`;
+    addLog(`📌 [${r},${c}] のハザード確認: ${hazard.icon} ${hazard.name} (${hazard.owner ? (hazard.owner === 'P1' ? 'BLUE' : 'RED') : '中立'}) - ${hazard.desc}`, 'system');
+    renderAll();
+    showHazardToast(r, c, hazard);
+  }
+};
+
+window.__onSelectUnitAt = (r, c) => {
+  if (board[r] && board[r][c]) {
+    selectHero(r, c);
+  }
+};
+
 export function manualEndTurn() {
   if (isGameOver) return;
   if (gamePhase !== 'BATTLE') return;
@@ -685,12 +748,32 @@ function onPieceDrop(fromR, fromC, toR, toC) {
       return;
     }
 
-    if (!board[toR][toC]) {
+    if (fromR === toR && fromC === toC) {
+      selectedPos = { r: toR, c: toC };
+      selectedDeployPos = { r: toR, c: toC };
+      renderAll();
+      return;
+    }
+
+    const targetUnit = board[toR][toC];
+    if (!targetUnit) {
+      // 空きマスへの移動
       board[toR][toC] = unit;
       board[fromR][fromC] = null;
       addLog(`🔄 ${unit.name} の位置を変更しました。`, curOwner.toLowerCase());
-      selectedDeployPos = null;
+      selectedPos = { r: toR, c: toC };
+      selectedDeployPos = { r: toR, c: toC };
       renderAll();
+    } else if (targetUnit.owner === curOwner) {
+      // ★要件３: 自ユニットがすでにいる場所にドラッグアンドドロップすると位置スワップ
+      board[toR][toC] = unit;
+      board[fromR][fromC] = targetUnit;
+      addLog(`🔀 ${unit.name} と ${targetUnit.name} の配置位置を入れ替えました！`, curOwner.toLowerCase());
+      selectedPos = { r: toR, c: toC };
+      selectedDeployPos = { r: toR, c: toC };
+      renderAll();
+    } else {
+      addLog(`⚠️ 相手の駒の上には配置できません！`, 'system');
     }
     return;
   }
@@ -869,8 +952,7 @@ window.__onConfirmPick = () => {
   switchScreen('battle');
   gamePhase = 'DEPLOY_P1';
   applyDefaultPlacement('P1', teamRoster.P1);
-  selectedDeployPiece = null;
-  selectedDeployPos = null;
+  selectFirstDeployPiece('P1');
 
   addLog("【先行・BLUE】初期配置フェーズ：自陣（縦3マス以内）に配置してください。", "system");
   document.getElementById('phase-instruction').innerText = "【先行・BLUE初期配置】この布陣で良ければ「先行・配置完了」を押してください（駒のドラッグで位置調整も可能）";
@@ -998,11 +1080,8 @@ window.__onConfirmDeploy = () => {
     addLog("【後攻・RED】初期配置フェーズ：先行の配置が見えた状態で、自陣（上側3マス以内）に配置してください。", 'system');
 
     gamePhase = 'DEPLOY_P2';
-    selectedDeployPiece = 'CORE';
-    selectedDeployPos = null;
-
-    // RED (AI) の対抗初期配置を展開
     applyDefaultPlacement('P2', teamRoster.P2);
+    selectFirstDeployPiece('P2');
     addLog("🤖 RED (AI) の対抗初期配置が展開されました。「戦闘開始！」を押すとバトルが始まります。", 'p2');
     document.getElementById('phase-instruction').innerText = "【後攻・RED】AIの初期配置が展開されました。調整するか「バトル開始！」を押してください";
 
@@ -1102,6 +1181,7 @@ export function startOnlineDeployPhase() {
   if (myOnlineRole === 'P1') {
     gamePhase = 'DEPLOY_P1';
     applyDefaultPlacement('P1', teamRoster.P1);
+    selectFirstDeployPiece('P1');
     addLog("【先行・BLUE】初期配置フェーズ：自陣（手前3マス以内）に味方とコアを配置してください。", "p1");
     document.getElementById('phase-instruction').innerText = "【先行・BLUE 初期配置】自陣（行4〜6）に味方とコアを配置してください。完了したら「先行・配置完了」を押してください";
   } else if (myOnlineRole === 'P2') {
@@ -1132,6 +1212,14 @@ function startBattlePhase() {
   hidePickModal();
   gamePhase = 'BATTLE';
   turn = 'P1';
+  const endTurnBtn = document.getElementById('btn-end-turn');
+  if (endTurnBtn) {
+    endTurnBtn.className = 'btn-end-turn';
+    endTurnBtn.innerText = 'ターン終了 ▶';
+    endTurnBtn.onclick = () => manualEndTurn();
+  }
+  const bTitle = document.querySelector('.tokens-banner-title');
+  if (bTitle) bTitle.innerText = '所持トークン:';
   turnCount = 1;
   isGameOver = false;
 

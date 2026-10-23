@@ -2,7 +2,7 @@
    actions.js: ゲーム内アクション（移動・攻撃・スキル・撃破・バフ/デバフ管理）
    (大型アップデート: スキルトークン廃止・Bスキル廃止・通常攻撃のみウルトチャージ・ハザード連動破壊対応)
    ============================================================== */
-import { HERO_TYPES, ROWS, COLS, STATUS_EFFECT_DEFS, ULT_REQUIRED_DAMAGE } from './config.js?v=20261023_02';
+import { HERO_TYPES, ROWS, COLS, STATUS_EFFECT_DEFS, ULT_REQUIRED_DAMAGE } from './config.js?v=20261023_20';
 import {
   board,
   inBounds,
@@ -24,13 +24,14 @@ import {
   hasHazardOrTrapAt,
   consumeActionToken,
   hasActionToken,
+  addSpecialActionToken,
   getPlayerTokens,
   isUnit,
   isCore,
   isObject,
   isLocalPlayer
-} from './board.js?v=20261023_02';
-import { addLog, showDamagePopup } from './ui.js?v=20261023_02';
+} from './board.js?v=20261023_20';
+import { addLog, showDamagePopup } from './ui.js?v=20261023_20';
 
 // ダメージ付与 ＆ 衰弱増幅 ＆ シールド吸収 ＆ チームウルトゲージチャージ処理
 // ★isNormalAttack: true の場合のみチームウルトゲージに加算（スキルやウルト、設置物ダメージは除外）
@@ -75,6 +76,11 @@ export function dealDamage(attacker, target, damage, targetPos, isNormalAttack =
     }
   }
 
+  // 5. 攻撃者のターン中累計与ダメージを加算（フェイズのウルト吸収等）
+  if (attacker && isUnit(attacker)) {
+    attacker.turnDamageDealt = (attacker.turnDamageDealt || 0) + dmg;
+  }
+
   return dmg;
 }
 
@@ -113,27 +119,7 @@ export function checkDeath(r, c, attackerOwner, onGameOver) {
         handleTurretDestruction(target.owner);
       }
 
-      // ★【ニトロの固有パッシブ】ラスト・デトネーション:
-      // 自身撃破時、周囲8マスの全敵ユニット/敵オブジェクト/敵コアに 20 ダメージ道連れ自爆！
-      if (target.typeKey === 'BOMBER') {
-        const enemyOwner = (target.owner === 'P1') ? 'P2' : 'P1';
-        addLog(`💥💣 【ラスト・デトネーション！】${target.name} が撃破に伴い、周囲8マスへ道連れ自爆（20 DMG）を敢行！`, 'skill');
-        showDamagePopup(r, c, `💥ラスト・デトネーション!!`, '#ff0055');
 
-        for (let dr = -1; dr <= 1; dr++) {
-          for (let dc = -1; dc <= 1; dc++) {
-            if (dr === 0 && dc === 0) continue;
-            const nr = r + dr, nc = c + dc;
-            if (inBounds(nr, nc)) {
-              const victim = board[nr][nc];
-              if (victim && victim.owner === enemyOwner) {
-                dealDamage(target, victim, 20, { r: nr, c: nc }, false);
-                checkDeath(nr, nc, target.owner, onGameOver);
-              }
-            }
-          }
-        }
-      }
 
       // ★【大型アップデート】ハザード連動破壊仕様:
       // ハザードを展開したユニットが破壊された場合、盤面上のそのユニットのハザードは同時に破壊・消滅する
@@ -181,7 +167,7 @@ export function checkDeath(r, c, attackerOwner, onGameOver) {
   return false;
 }
 
-// 移動の実行 (キネシス専用移動トークン消費 & フェイズのハザード無効 & トラップ踏みチェック付き)
+// 移動の実行 (キネシス専用移動トークン消費 & ハザード/トラップ踏みチェック付き)
 export function executeMove(from, to, onGameOver) {
   const unit = board[from.r][from.c];
 
@@ -231,37 +217,38 @@ export function executeMove(from, to, onGameOver) {
     checkDeath(to.r, to.c, enemyOwner, onGameOver);
   }
 
-  // ★フェイズのパッシブ『シャドウ・オリジン』: ハザード効果を完全無効化！
-  const isPhantomHazardImmune = (unit.typeKey === 'PHANTOM');
-
   // 2. プラズマゾーン判定
   const inPlasma = plasmaZones.some(pz => pz.r === to.r && pz.c === to.c && pz.owner === enemyOwner);
   if (inPlasma) {
-    if (isPhantomHazardImmune) {
-      showDamagePopup(to.r, to.c, `👻ハザード無効!`, '#a855f7');
-      addLog(`👻 ${unit.name} はパッシブ『シャドウ・オリジン』によりプラズマゾーンの被害を無効化した！`, 'skill');
-    } else {
-      const dmg = 18;
-      addLog(`⚡ プラズマゾーン進入！${unit.name} に ${dmg} DMG＋【衰弱】付与！`, 'system');
-      dealDamage(null, unit, dmg, to, false);
-      applyDebuff(unit, 'weakness', 2);
-      checkDeath(to.r, to.c, enemyOwner, onGameOver);
-    }
+    const dmg = 18;
+    addLog(`⚡ プラズマゾーン進入！${unit.name} に ${dmg} DMG＋【衰弱】付与！`, 'system');
+    dealDamage(null, unit, dmg, to, false);
+    applyDebuff(unit, 'weakness', 2);
+    checkDeath(to.r, to.c, enemyOwner, onGameOver);
   }
 
   // 3. ディメンション・ゾーン（ハザード）判定: 侵入した敵に【弱体化 (1T)】
   const inPhantom = phantomZones.some(pz => pz.r === to.r && pz.c === to.c && pz.owner === enemyOwner);
   if (inPhantom) {
-    if (isPhantomHazardImmune) {
-      showDamagePopup(to.r, to.c, `👻ハザード無効!`, '#a855f7');
-    } else {
-      addLog(`👻 ディメンション・ゾーン進入！${unit.name} に【弱体化 (1T / 被ダメ1.5倍)】が付与された！`, 'system');
-      applyDebuff(unit, 'vulnerable', 1);
-      showDamagePopup(to.r, to.c, `🎯弱体化(1T)!`, '#ea580c');
-    }
+    addLog(`👻 ディメンション・ゾーン進入！${unit.name} に【弱体化 (このターン中 / 被ダメ1.5倍)】が付与された！`, 'system');
+    applyDebuff(unit, 'vulnerable', 1);
+    showDamagePopup(to.r, to.c, `🎯弱体化(このターン)!`, '#ea580c');
   }
 
   return { r: to.r, c: to.c };
+}
+
+// ★ニトロの固有パッシブ『カウンター・デトネーション』判定ヘルパー
+// 自身が敵ユニットに攻撃された場合、攻撃してきた敵ユニットに即座に 10 ダメージの爆破反撃を行う！
+export function checkAndTriggerNitroCounter(attacker, target, attackerPos, onGameOver) {
+  if (!target || target.typeKey !== 'BOMBER') return;
+  if (!attacker || !isUnit(attacker) || attacker.owner === target.owner) return;
+  if (!attackerPos) return;
+
+  addLog(`💣💥 ニトロのパッシブ『カウンター・デトネーション』発動！攻撃してきた敵 ${attacker.name} に 10 ダメージの爆破反撃！`, 'skill');
+  showDamagePopup(attackerPos.r, attackerPos.c, `💥カウンター 10!`, '#ff0055');
+  dealDamage(target, attacker, 10, attackerPos, false);
+  checkDeath(attackerPos.r, attackerPos.c, target.owner, onGameOver);
 }
 
 // 通常攻撃の実行（★isNormalAttack = true で dealDamage を呼び出す ＆ パッシブシナジー判定）
@@ -286,26 +273,14 @@ export function executeAttack(attackerPos, targetPos, onGameOver) {
     }
   }
 
-  // ★サイファーの固有パッシブ『エクスプロイト・ハック』:
-  // 状態異常（沈黙・衰弱・弱体化・行動阻害等）にかかっている敵への通常攻撃が +5 DMG (20➔25)
-  if (attacker.typeKey === 'CYPHER') {
-    const hasAnyDebuff = target.debuffs && (
-      (target.debuffs.weakness && target.debuffs.weakness.turns > 0) ||
-      (target.debuffs.vulnerable && target.debuffs.vulnerable.turns > 0) ||
-      (target.debuffs.disarm && target.debuffs.disarm.turns > 0) ||
-      (target.debuffs.bind && target.debuffs.bind.turns > 0) ||
-      (target.debuffs.silence && target.debuffs.silence.turns > 0)
-    );
-    if (hasAnyDebuff) {
-      totalAtk += 5;
-      showDamagePopup(attackerPos.r, attackerPos.c, `🔇ハックシナジー +5!`, '#64748b');
-      addLog(`🔇⚡ サイファーのパッシブ『エクスプロイト・ハック』発動！状態異常の敵へ +5 DMG！`, 'skill');
-    }
-  }
+
 
   // 通常攻撃フラグ: true (ウルトゲージ蓄積対象)
   const dmg = dealDamage(attacker, target, totalAtk, targetPos, true);
   addLog(`${attacker.owner === 'P1' ? '青' : '赤'}の ${attacker.name} が ${target.name} を攻撃！(${dmg} DMG / チームウルト蓄積)`, attacker.owner.toLowerCase());
+
+  // ★ニトロの固有パッシブ『カウンター・デトネーション』判定（被弾時に攻撃者へ10爆破反撃）
+  checkAndTriggerNitroCounter(attacker, target, attackerPos, onGameOver);
 
   // 撃破チェック
   checkDeath(targetPos.r, targetPos.c, attacker.owner, onGameOver);
@@ -339,27 +314,26 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver, onResetMoveRi
     // ==========================================
     case 'DUELIST': {
       if (slot === 'A') {
-        // オーバードライブ: 自身に攻撃力+10 (1T)
-        applyBuff(hero, 'atk_up', 10, 1);
-        showDamagePopup(heroPos.r, heroPos.c, `ATK+10 (1T)!`, '#ff6600');
-        addLog(`⚡ ${hero.name} が『オーバードライブ』発動！【攻撃力増強 (+10 / 1T)】を展開（ATK 25 ➔ 35）！`, 'skill');
+        // オーバードライブ: 自身に攻撃力+5 (このターン中)
+        applyBuff(hero, 'atk_up', 5, 1);
+        showDamagePopup(heroPos.r, heroPos.c, `ATK+5 (このターン)!`, '#ff6600');
+        addLog(`⚡ ${hero.name} が『オーバードライブ』発動！【攻撃力増強 (+5 / このターン中)】を展開（ATK 25 ➔ 30）！`, 'skill');
       } else if (slot === 'ULT') {
-        // オメガ・ストライク: 半径2マスの敵全員に 20 ダメージ
-        showDamagePopup(heroPos.r, heroPos.c, `オメガ・ストライク!!`, '#ff0055');
-        addLog(`⚡ ${hero.name} がウルト『オメガ・ストライク』発動！周囲の敵全員を一斉爆砕！`, 'skill');
-        for (let dr = -2; dr <= 2; dr++) {
-          for (let dc = -2; dc <= 2; dc++) {
-            if (dr === 0 && dc === 0) continue;
-            const nr = heroPos.r + dr, nc = heroPos.c + dc;
-            if (inBounds(nr, nc)) {
-              const t = board[nr][nc];
-              if (t && t.owner === enemyOwner && t.typeKey !== 'CORE') {
-                dealDamage(hero, t, skillDef.damage || 20, { r: nr, c: nc }, false);
-                checkDeath(nr, nc, hero.owner, onGameOver);
-              }
-            }
-          }
-        }
+        // ライトニング・ラッシュ: キネシス専用追加攻撃トークンを即座に1枚付与！
+        addSpecialActionToken(hero.owner, {
+          id: `${hero.owner}_attack_kinesis_${Date.now()}`,
+          type: 'attack',
+          name: 'キネシス専用攻撃',
+          badgeText: 'キネシス専用攻撃',
+          icon: '⚡⚔️',
+          scope: 'DUELIST',
+          unitType: 'DUELIST',
+          unitName: 'キネシス',
+          used: false,
+          desc: 'キネシスのウルト『ライトニング・ラッシュ』による専用攻撃トークン。キネシスのみが追加で1回通常攻撃できます。'
+        });
+        showDamagePopup(heroPos.r, heroPos.c, `⚡⚔️専用攻撃+1!`, '#00d2ff');
+        addLog(`⚡⚔️ ${hero.name} がウルト『ライトニング・ラッシュ』発動！キネシス専用の【追加攻撃トークン (+1 ATTACK)】を獲得！このターン通常攻撃を追加で1回行える！`, 'skill');
       }
       break;
     }
@@ -375,31 +349,17 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver, onResetMoveRi
         showDamagePopup(targetPos.r, targetPos.c, `👻影転移!`, '#a855f7');
         addLog(`👻 ${hero.name} が『テレポート』発動！自軍ディメンション・ゾーン (${targetPos.r}, ${targetPos.c}) へ瞬時に帰還！`, 'skill');
       } else if (slot === 'ULT') {
-        // フェイズ・カタストロフ: 自軍ディメンション・ゾーンおよび周囲8マスの敵全員に 35 ダメージ
-        showDamagePopup(heroPos.r, heroPos.c, `フェイズ・カタストロフ!!`, '#ff0055');
-        addLog(`💥👻 ${hero.name} がウルト『フェイズ・カタストロフ』発動！ディメンション・ゾーン周辺の敵全員を一斉大爆破！`, 'skill');
-
-        const hitTiles = new Set();
-        const myZones = phantomZones.filter(pz => pz.owner === hero.owner);
-        myZones.forEach(pz => {
-          for (let dr = -1; dr <= 1; dr++) {
-            for (let dc = -1; dc <= 1; dc++) {
-              const nr = pz.r + dr, nc = pz.c + dc;
-              if (inBounds(nr, nc)) {
-                hitTiles.add(`${nr},${nc}`);
-              }
-            }
-          }
-        });
-
-        hitTiles.forEach(key => {
-          const [tr, tc] = key.split(',').map(Number);
-          const t = board[tr][tc];
-          if (t && t.owner === enemyOwner && t.typeKey !== 'CORE') {
-            dealDamage(hero, t, skillDef.damage || 35, { r: tr, c: tc }, false);
-            checkDeath(tr, tc, hero.owner, onGameOver);
-          }
-        });
+        // シャドウ・ドレイン: この自軍ターン中に自身が敵に与えた合計ダメージ分、自身のHPを即座に回復（吸収）
+        const drainAmount = hero.turnDamageDealt || 0;
+        if (drainAmount > 0) {
+          const actualHealed = Math.min(hero.maxHp - hero.hp, drainAmount);
+          hero.hp = Math.min(hero.maxHp, hero.hp + drainAmount);
+          showDamagePopup(heroPos.r, heroPos.c, `+${actualHealed} HP吸収!`, '#10b981');
+          addLog(`👤🩸 ${hero.name} がウルト『シャドウ・ドレイン』発動！このターンに敵へ与えた ${drainAmount} DMG を吸収し、HPを ${actualHealed} 回復！(HP: ${hero.hp}/${hero.maxHp})`, 'skill');
+        } else {
+          showDamagePopup(heroPos.r, heroPos.c, `与ダメなし(回復0)`, '#94a3b8');
+          addLog(`👤 ${hero.name} がウルト『シャドウ・ドレイン』発動！しかしこのターンに敵へダメージを与えていないため回復量は 0 です。`, 'system');
+        }
       }
       break;
     }
@@ -631,12 +591,12 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver, onResetMoveRi
         if (target && target.typeKey !== 'CORE' && target.typeKey !== 'BARRICADE' && target.typeKey !== 'TURRET') {
           if (target.owner === hero.owner) {
             applyBuff(target, 'atk_up', 15, 1);
-            showDamagePopup(targetPos.r, targetPos.c, `🔥ATK+15(1T)!`, '#ff6600');
-            addLog(`🔇⚡ ${hero.name} の『シグナル・ジャミング』が味方 ${target.name} に命中！【攻撃力増強 (+15 / 1T)】を付与！`, 'skill');
+            showDamagePopup(targetPos.r, targetPos.c, `🔥ATK+15(このターン)!`, '#ff6600');
+            addLog(`🔇⚡ ${hero.name} の『シグナル・ジャミング』が味方 ${target.name} に命中！【攻撃力増強 (+15 / このターン中)】を付与！`, 'skill');
           } else {
-            applyDebuff(target, 'silence', 2);
-            showDamagePopup(targetPos.r, targetPos.c, `🤐沈黙(2T)!`, '#64748b');
-            addLog(`🔇⚡ ${hero.name} の『シグナル・ジャミング』が敵 ${target.name} に命中！【スキル阻害 (2T)】を付与してスキルを完全封殺！`, 'skill');
+            applyDebuff(target, 'disarm', 1);
+            showDamagePopup(targetPos.r, targetPos.c, `💢攻撃阻害(1T)!`, '#f59e0b');
+            addLog(`🔇⚡ ${hero.name} の『シグナル・ジャミング』が敵 ${target.name} に命中！【攻撃阻害 (1T)】を付与して次ターンの通常攻撃を完全封殺！`, 'skill');
           }
         }
       } else if (slot === 'ULT') {
@@ -787,14 +747,14 @@ function triggerGlitchDimensionCharge(landingPos, enemyOwner) {
         const u = board[nr][nc];
         if (u && u.owner === enemyOwner && u.typeKey !== 'CORE' && u.typeKey !== 'BARRICADE' && u.typeKey !== 'TURRET') {
           applyDebuff(u, 'vulnerable', 1);
-          showDamagePopup(nr, nc, `🎯弱体化(1T)!`, '#ea580c');
+          showDamagePopup(nr, nc, `🎯弱体化(このターン)!`, '#ea580c');
           count++;
         }
       }
     }
   }
   if (count > 0) {
-    addLog(`🌀⚡ グリッチのパッシブ『ディメンション・チャージ』発動！ワープ着地点周囲の敵 ${count} 体に【弱体化(1T / 被ダメ1.5倍)】を付与！`, 'skill');
+    addLog(`🌀⚡ グリッチのパッシブ『ディメンション・チャージ』発動！ワープ着地点周囲の敵 ${count} 体に【弱体化 (このターン中 / 被ダメ1.5倍)】を付与！`, 'skill');
   }
 }
 
@@ -865,58 +825,72 @@ export function processTurnEndPassives(currentTurn) {
   }
 }
 
-// ターン終了時：その手番プレイヤーのユニットのバフ・デバフ持続ターンを減算 (0で解除)
+// ターン終了時：持続効果（バフ・デバフ）のターン減算 & 解除処理
+// ★重要ルール: 弱体化等の「自手番のみ有効な効果（このターン中）」は、手番プレイヤー (currentTurn) がターン終了した際に即座に解除されます。
 export function tickTurnEffects(currentTurn, onGameOver) {
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const u = board[r][c];
-      if (!u || u.owner !== currentTurn) continue;
+      if (!u) continue;
 
-      // 1. バフのターン減算
-      if (u.buffs) {
-        // 攻撃力増強
-        if (u.buffs.atk_up) {
-          u.buffs.atk_up.turns--;
-          if (u.buffs.atk_up.turns <= 0) {
-            u.buffs.atk_up = null;
-            addLog(`💨 ${u.name} の【攻撃力増強】が終了しました`, 'system');
-          }
-        }
-        // シールド増強
-        if (u.buffs.shield) {
-          u.buffs.shield.turns--;
-          if (u.buffs.shield.turns <= 0) {
-            u.buffs.shield = null;
-            addLog(`💨 ${u.name} の【シールド増強】が時間経過で消滅しました`, 'system');
-          }
-        }
-        // 移動範囲拡張
-        if (u.buffs.extended_move) {
-          u.buffs.extended_move.turns--;
-          if (u.buffs.extended_move.turns <= 0) {
-            u.buffs.extended_move = null;
-          }
-        }
-      }
-
-      // 2. デバフのターン減算
-      if (u.debuffs) {
-        const debuffKeys = ['weakness', 'vulnerable', 'disarm', 'bind', 'silence'];
-        for (const k of debuffKeys) {
-          if (u.debuffs[k]) {
-            u.debuffs[k].turns--;
-            if (u.debuffs[k].turns <= 0) {
-              if (k === 'weakness' && u.debuffs.weakness && u.debuffs.weakness.lostHp && u.hp > 0) {
-                const restored = u.debuffs.weakness.lostHp;
-                u.hp = Math.min(u.maxHp, u.hp + restored);
-                addLog(`✨ ${u.name} の【衰弱】が解除され、HPが ${restored} 回復（復元）しました！`, 'system');
-                showDamagePopup(r, c, `+${restored} HP`, '#10b981');
-              } else {
-                const def = STATUS_EFFECT_DEFS[k];
-                addLog(`✨ ${u.name} の【${def ? def.name : k}】が解除されました`, 'system');
-              }
-              u.debuffs[k] = null;
+      if (u.owner === currentTurn) {
+        // A. 手番プレイヤーのユニット (自軍): バフ終了 & 自身が受けていた妨害デバフの経過消化
+        // 1. バフのターン減算 (自ターン終了で1Tバフ等は消滅)
+        if (u.buffs) {
+          // 攻撃力増強
+          if (u.buffs.atk_up) {
+            u.buffs.atk_up.turns--;
+            if (u.buffs.atk_up.turns <= 0) {
+              u.buffs.atk_up = null;
+              addLog(`💨 ${u.name} の【攻撃力増強】が終了しました`, 'system');
             }
+          }
+          // シールド増強
+          if (u.buffs.shield) {
+            u.buffs.shield.turns--;
+            if (u.buffs.shield.turns <= 0) {
+              u.buffs.shield = null;
+              addLog(`💨 ${u.name} の【シールド増強】が時間経過で消滅しました`, 'system');
+            }
+          }
+          // 移動範囲拡張
+          if (u.buffs.extended_move) {
+            u.buffs.extended_move.turns--;
+            if (u.buffs.extended_move.turns <= 0) {
+              u.buffs.extended_move = null;
+            }
+          }
+        }
+
+        // 2. 自軍ユニットのデバフターン減算 (手番を消費したため妨害解除)
+        if (u.debuffs) {
+          const debuffKeys = ['weakness', 'vulnerable', 'disarm', 'bind', 'silence'];
+          for (const k of debuffKeys) {
+            if (u.debuffs[k]) {
+              u.debuffs[k].turns--;
+              if (u.debuffs[k].turns <= 0) {
+                if (k === 'weakness' && u.debuffs.weakness && u.debuffs.weakness.lostHp && u.hp > 0) {
+                  const restored = u.debuffs.weakness.lostHp;
+                  u.hp = Math.min(u.maxHp, u.hp + restored);
+                  addLog(`✨ ${u.name} の【衰弱】が解除され、HPが ${restored} 回復（復元）しました！`, 'system');
+                  showDamagePopup(r, c, `+${restored} HP`, '#10b981');
+                } else {
+                  const def = STATUS_EFFECT_DEFS[k];
+                  addLog(`✨ ${u.name} の【${def ? def.name : k}】が解除されました`, 'system');
+                }
+                u.debuffs[k] = null;
+              }
+            }
+          }
+        }
+      } else {
+        // B. 非手番プレイヤーのユニット (敵軍):
+        // 攻撃側の手番中のみ有効な異常状態【弱体化 (vulnerable)】は、攻撃側プレイヤー (currentTurn) が手番を終えた時点で解除！
+        if (u.debuffs && u.debuffs.vulnerable) {
+          u.debuffs.vulnerable.turns--;
+          if (u.debuffs.vulnerable.turns <= 0) {
+            u.debuffs.vulnerable = null;
+            addLog(`✨ ${u.name} の【弱体化】が解除されました（ターン終了）`, 'system');
           }
         }
       }
@@ -983,12 +957,12 @@ export function processTurnStartHazards(currentTurn, onGameOver) {
       const u = board[r][c];
       if (!u || u.owner !== currentTurn || u.typeKey === 'CORE') continue;
 
-      // 敵のトキシック・ゾーンに滞在している場合、ターン開始時に5ダメージを受ける
+      // 敵のトキシック・ゾーンに滞在している場合、ターン開始時に10ダメージを受ける
       const inEnemyPoison = poisonZones.some(pz => pz.r === r && pz.c === c && pz.owner === enemyOwner);
       if (inEnemyPoison) {
-        dealDamage(null, u, 5, { r, c }, false);
-        showDamagePopup(r, c, `毒 -5`, '#10b981');
-        addLog(`🧪 トキシック・ゾーン汚染！${u.name} がターン開始時に 5 DMG を受けた！`, 'system');
+        dealDamage(null, u, 10, { r, c }, false);
+        showDamagePopup(r, c, `毒 -10`, '#10b981');
+        addLog(`🧪 トキシック・ゾーン汚染！${u.name} がターン開始時に 10 DMG を受けた！`, 'system');
         checkDeath(r, c, enemyOwner, onGameOver);
       }
     }

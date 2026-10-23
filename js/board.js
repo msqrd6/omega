@@ -11,7 +11,7 @@ import {
   INITIAL_PIECE_KEYS,
   DEFAULT_ROSTER,
   DEFAULT_ACTION_TOKENS
-} from './config.js?v=20261023_02';
+} from './config.js?v=20261023_20';
 
 export let board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
 export let traps = [];        // [{ r, c, owner, damage, type, sourceHeroId }]
@@ -140,6 +140,13 @@ export function consumeActionToken(owner, type, amount = 1, unit = null) {
 
   syncActionTokensCount(owner);
   return consumed >= amount;
+}
+
+// 専用行動トークンの即時動的追加（キネシスのウルトなど）
+export function addSpecialActionToken(owner, tokenDef) {
+  if (!owner || !playerTokens[owner]) return;
+  playerTokens[owner].push(tokenDef);
+  syncActionTokensCount(owner);
 }
 
 // ターン開始時：物体化トークンを生成・補充（パッシブによる専用トークンもここで生成！）
@@ -279,7 +286,7 @@ export function getHazardInfoAt(r, c) {
       name: 'ディメンション・ゾーン',
       icon: '👻',
       owner: fz.owner,
-      desc: 'フェイズが展開したハザード。侵入した敵ユニット（コア除く）に【弱体化(1T / 被ダメ1.5倍)】を付与！フェイズ撃破時に同時消滅。',
+      desc: 'フェイズが展開したハザード。侵入した敵ユニット（コア除く）に【弱体化(このターン中 / 被ダメ1.5倍)】を付与！フェイズ撃破時に同時消滅。',
       category: 'ハザード（展開者生存時永続 / 撃破時同時消滅）'
     };
   }
@@ -290,7 +297,7 @@ export function getHazardInfoAt(r, c) {
       name: 'トキシック・ゾーン',
       icon: '🧪',
       owner: pzn.owner,
-      desc: '猛毒が立ち込める危険エリア。侵入した敵ユニット（コア除く）はターン開始時に 5 ダメージを受ける！トキシン撃破時に同時消滅。',
+      desc: '猛毒が立ち込める危険エリア。滞在している敵ユニット（コア除く）は自軍ターン開始時に 10 ダメージを受ける！トキシン撃破時に同時消滅。',
       category: 'ハザード（展開者生存時永続 / 撃破時同時消滅）'
     };
   }
@@ -384,7 +391,9 @@ export function resetTurnPassives(owner) {
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const u = board[r][c];
-      if (u && u.owner === owner && u.typeKey === 'DUELIST') {
+      if (!u) continue;
+      u.turnDamageDealt = 0; // 新ターン開始時に全駒のターン与ダメージをリセット
+      if (u.owner === owner && u.typeKey === 'DUELIST') {
         u.kinesisExtraMove = kinesisToken ? 1 : 0;
         u.zephyrExtraMove = u.kinesisExtraMove;
       }
@@ -429,6 +438,7 @@ export function spawnHero(typeKey, owner, r, c) {
     // スキルストック（Bスキル廃止に伴い stockA のみ）
     stockA: skills.A ? skills.A.maxStock : 0,
     damageDealt: 0,   // 累計与ダメージ
+    turnDamageDealt: 0, // その自手番での累計与ダメージ（フェイズのウルト吸収等）
     ultUsed: false
   };
   return board[r][c];
@@ -621,6 +631,31 @@ export function getValidMoves(r, c) {
     }
   }
 
+  // ★【サイファー固有パッシブ: ホライゾン・シフト】
+  // 通常の周囲移動に加え、左右横一直線に障害物（駒・オブジェクト・コア）に衝突する直前の空きマスまで無制限スライド移動！
+  if (unit.typeKey === 'CYPHER') {
+    // 左方向 (dc: -1)
+    for (let nc = c - 1; nc >= 0; nc--) {
+      if (board[r][nc]) break; // 衝突したら停止
+      const isBlocked = enemyFortresses.some(f => Math.abs(r - f.r) <= 1 && Math.abs(nc - f.c) <= 1);
+      if (!isBlocked) {
+        if (!moves.some(m => m.r === r && m.c === nc)) {
+          moves.push({ r, c: nc });
+        }
+      }
+    }
+    // 右方向 (dc: +1)
+    for (let nc = c + 1; nc < COLS; nc++) {
+      if (board[r][nc]) break; // 衝突したら停止
+      const isBlocked = enemyFortresses.some(f => Math.abs(r - f.r) <= 1 && Math.abs(nc - f.c) <= 1);
+      if (!isBlocked) {
+        if (!moves.some(m => m.r === r && m.c === nc)) {
+          moves.push({ r, c: nc });
+        }
+      }
+    }
+  }
+
   return moves;
 }
 
@@ -702,11 +737,8 @@ export function getValidSkillTargets(r, c, slot) {
           }
         }
       } else if (slot === 'ULT') {
-        // フェイズ・カタストロフ: 自軍ディメンション・ゾーンマスおよび周囲8マスの敵全員に35ダメージ (自軍ディメンション・ゾーンが存在すれば自身発動)
-        const hasMyZone = phantomZones.some(pz => pz.owner === unit.owner);
-        if (hasMyZone) {
-          targets.push({ r, c });
-        }
+        // シャドウ・ドレイン: このターンに敵へ与えたダメージ分HPを回復 (自身発動)
+        targets.push({ r, c });
       }
       break;
     }
