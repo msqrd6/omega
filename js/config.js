@@ -1,23 +1,23 @@
 /* ==============================================================
-   config.js: ゲーム設定 & 4大ロール・スキル・バフ/デバフ定義
-   (character.md の最新定義と完全同期 - 大型アップデート版)
+   config.js: ゲーム設定 & ロール・スキル・状態効果（バフ/デバフ）定義
+   (RULEBOOK.md準拠: 5大クラス・4大ロール・正式名称完全同期版)
    ============================================================== */
 
 export const ROWS = 7;
 export const COLS = 7;
-export const BASE_HP = 100;
 
-// チーム共通ウルト解放に必要な累計与ダメージ量 (通常攻撃のみで蓄積 / character.md準拠)
+export function inBounds(r, c) {
+  return r >= 0 && r < ROWS && c >= 0 && c < COLS;
+}
+
+// チーム共通ウルト解放に必要な累計与ダメージ量 (通常攻撃のみで蓄積)
 export const ULT_REQUIRED_DAMAGE = 100;
 
-// 行動トークン制の初期値・基本設定 (character.md準拠: スキルトークン廃止に伴い 移動 1・攻撃 1)
+// 行動トークン制の初期値 (移動 1・攻撃 1)
 export const DEFAULT_ACTION_TOKENS = {
   MOVE: 1,
   ATK: 1
 };
-
-// ウルト発動に必要なスキルトークン消費枚数（廃止: 0）
-export const ULT_REQUIRED_SKILL_TOKENS = 0;
 
 // 初期配置可能な自陣行（自陣から縦3マス以内）
 export const DEPLOYABLE_ROWS = {
@@ -25,23 +25,26 @@ export const DEPLOYABLE_ROWS = {
   P2: [0, 1, 2]  // RED (後攻): 上側3行
 };
 
-// 選択可能なヒーロー一覧 (全10体から5体選択 - タイタン削除版)
-export const SELECTABLE_HERO_KEYS = ['DUELIST', 'PHANTOM', 'BOMBER', 'SENTINEL', 'VULCAN', 'POISON', 'DISRUPTOR', 'CYPHER', 'MEDIC', 'HACKER'];
-export const DEFAULT_ROSTER = ['DUELIST', 'BOMBER', 'SENTINEL', 'DISRUPTOR', 'MEDIC'];
+// 選択可能なヒーロー一覧 (全12体から5体選択 - 正式キャラクター名)
+export const SELECTABLE_HERO_KEYS = [
+  'KINESIS', 'PHASE', 'NITRO',
+  'VECTOR', 'VULCAN', 'TOXIN',
+  'GLITCH', 'CYPHER', 'HIVE',
+  'IRIS', 'NEXUS', 'AURA'
+];
 
-// 初期配置する駒キー一覧 (デフォルト / コア + 5ヒーロー)
-export const INITIAL_PIECE_KEYS = ['CORE', 'DUELIST', 'BOMBER', 'SENTINEL', 'DISRUPTOR', 'MEDIC'];
+export const DEFAULT_ROSTER = ['KINESIS', 'NITRO', 'VECTOR', 'GLITCH', 'IRIS'];
+export const DEFAULT_AI_ROSTER = ['PHASE', 'TOXIN', 'VECTOR', 'GLITCH', 'IRIS'];
 
 // 周囲8マス共通オフセット
 export const SURROUND_8_OFFSETS = [
-  [-1,-1],[-1,0],[-1,1],
-  [0,-1],        [0,1],
-  [1,-1], [1,0], [1,1]
+  [-1, -1], [-1, 0], [-1, 1],
+  [0, -1],           [0, 1],
+  [1, -1],  [1, 0],  [1, 1]
 ];
 
 // バフ・デバフのメタ情報定義
 export const STATUS_EFFECT_DEFS = {
-  // バフ (持続nターンで消失)
   atk_up: {
     name: "攻撃力増強",
     icon: "🔥",
@@ -55,22 +58,6 @@ export const STATUS_EFFECT_DEFS = {
     type: "buff",
     color: "#00d2ff",
     desc: "耐久値分の被ダメージを肩代わりします（持続ターン経過で消失）"
-  },
-  fortress: {
-    name: "要塞化",
-    icon: "🏰",
-    type: "buff",
-    color: "#38bdf8",
-    desc: "自身の周囲1マス（8マス）への敵ユニットの進入を完全遮断します"
-  },
-
-  // デバフ (持続nターンで消失)
-  weakness: {
-    name: "衰弱",
-    icon: "💔",
-    type: "debuff",
-    color: "#ff0055",
-    desc: "現在HPが50%減少します（解除時に減少分は復元）"
   },
   vulnerable: {
     name: "弱体化",
@@ -102,15 +89,18 @@ export const STATUS_EFFECT_DEFS = {
   }
 };
 
-export const HERO_TYPES = {
-  // 1. アサルト (キネシス)
-  DUELIST: {
+// 全エンティティのマスター定義
+const BASE_DEFINITIONS = {
+  // ==========================================
+  // 1. アサルト (ASSAULT)
+  // ==========================================
+  KINESIS: {
     name: "キネシス",
     role: "ASSAULT",
     roleName: "アサルト",
     roleClass: "role-assault",
     icon: "⚡",
-    maxHp: 85,
+    maxHp: 95,
     atk: 25,
     desc: "音速を超える身のこなしで空間を切り裂くサイバー突撃兵。自律機動パッシブによりチームの移動枠を圧迫せず、神速の通常攻撃でチームウルトを急速蓄積させる。",
     moveOffsets: SURROUND_8_OFFSETS,
@@ -139,8 +129,7 @@ export const HERO_TYPES = {
     }
   },
 
-  // 1-2. アサルト (フェイズ)
-  PHANTOM: {
+  PHASE: {
     name: "フェイズ",
     role: "ASSAULT",
     roleName: "アサルト",
@@ -174,14 +163,13 @@ export const HERO_TYPES = {
     }
   },
 
-  // 1-3. アサルト (ニトロ) ★ディスラプターからアサルトに移籍
-  BOMBER: {
+  NITRO: {
     name: "ニトロ",
     role: "ASSAULT",
     roleName: "アサルト",
     roleClass: "role-assault",
     icon: "💣",
-    maxHp: 100,
+    maxHp: 110,
     atk: 20,
     desc: "前線へ切り込み、不可視の地雷と自身の肉体を爆破兵器に変える狂気の突撃爆破兵。高いHPを持ち、攻撃してきた敵へ即座に反撃爆破を浴びせ、自爆で一帯を焦土に変える。",
     moveOffsets: SURROUND_8_OFFSETS,
@@ -211,22 +199,52 @@ export const HERO_TYPES = {
     }
   },
 
-  // 2. センチネル (ベクター)
-  SENTINEL: {
+  BIT: {
+    name: "ビット",
+    role: "ASSAULT",
+    roleName: "アサルト",
+    roleClass: "role-assault",
+    icon: "🛰️",
+    maxHp: 20,
+    atk: 5,
+    desc: "ハイヴから射出される自律戦闘子機。毎自軍ターン開始時に専用の攻撃トークンを獲得し、共通トークンを消費せずに自律攻撃を行う。",
+    moveOffsets: SURROUND_8_OFFSETS,
+    atkOffsets: SURROUND_8_OFFSETS,
+    passive: {
+      name: "自律アサルト・ドライブ",
+      icon: "🛰️",
+      desc: "毎自軍ターン開始時、自軍の共通行動トークンとは別に「ビット専用攻撃トークン+1」を獲得する（共通トークンを消費せずに、各ビットが自律的に攻撃を行える）。"
+    },
+    skills: {
+      A: {
+        name: "自壊",
+        maxStock: 1,
+        desc: "自身を破壊する。",
+        type: "SELF_DESTRUCT",
+        range: 0,
+        selfOnly: true
+      }
+    }
+  },
+
+  // ==========================================
+  // 2. センチネル (SENTINEL)
+  // ==========================================
+  VECTOR: {
     name: "ベクター",
     role: "SENTINEL",
     roleName: "センチネル",
     roleClass: "role-sentinel",
     icon: "🏰",
     maxHp: 100,
-    atk: 18,
+    atk: 15,
     desc: "盤面にエネルギー防壁を展開するエリアエンジニア。防壁を遮蔽物として利用し、安全地帯から敵を狙撃する陣地戦のスペシャリスト。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
       name: "バンカー・スナイパー",
       icon: "🏰",
-      desc: "オブジェクト（防壁・タレット）またはコアに隣接時、自身に攻撃力増強 (+4) を常時付与（ATK 18 ➔ 22）。"
+      desc: "オブジェクト（防壁・タレット）またはコアに隣接時、自身に攻撃力増強 (+10) を常時付与（ATK 15 ➔ 25）。"
     },
     skills: {
       A: {
@@ -247,7 +265,6 @@ export const HERO_TYPES = {
     }
   },
 
-  // 2-2. センチネル (ヴァルカン)
   VULCAN: {
     name: "ヴァルカン",
     role: "SENTINEL",
@@ -255,14 +272,14 @@ export const HERO_TYPES = {
     roleClass: "role-sentinel",
     icon: "⚙️",
     maxHp: 100,
-    atk: 16,
+    atk: 15,
     desc: "自動防衛タレットの開発と陣地構築を得意とする工兵エンジニア。タレットとの連携集中砲火で敵を寄せ付けない。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
       name: "クロスファイア・リンク",
       icon: "⚙️",
-      desc: "設置したセントリー・タレットが破壊された際、セントリー・タレットのストックを1回復する。"
+      desc: "設置したセントリー・タレットが破壊された際、セントリー・タレットのストックを1回復する。さらに、セントリー・タレットのストックが存在するとき、自身の攻撃力増強 (+10) を常時付与（ATK 15 ➔ 25）。"
     },
     skills: {
       A: {
@@ -283,8 +300,7 @@ export const HERO_TYPES = {
     }
   },
 
-  // 2-3. センチネル (トキシン)
-  POISON: {
+  TOXIN: {
     name: "トキシン",
     role: "SENTINEL",
     roleName: "センチネル",
@@ -310,17 +326,19 @@ export const HERO_TYPES = {
         range: 1
       },
       ULT: {
-        name: "コア・プロテクト",
+        name: "バイオハザード",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "自軍コアの周辺8マスにトキシック・ゾーン（トキシン生存時永続）を一斉展開する！",
-        type: "POISON_CORE_PROTECT",
+        desc: "自身の足元および周囲8マス（計9マス）にトキシック・ゾーンを一斉展開！既にあるハザードはトキシック・ゾーンに上書きされる。",
+        type: "POISON_BIOHAZARD",
         range: 0
       }
     }
   },
 
-  // 3. ディスラプター (グリッチ)
-  DISRUPTOR: {
+  // ==========================================
+  // 3. ディスラプター (DISRUPTOR)
+  // ==========================================
+  GLITCH: {
     name: "グリッチ",
     role: "DISRUPTOR",
     roleName: "ディスラプター",
@@ -340,7 +358,7 @@ export const HERO_TYPES = {
       A: {
         name: "グラビティ・ワープ",
         maxStock: 2,
-        desc: "盤面上の自軍アサルト（キネシス、フェイズ、ニトロ）の周囲8マスの空きマスへ即座にワープ移動する（移動トークン消費なし）。",
+        desc: "盤面上の自軍アサルトの周囲8マスの空きマスへ即座にワープ移動する（移動トークン消費なし）。",
         type: "ASSAULT_ADJACENT_WARP",
         range: 99
       },
@@ -354,7 +372,6 @@ export const HERO_TYPES = {
     }
   },
 
-  // 3-2. ディスラプター (サイファー)
   CYPHER: {
     name: "サイファー",
     role: "DISRUPTOR",
@@ -375,7 +392,7 @@ export const HERO_TYPES = {
       A: {
         name: "シグナル・ジャミング",
         maxStock: 2,
-        desc: "自身の前方一直線（上一直線）上のうち初弾ユニットに干渉。味方ユニットなら【攻撃力増強 (+15 / このターン中)】、敵ユニットなら【攻撃阻害 (`disarm`) (1T)】を付与！",
+        desc: "自身の前方一直線（上一直線）上のうち初弾ユニットに干渉。味方ユニットなら【攻撃力増強 (+15 / このターン中)】、敵ユニットなら【攻撃阻害 (1T)】を付与！",
         type: "LINE_FIRST_HIT",
         atkBonus: 15,
         disarmTurns: 1,
@@ -384,15 +401,51 @@ export const HERO_TYPES = {
       ULT: {
         name: "フルスペクトラム・ブラックアウト",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "すべての敵ユニットに【行動阻害 (`bind`) (1T)】および【攻撃阻害 (`disarm`) (1T)】を一斉付与！",
+        desc: "すべての敵ユニットに【行動阻害 (1T)】および【攻撃阻害 (1T)】を一斉付与！",
         type: "GLOBAL_BLACKOUT",
         range: 0
       }
     }
   },
 
-  // 4. サポート (アイリス)
-  MEDIC: {
+  HIVE: {
+    name: "ハイヴ",
+    role: "DISRUPTOR",
+    roleName: "ディスラプター",
+    roleClass: "role-disruptor",
+    icon: "🛸",
+    maxHp: 90,
+    atk: 15,
+    desc: "アサルトの直近へ自律戦闘子機「ビット」を連続射出する戦術キャリアー。破壊されても敵を弱体化・スキル沈黙に追い込み、ウルトによるビット一斉強化で前線を圧倒する。",
+    moveOffsets: SURROUND_8_OFFSETS,
+    atkOffsets: SURROUND_8_OFFSETS,
+    passive: {
+      name: "ニューロ・カウンター",
+      icon: "🛸",
+      desc: "自身が召喚したビットを破壊した敵ユニットに【弱体化 (2T)】および【スキル阻害 (2T)】を付与する。"
+    },
+    skills: {
+      A: {
+        name: "ビット・デプロイ",
+        maxStock: 3,
+        desc: "盤面上の自軍アサルト（キネシス、ニトロ、フェイズ、ビット）の周囲8マスの空きマスにビット（ユニット）を1体召喚する。",
+        type: "SPAWN_BIT",
+        range: 99
+      },
+      ULT: {
+        name: "スウォーム・オーバードライブ",
+        requiredDamage: ULT_REQUIRED_DAMAGE,
+        desc: "自身が召喚したすべてのビットに【シールド増強 (+30 / 2T)】および【攻撃力増強 (+10 / 2T)】を一斉付与する！",
+        type: "BUFF_ALL_BITS",
+        range: 0
+      }
+    }
+  },
+
+  // ==========================================
+  // 4. サポート (SUPPORT)
+  // ==========================================
+  IRIS: {
     name: "アイリス",
     role: "SUPPORT",
     roleName: "サポート",
@@ -429,8 +482,7 @@ export const HERO_TYPES = {
     }
   },
 
-  // 4-2. サポート (ネクサス)
-  HACKER: {
+  NEXUS: {
     name: "ネクサス",
     role: "SUPPORT",
     roleName: "サポート",
@@ -438,35 +490,73 @@ export const HERO_TYPES = {
     icon: "💻",
     maxHp: 90,
     atk: 14,
-    desc: "ネットワーク経由で戦況に干渉する電子戦エキスパート。生存しているだけでウルトを自動蓄積し、遠隔ハッキングで味方回復と敵の足止めを両立させる。",
+    desc: "ネットワーク経由で戦況に干渉する電子戦エキスパート。生存しているだけでウルトを毎ターン高速チャージし、遠隔ハッキングで味方の傷とあらゆる状態異常を治療する。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
       name: "システム・オーバーライド",
       icon: "💻",
-      desc: "生存中、毎自軍ターン終了時にチームウルトゲージが直接 +5 チャージされる。"
+      desc: "ネクサスが盤面に生存している限り、毎自軍ターン終了時にチームウルトゲージが直接 +10 チャージされる。"
     },
     skills: {
       A: {
         name: "リモート・ハック",
-        maxStock: 2,
-        desc: "距離無制限でユニットを選択。味方ユニットなら HP 15 回復、敵ユニットなら【行動阻害 (`bind`) (1T)】を付与！",
-        type: "REMOTE_HACK",
+        maxStock: 3,
+        desc: "盤面上の任意の自ユニット1体を選択し、HPを 15 回復、状態異常（すべてのデバフ）を回復・解除する。",
+        type: "TARGET_HEAL_CURE",
         heal: 15,
-        bindTurns: 1,
         range: 99
       },
       ULT: {
         name: "EMP",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "盤面上の任意の1マスを選択し、半径2マスにあるすべての敵オブジェクト・敵トラップ・敵ハザードを完全消滅させる！",
+        desc: "盤面上の任意の1マスを選択し、そこから半径2マス以内にあるすべての敵オブジェクト・敵トラップ・敵ハザードを完全消滅、半径2マス以内の味方ユニットのHPを 10 回復する。",
         type: "EMP_PULSE",
+        heal: 10,
         range: 99
       }
     }
   },
 
-  // 防衛コア (クラス: コア)
+  AURA: {
+    name: "オーラ",
+    role: "SUPPORT",
+    roleName: "サポート",
+    roleClass: "role-support",
+    icon: "💫",
+    maxHp: 90,
+    atk: 18,
+    desc: "生体治癒フィールドを放射する共鳴ヒーラー。味方の元へ瞬時に救援ワープし、周囲を包み込む高密度オーラで仲間を一斉回復する。高めの通常攻撃力も兼備。",
+    moveOffsets: SURROUND_8_OFFSETS,
+    atkOffsets: SURROUND_8_OFFSETS,
+    passive: {
+      name: "バイタル・オーラ",
+      icon: "💫",
+      desc: "毎自軍ターン終了時、このユニットの半径1マス範囲の一番HPが少ない味方ユニットのHPを 5 回復する。"
+    },
+    skills: {
+      A: {
+        name: "サンクチュアリ",
+        maxStock: 2,
+        desc: "自身の半径1マス範囲にいる味方ユニットすべてのHPを 20 回復する。",
+        type: "AREA_HEAL_SELF",
+        heal: 20,
+        range: 0,
+        selfOnly: true
+      },
+      ULT: {
+        name: "レスキュー・ワープ",
+        requiredDamage: ULT_REQUIRED_DAMAGE,
+        desc: "盤面上の任意の自軍ユニットの周囲8マスの空きマスへ即座にワープ移動（移動トークン消費なし）し、サンクチュアリを発動する（ストック消費なし）。",
+        type: "RESCUE_WARP",
+        range: 99
+      }
+    }
+  },
+
+  // ==========================================
+  // 5. コア & オブジェクト (CORE / OBJECT)
+  // ==========================================
   CORE: {
     name: "防衛コア",
     classType: "コア",
@@ -478,7 +568,6 @@ export const HERO_TYPES = {
     atkOffsets: []
   },
 
-  // 設置物 (クラス: オブジェクト)
   BARRICADE: {
     name: "防壁",
     classType: "オブジェクト",
@@ -501,3 +590,18 @@ export const HERO_TYPES = {
     atkOffsets: []
   }
 };
+
+// 正式名 ＋ 旧エイリアス（DUELIST, BOMBER, SENTINEL, MEDIC等）の両引き対応マップ
+export const HERO_TYPES = {
+  ...BASE_DEFINITIONS,
+  DUELIST: BASE_DEFINITIONS.KINESIS,
+  PHANTOM: BASE_DEFINITIONS.PHASE,
+  BOMBER: BASE_DEFINITIONS.NITRO,
+  SENTINEL: BASE_DEFINITIONS.VECTOR,
+  POISON: BASE_DEFINITIONS.TOXIN,
+  DISRUPTOR: BASE_DEFINITIONS.GLITCH,
+  MEDIC: BASE_DEFINITIONS.IRIS,
+  HACKER: BASE_DEFINITIONS.NEXUS
+};
+
+export const UNIT_DEFINITIONS = HERO_TYPES;

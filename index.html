@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CYBER TACTICS - 少数精鋭コア破壊タクティクス</title>
-  <link rel="stylesheet" href="style.css?v=20261023_20">
+  <link rel="stylesheet" href="style.css?v=20261024_15">
 </head>
 <body>
   <!-- ==============================================================
@@ -79,12 +79,7 @@
         </div>
       </div>
 
-      <!-- ヒーロー一覧カードグリッド -->
-      <div id="pick-cards-grid" class="pick-cards-grid">
-        <!-- JSで全ヒーローカードを動的生成 -->
-      </div>
-
-      <!-- ピック操作フッター -->
+      <!-- ピック操作バー（この編成で決定ブロック） -->
       <div class="pick-screen-footer">
         <div class="pick-footer-actions">
           <button class="pick-btn-sub" onclick="window.__onAutoPick()">🎲 おすすめ5体</button>
@@ -94,6 +89,11 @@
           <span>✅ この編成で決定（初期配置へ ➔）</span>
         </button>
       </div>
+
+      <!-- ヒーロー一覧カードグリッド -->
+      <div id="pick-cards-grid" class="pick-cards-grid">
+        <!-- JSで全ヒーローカードを動的生成 -->
+      </div>
     </div>
   </div>
 
@@ -101,9 +101,15 @@
        画面3: ⚔️ バトル盤面画面 (Screen: Battle)
        ============================================================== -->
   <div id="screen-battle" class="game-screen">
-    <header>
-      <h1>CYBER TACTICS</h1>
-      <div class="subtitle">5vs5 少数精鋭ヒーローバトル ＆ コア破壊タクティクス</div>
+    <header class="battle-header">
+      <div class="battle-header-info">
+        <h1>CYBER TACTICS</h1>
+        <div class="subtitle">5vs5 少数精鋭ヒーローバトル ＆ コア破壊タクティクス</div>
+      </div>
+      <div class="battle-header-actions">
+        <div id="current-mode-badge" class="current-mode-badge">🤖 vs AI モード</div>
+        <button id="btn-back-to-title" class="mode-btn mode-btn-danger" onclick="window.__returnToTitle()">🏠 タイトルへ戻る</button>
+      </div>
     </header>
 
     <!-- コアHP & チームウルトステータスバー -->
@@ -128,7 +134,13 @@
     </div>
 
     <div class="turn-indicator">
-      <div id="turn-badge" class="turn-badge turn-p1">BLUE の番</div>
+      <div class="turn-count-display">
+        <span class="turn-count-icon">⏳</span>
+        <span id="turn-count-badge" class="turn-count-badge">TURN 1</span>
+      </div>
+      <div id="turn-badge" class="turn-badge turn-p1">
+        <span class="turn-player-text">BLUE の手番</span>
+      </div>
     </div>
 
     <div class="core-info p2">
@@ -152,7 +164,7 @@
   </div>
 
   <!-- 行動トークンバー (物体化トークンチップ群) -->
-  <div class="action-status-banner">
+  <div id="action-status-banner" class="action-status-banner">
     <div class="rights-group">
       <span class="tokens-banner-title">所持トークン:</span>
       <div id="action-tokens-container" class="action-tokens-container">
@@ -184,32 +196,27 @@
     </div>
   </div>
 
-  <!-- 画面下部固定: ステータス & ガイド ＆ 戦績ログ -->
-  <div class="bottom-panel-container">
-    <!-- ステータス & ガイド -->
-    <div class="card bottom-card status-guide-card">
-      <div class="card-title">
-        <span>📢 ステータス & ガイド</span>
-        <span id="turn-count-badge">T: 1</span>
-      </div>
-      <div class="game-control-bar">
-        <div id="current-mode-badge" class="current-mode-badge">🤖 vs AI モード</div>
-        <div class="game-control-btns">
-          <button id="btn-show-rules" class="mode-btn" onclick="window.__toggleRulesModal(true)">📖 用語・ルール</button>
-          <button id="btn-back-to-title" class="mode-btn mode-btn-danger" onclick="window.__returnToTitle()">🏠 タイトルへ戻る</button>
-        </div>
-      </div>
-      <div id="phase-instruction" class="action-instruction">
-        自軍キャラを持ち上げてドラッグ（移動/攻撃）、またはクリックでスキル確認
-      </div>
-    </div>
+  <!-- 初期配置フェーズ専用固定バー (Deploy時のみ盤面下に配置完了ボタン単体を固定表示) -->
+  <div id="deploy-control-bar" class="deploy-control-bar" style="display: none;">
+    <button id="btn-deploy-confirm" class="btn-deploy-confirm p1" onclick="window.__onConfirmDeploy()">
+      <span id="btn-deploy-confirm-text">配置完了 ➔</span>
+    </button>
+  </div>
 
-    <!-- 戦績ログ -->
-    <div class="card bottom-card battle-log-card">
-      <div class="card-title">📜 戦績ログ</div>
+  <!-- 画面下部: 戦績ログ (フル幅＆視認性大幅向上) -->
+  <div class="bottom-panel-container">
+    <div class="card battle-log-card">
+      <div class="card-title">
+        <div class="log-title-left">
+          <span>📜 戦績ログ (バトルレコード)</span>
+        </div>
+        <span class="log-subtitle">リアルタイム行動履歴</span>
+      </div>
       <div id="log-box" class="log-box"></div>
     </div>
   </div>
+  <!-- 内部JS互換用ダミー（非表示） -->
+  <div id="phase-instruction" style="display:none;" aria-hidden="true"></div>
   </div><!-- /screen-battle -->
 
   <!-- 駒・盤面ルール解説モーダル -->
@@ -217,11 +224,12 @@
     <div class="modal-box" style="max-width: 600px; text-align: left;">
       <div class="modal-title" style="text-align: center; color: var(--p1-color); margin-bottom: 12px;">📖 駒・盤面・用語の定義</div>
       <div style="font-size: 0.82rem; line-height: 1.6; color: #cbd5e1; display: flex; flex-direction: column; gap: 8px;">
-        <div><strong>👤 ユニット</strong>: 行動（移動・通常攻撃・スキル）できる駒（キネシス、フェイズ、ニトロ等）。当たり判定あり。</div>
-        <div><strong>💎 コア</strong>: 移動・攻撃は不可。相手のコアを破壊した側が勝利。当たり判定あり。</div>
+        <div><strong>🏆 勝利条件</strong>: <strong>相手のコアを破壊する</strong>、または<strong>相手のユニットをすべて破壊（部隊全滅）させる</strong>ことで即座に勝利！</div>
+        <div><strong>👤 ユニット</strong>: 行動（移動・通常攻撃・スキル）できる駒（キネシス、フェイズ、ニトロ等）。当たり判定あり。全滅すると敗北。</div>
+        <div><strong>💎 コア</strong>: 移動・攻撃は不可。破壊されると即座に敗北。当たり判定あり。</div>
         <div><strong>🧱 オブジェクト</strong>: 防壁、自動タレットなど、行動できない設置物。当たり判定あり（通行不可・攻撃破壊可能、防壁は自軍破壊ボタンで任意破壊可能）。★<strong>設置者が破壊されても存続</strong>！</div>
-        <div><strong>☣️ ハザード</strong>: プラズマゾーン、ディメンション・ゾーン（弱体化付与）、トキシック・ゾーン（ターン開始時5DMG）など、視認可能・行動不可・<strong>当たり判定なし（通行可能）</strong>。★<strong>展開したユニットが破壊されると同時に破壊・消滅</strong>！</div>
-        <div><strong>🪤 トラップ</strong>: 地雷など、敵から見ることができない設置物。当たり判定なし。侵入でダメージ＆状態異常発動！★<strong>設置者が破壊されても存続</strong>！</div>
+        <div><strong>☣️ ハザード</strong>: ディメンション・ゾーン（弱体化付与）、トキシック・ゾーン（ターン開始時10DMG）など、視認可能・行動不可・<strong>当たり判定なし（通行可能）</strong>。★<strong>展開したユニットが破壊されると同時に破壊・消滅</strong>！</div>
+        <div><strong>🪤 トラップ</strong>: マイン（地雷 / 20DMG）など、敵から見ることができない設置物。当たり判定なし。侵入でダメージ発動！★<strong>設置者が破壊されても存続</strong>！</div>
         <div><strong>⚡ ウルトゲージ</strong>: <strong>通常攻撃で与えたダメージのみ</strong>が蓄積（スキル・ウルト・タレット等は対象外）。100 DMGで即解放！</div>
       </div>
       <button class="modal-btn" style="margin-top: 16px; width: 100%;" onclick="window.__toggleRulesModal(false)">閉じる</button>
@@ -232,7 +240,7 @@
   <div id="victory-modal" class="modal-overlay">
     <div class="modal-box">
       <div id="winner-title" class="modal-title">BLUE WIN!</div>
-      <div id="winner-desc" class="modal-desc">敵コアの破壊に成功しました！</div>
+      <div id="winner-desc" class="modal-desc">敵コア破壊または敵部隊全滅により勝利！</div>
       <div style="display:flex; gap:12px; justify-content:center; margin-top:20px;">
         <button class="modal-btn" onclick="resetGame()">🔄 もう一度遊ぶ</button>
         <button class="modal-btn mode-btn-danger" onclick="window.__returnToTitle()">🏠 タイトルへ戻る</button>
@@ -306,6 +314,6 @@
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
   <!-- ES Modules メインスクリプト -->
-  <script type="module" src="js/main.js?v=20261023_20"></script>
+  <script type="module" src="js/main.js?v=20261024_11"></script>
 </body>
 </html>

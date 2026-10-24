@@ -71,11 +71,79 @@ body {
 
 #screen-battle {
   padding: 10px 16px 30px;
+  background: radial-gradient(ellipse at 50% 15%, #10162a 0%, #070a14 100%);
+  transition: background 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+/* ==============================================================
+   手番連動アンビエントライティング (BLUE=青系, RED=赤系)
+   ============================================================== */
+/* BLUE (自軍) ターン背景: 上部〜中央からシアン/ディープブルーの環境光 */
+#screen-battle.turn-p1-bg {
+  background: radial-gradient(ellipse at 50% 18%, rgba(0, 160, 255, 0.16) 0%, rgba(10, 26, 48, 0.55) 42%, #070a14 100%);
+}
+
+/* RED (敵軍) ターン背景: 上部〜中央からクリムゾン/深紅の環境光 */
+#screen-battle.turn-p2-bg {
+  background: radial-gradient(ellipse at 50% 18%, rgba(255, 45, 90, 0.17) 0%, rgba(48, 12, 24, 0.55) 42%, #070a14 100%);
+}
+
+/* 盤面外枠へのアンビエントライト連動 */
+#screen-battle.turn-p1-bg .board-wrapper {
+  box-shadow: 0 0 28px rgba(0, 210, 255, 0.18), 0 8px 32px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 0.8s ease;
+}
+
+#screen-battle.turn-p2-bg .board-wrapper {
+  box-shadow: 0 0 28px rgba(255, 51, 102, 0.2), 0 8px 32px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 0.8s ease;
+}
+
+/* コアステータスバーへのアンビエントライト連動 */
+#screen-battle.turn-p1-bg .core-status-bar {
+  border-color: rgba(0, 210, 255, 0.25);
+  box-shadow: 0 0 20px rgba(0, 210, 255, 0.1), 0 4px 20px rgba(0, 0, 0, 0.5);
+  transition: border-color 0.8s ease, box-shadow 0.8s ease;
+}
+
+#screen-battle.turn-p2-bg .core-status-bar {
+  border-color: rgba(255, 51, 102, 0.25);
+  box-shadow: 0 0 20px rgba(255, 51, 102, 0.12), 0 4px 20px rgba(0, 0, 0, 0.5);
+  transition: border-color 0.8s ease, box-shadow 0.8s ease;
 }
 
 header {
   text-align: center;
   margin-bottom: 6px;
+}
+
+.battle-header {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
+
+.battle-header-info {
+  text-align: left;
+}
+
+.battle-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .battle-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
 }
 
 h1 {
@@ -166,26 +234,122 @@ h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  min-width: 140px;
+  padding: 2px 8px;
+}
+
+.turn-count-display {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  color: #fbbf24;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.45);
+  margin-bottom: 3px;
+  text-transform: uppercase;
+}
+
+.turn-count-icon {
+  font-size: 0.85rem;
+}
+
+.turn-count-badge {
+  font-family: inherit;
 }
 
 .turn-badge {
-  padding: 4px 14px;
+  padding: 4px 16px;
   border-radius: 20px;
-  font-size: 0.78rem;
-  font-weight: bold;
-  letter-spacing: 0.5px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .turn-p1 {
-  background: var(--p1-glow);
-  color: var(--p1-color);
-  border: 1px solid var(--p1-color);
+  background: linear-gradient(135deg, rgba(0, 136, 204, 0.25), rgba(0, 210, 255, 0.35));
+  color: #38bdf8;
+  border: 1.5px solid var(--p1-color);
+  box-shadow: 0 0 14px var(--p1-glow);
 }
 
 .turn-p2 {
-  background: var(--p2-glow);
-  color: var(--p2-color);
-  border: 1px solid var(--p2-color);
+  background: linear-gradient(135deg, rgba(204, 0, 51, 0.25), rgba(255, 42, 109, 0.35));
+  color: #fb7185;
+  border: 1.5px solid var(--p2-color);
+  box-shadow: 0 0 14px var(--p2-glow);
+}
+
+/* ==============================================================
+   初期配置フェーズ専用固定バー (盤面下・配置完了ボタン単体固定表示)
+   ============================================================== */
+.deploy-control-bar {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 12px auto 8px;
+  box-sizing: border-box;
+}
+
+.btn-deploy-confirm {
+  width: 100%;
+  max-width: 400px;
+  padding: 12px 32px;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-deploy-confirm.p1 {
+  background: linear-gradient(135deg, #0284c7, #00d2ff);
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(0, 210, 255, 0.5), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.btn-deploy-confirm.p1:hover {
+  background: linear-gradient(135deg, #0369a1, #38bdf8);
+  box-shadow: 0 0 24px rgba(0, 210, 255, 0.8), 0 4px 16px rgba(0, 0, 0, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-deploy-confirm.p2 {
+  background: linear-gradient(135deg, #e11d48, #ff3366);
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(255, 51, 102, 0.5), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.btn-deploy-confirm.p2:hover {
+  background: linear-gradient(135deg, #be123c, #fb7185);
+  box-shadow: 0 0 24px rgba(255, 51, 102, 0.8), 0 4px 16px rgba(0, 0, 0, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-deploy-confirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* アクション権限バー */
@@ -258,7 +422,7 @@ h1 {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.3);
 }
 
-/* 移動トークン (シアン/エメラルド系) */
+/* 移動トークン (シアン/エメラルド系: 滑らかな角丸長方形) */
 .token-chip.token-type-move.token-active {
   background: linear-gradient(135deg, rgba(6, 78, 59, 0.85), rgba(4, 47, 46, 0.95));
   border: 1px solid #10b981;
@@ -266,16 +430,40 @@ h1 {
   box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
 }
 
-/* 攻撃トークン (ローズ/クリムゾン系) */
-.token-chip.token-type-attack.token-active {
-  background: linear-gradient(135deg, rgba(136, 19, 55, 0.85), rgba(76, 5, 25, 0.95));
-  border: 1px solid #f43f5e;
-  color: #fff1f2;
-  box-shadow: 0 0 10px rgba(244, 63, 94, 0.35);
+/* 攻撃トークン共通形状: < 攻撃 > のように左右両端が外側へ尖った六角シェブロン形状 */
+.token-chip.token-type-attack {
+  border-radius: 0;
+  padding: 3px 13px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  position: relative;
+  z-index: 1;
 }
 
-/* キネシス等 専用トークン (ゴールド/パープル系) */
-.token-chip.token-special.token-active {
+/* 尖った背景シェイプを擬似要素で描画 (本体のdrop-shadowでネオングローを全方位放射) */
+.token-chip.token-type-attack::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(7.5px 0%, calc(100% - 7.5px) 0%, 100% 50%, calc(100% - 7.5px) 100%, 7.5px 100%, 0% 50%);
+  background: linear-gradient(135deg, #be123c, #881337);
+  z-index: -1;
+  transition: all 0.2s ease;
+}
+
+/* 未消費・通常攻撃トークン (ローズ/クリムゾン系 ＋ 眩い赤ネオングロー放射) */
+.token-chip.token-type-attack.token-active {
+  color: #fff1f2;
+  filter: drop-shadow(0 0 2px #f43f5e) drop-shadow(0 0 9px rgba(244, 63, 94, 0.8));
+}
+.token-chip.token-type-attack.token-active:hover {
+  transform: translateY(-2px);
+  filter: drop-shadow(0 0 3px #fb7185) drop-shadow(0 0 13px rgba(244, 63, 94, 0.95));
+}
+
+/* キネシス等 専用移動トークン (ゴールド/パープル系: 角丸) */
+.token-chip.token-type-move.token-special.token-active {
   background: linear-gradient(135deg, rgba(88, 28, 135, 0.9), rgba(59, 7, 100, 0.95));
   border: 1px solid #eab308;
   color: #fefce8;
@@ -285,6 +473,39 @@ h1 {
 @keyframes specialTokenPulse {
   0%, 100% { box-shadow: 0 0 8px rgba(234, 179, 8, 0.4); }
   50% { box-shadow: 0 0 16px rgba(234, 179, 8, 0.7); }
+}
+
+/* ビット等 専用攻撃トークン (尖った形状 ＋ パープル背景 ＋ 眩いゴールドネオングロー) */
+.token-chip.token-type-attack.token-special.token-active {
+  color: #fefce8;
+  filter: drop-shadow(0 0 2px #facc15) drop-shadow(0 0 11px rgba(234, 179, 8, 0.85));
+  animation: specialAttackTokenPulse 2.5s infinite ease-in-out;
+}
+.token-chip.token-type-attack.token-special.token-active::before {
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.95), rgba(59, 7, 100, 0.98));
+}
+
+@keyframes specialAttackTokenPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px #eab308) drop-shadow(0 0 8px rgba(234, 179, 8, 0.7));
+  }
+  50% {
+    filter: drop-shadow(0 0 3px #fef08a) drop-shadow(0 0 15px rgba(234, 179, 8, 0.98));
+  }
+}
+
+/* 攻撃トークン不可時 (Disabled) */
+.token-chip.token-type-attack.token-disabled {
+  filter: drop-shadow(0 0 1px rgba(148, 163, 184, 0.35)) grayscale(85%) !important;
+}
+.token-chip.token-type-attack.token-disabled::before {
+  background: rgba(30, 41, 59, 0.75) !important;
+}
+
+/* 汎用専用アクティブのフォールバック */
+.token-chip.token-special.token-active {
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.9), rgba(59, 7, 100, 0.95));
+  color: #fefce8;
 }
 
 .token-chip-scope {
@@ -1285,6 +1506,7 @@ h1 {
 }
 .badge-ready { background: rgba(0, 255, 170, 0.2); color: #00ffaa; border: 1px solid rgba(0, 255, 170, 0.4); }
 .badge-used { background: rgba(255, 255, 255, 0.06); color: #64748b; border: 1px solid rgba(255, 255, 255, 0.1); }
+.badge-standby { background: rgba(56, 189, 248, 0.1); color: #94a3b8; border: 1px solid rgba(56, 189, 248, 0.25); }
 .badge-ult-ready { background: linear-gradient(90deg, #ff0055, #ffd700); color: #fff; font-weight: 900; box-shadow: 0 0 6px #ff0055; }
 
 .acb-desc {
@@ -1681,36 +1903,85 @@ h1 {
 }
 
 /* ==============================================================
-   画面下部固定: ステータス & ガイド ＆ 戦績ログ パネル
+   画面下部: 戦績ログ (フル幅＆視認性大幅向上)
    ============================================================== */
 .bottom-panel-container {
-  display: grid;
-  grid-template-columns: 1fr 1.25fr;
-  gap: 14px;
-  max-width: 1120px;
+  display: block;
+  max-width: 900px;
   width: 100%;
-  margin: 14px auto 24px;
-  align-items: stretch;
+  margin: 12px auto 20px;
 }
 
-@media (max-width: 860px) {
-  .bottom-panel-container {
-    grid-template-columns: 1fr;
-  }
+.battle-log-card {
+  width: 100%;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
 }
 
-.bottom-card {
+.battle-log-card .card-title {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #f1f5f9;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.status-guide-card {
-  justify-content: space-between;
+.log-subtitle {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 500;
 }
 
 .battle-log-card .log-box {
-  height: 95px;
-  max-height: 95px;
+  height: 145px;
+  max-height: 145px;
+  overflow-y: auto;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  background: rgba(8, 12, 24, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.battle-log-card .log-box::-webkit-scrollbar {
+  width: 6px;
+}
+.battle-log-card .log-box::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+.battle-log-card .log-box::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+.battle-log-card .log-box::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.log-entry {
+  padding: 3px 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  transition: background 0.15s ease;
+}
+
+.log-entry:hover {
+  background: rgba(255, 255, 255, 0.07);
 }
 
 /* ==============================================================
@@ -2085,6 +2356,7 @@ h1 {
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 
@@ -2569,21 +2841,22 @@ h1 {
 }
 
 /* ==============================================================
-   固有パッシブ（常時発動型）UIスタイル
+   パッシブ（常時発動型・説明書きカード）UIスタイル
    ============================================================== */
 .passive-ability-card {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.85));
-  border: 1px solid rgba(168, 85, 247, 0.45);
+  background: linear-gradient(135deg, rgba(24, 32, 47, 0.75), rgba(15, 23, 42, 0.85));
+  border: 1px solid rgba(168, 85, 247, 0.35);
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: default;
+  user-select: none;
 }
 
+/* 説明書きであるためボタンのようなhoverハイライトは付与しない */
 .passive-ability-card:hover {
-  border-color: rgba(192, 132, 252, 0.75);
-  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+  /* no highlight / no pointer */
 }
 
 .pac-header {
@@ -3202,6 +3475,12 @@ h1 {
   filter: grayscale(85%);
   box-shadow: none !important;
   cursor: not-allowed;
+}
+
+/* 攻撃トークン不可時: 尖った形状の輪郭を維持しつつグレーダウン */
+.token-chip.token-type-attack.token-disabled {
+  border: none !important;
+  filter: drop-shadow(0 0 1px rgba(148, 163, 184, 0.4)) grayscale(85%) !important;
 }
 
 .token-chip.token-disabled .token-chip-icon {

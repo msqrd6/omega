@@ -1,49 +1,47 @@
 /* ==============================================================
-   ui.js: UI・レンダリング・ダイアグラム・一体型アクションカード表示・DnD対応
-   (大型アップデート: スキルトークン廃止・Bスキル廃止対応)
+   ui.js: ビュー＆レンダリング層 (2D DOM / カード / ポップアップ / ログ)
+   (将来3Dレンダラー等へ差し替え・拡張しやすいよう描画責務を集約)
    ============================================================== */
 import {
   ROWS,
   COLS,
   HERO_TYPES,
-  STATUS_EFFECT_DEFS,
   ULT_REQUIRED_DAMAGE,
-  DEPLOYABLE_ROWS,
-  INITIAL_PIECE_KEYS,
   SELECTABLE_HERO_KEYS,
   DEFAULT_ROSTER
-} from './config.js?v=20261023_20';
+} from './config.js?v=20261024_11';
 import {
   board,
   traps,
-  plasmaZones,
   phantomZones,
   poisonZones,
   findCore,
   getValidMoves,
   getValidAttacks,
-  getValidSkillTargets,
-  getAttackRangeCells,
   isUltReady,
   hasBuff,
   hasDebuff,
   getEffectiveAtk,
   getShieldVal,
   getTeamUltGauge,
-  getDeployedPieces,
   canDeployAt,
   getHazardInfoAt,
-  getActionTokens,
-  getMaxActionTokens,
   hasActionToken,
   isVectorBunkerActive,
+  isVulcanStockActive,
   getPlayerTokens,
   isLocalPlayer,
   isUnit
-} from './board.js?v=20261023_20';
+} from './board.js?v=20261024_11';
 
 export let tileElements = [];
 export let isBoardFlipped = false;
+
+// フェーズ案内テキスト更新ヘルパー
+export function setPhaseInstruction(text) {
+  const el = document.getElementById('phase-instruction');
+  if (el) el.innerText = text;
+}
 
 // プレイヤー視点の設定（RED側なら自陣手前(flipped)に固定）
 export function setBoardPerspective(flipped) {
@@ -74,6 +72,7 @@ export function getHpClass(hp, max) {
 // 盤面DOMを最初に1回だけ構築 (ドラッグ＆ドロップリスナー付き)
 export function createBoardDOMOnce({ onTileClickCallback, onPieceDropCallback }) {
   const boardEl = document.getElementById('board');
+  if (!boardEl) return;
   boardEl.innerHTML = '';
   tileElements = [];
 
@@ -88,13 +87,11 @@ export function createBoardDOMOnce({ onTileClickCallback, onPieceDropCallback })
         ? (ROWS - 1 - r) * COLS + (COLS - 1 - c)
         : r * COLS + c;
 
-      // クリックイベント
       tile.addEventListener('click', (e) => {
         e.stopPropagation();
         onTileClickCallback(r, c);
       });
 
-      // ドラッグオーバー（ドロップ可能マスで光る: 移動先は緑、攻撃対象は赤、配置エリアは緑）
       tile.addEventListener('dragover', (e) => {
         e.preventDefault();
         if (e.dataTransfer) {
@@ -111,7 +108,6 @@ export function createBoardDOMOnce({ onTileClickCallback, onPieceDropCallback })
         tile.classList.remove('drag-over-valid', 'drag-over-attack');
       });
 
-      // ドロップ処理
       tile.addEventListener('drop', (e) => {
         e.preventDefault();
         tile.classList.remove('drag-over-valid', 'drag-over-attack');
@@ -142,7 +138,6 @@ export function updateBoardView({
   gamePhase = 'BATTLE',
   gameMode = 'pve',
   myOnlineRole = null,
-  selectedDeployPiece = null,
   onPieceDragStartCallback,
   onPieceDragEndCallback
 }) {
@@ -152,39 +147,30 @@ export function updateBoardView({
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
-      const tile = tileElements[r][c];
+      const tile = tileElements[r]?.[c];
+      if (!tile) continue;
       const unit = board[r][c];
 
-      // クラス初期化
       tile.className = 'tile';
+      tile.title = '';
 
       // 1. 初期配置フェーズの枠線ガイドハイライト
-      if (isDeployPhase && isMyDeployPhase) {
-        if (canDeployAt(deployOwner, r, c)) {
-          tile.classList.add(deployOwner === 'P1' ? 'deploy-area-p1' : 'deploy-area-p2');
-        }
+      if (isDeployPhase && isMyDeployPhase && canDeployAt(deployOwner, r, c)) {
+        tile.classList.add(deployOwner === 'P1' ? 'deploy-area-p1' : 'deploy-area-p2');
       }
-
-      // 古いインジケーター要素（以前のバージョンで追加されたもの）があれば完全除去（駒の位置ずれ防止）
-      const oldIndicators = tile.querySelectorAll('.hazard-indicator, .trap-indicator');
-      oldIndicators.forEach(el => el.remove());
 
       // 2. トラップ表示（自軍トラップのみ常時表示、敵トラップは常時非表示）
       const trap = traps.find(tp => tp.r === r && tp.c === c);
       if (trap && isLocalPlayer(trap.owner)) {
         tile.classList.add(trap.owner === 'P1' ? 'has-trap-p1' : 'has-trap-p2');
-        tile.title = trap.type === 'SCRAMBLE_MINE' ? 'スクランブル・マイン（自軍のみ視認可能）' : 'マイン（地雷 / 自軍のみ視認可能）';
+        tile.title = 'マイン（地雷 / 自軍のみ視認可能）';
       }
 
-      // 3. ハザード表示（敵味方ともに視認可能・マス全体をネオングローと発光枠線で鮮やかに強調）
-      const pz = plasmaZones.find(z => z.r === r && z.c === c);
+      // 3. ハザード表示
       const fz = phantomZones.find(z => z.r === r && z.c === c);
       const pzn = poisonZones.find(z => z.r === r && z.c === c);
 
-      if (pz) {
-        tile.classList.add('has-hazard', 'plasma-zone', pz.owner === 'P1' ? 'hazard-owner-p1' : 'hazard-owner-p2');
-        tile.title = `⚡ プラズマゾーン (${pz.owner === 'P1' ? 'BLUE' : 'RED'} / 進入時18DMG+衰弱 / 展開者撃破で消滅)`;
-      } else if (fz) {
+      if (fz) {
         tile.classList.add('has-hazard', 'phantom-zone', fz.owner === 'P1' ? 'hazard-owner-p1' : 'hazard-owner-p2');
         tile.title = `👻 ディメンション・ゾーン (${fz.owner === 'P1' ? 'BLUE' : 'RED'} / 侵入敵に弱体化1.5倍 / フェイズ撃破で消滅)`;
       } else if (pzn) {
@@ -192,7 +178,6 @@ export function updateBoardView({
         tile.title = `🧪 トキシック・ゾーン (${pzn.owner === 'P1' ? 'BLUE' : 'RED'} / ターン開始時10DMG / トキシン撃破で消滅)`;
       }
 
-      // ハザード選択ハイライト
       if (selectedHazardPos && selectedHazardPos.r === r && selectedHazardPos.c === c) {
         tile.classList.add('hazard-selected');
       }
@@ -209,8 +194,7 @@ export function updateBoardView({
         pieceEl.className = `piece ${unit.owner.toLowerCase()} ${unit.typeKey.toLowerCase()}`;
         if (unit.typeKey === 'CORE') pieceEl.classList.add('core');
 
-        // ドラッグ可能設定（バトル中自軍ターンかつ行動可能駒、または初期配置中）
-        const isCurrentTurnHero = (!isDeployPhase && unit.owner === turn && unit.typeKey !== 'CORE' && unit.typeKey !== 'BARRICADE');
+        const isCurrentTurnHero = (!isDeployPhase && unit.owner === turn && isUnit(unit));
         const canDragInDeploy = (isDeployPhase && isMyDeployPhase && unit.owner === deployOwner);
 
         if (isCurrentTurnHero || canDragInDeploy) {
@@ -236,7 +220,6 @@ export function updateBoardView({
           pieceEl.ondragend = null;
         }
 
-        // 選択中駒のハイライトクラス
         if (selectedPos && selectedPos.r === r && selectedPos.c === c) {
           pieceEl.classList.add('selected');
         }
@@ -248,19 +231,16 @@ export function updateBoardView({
           if (hasBuff(unit, 'shield')) statusBadgesHtml += `<span class="status-badge badge-shield-buff">🛡️</span>`;
         }
         if (unit.debuffs) {
-          if (hasDebuff(unit, 'weakness')) statusBadgesHtml += `<span class="status-badge badge-weakness">💔</span>`;
           if (hasDebuff(unit, 'vulnerable')) statusBadgesHtml += `<span class="status-badge badge-vulnerable">🎯</span>`;
           if (hasDebuff(unit, 'disarm')) statusBadgesHtml += `<span class="status-badge badge-disarm">💢</span>`;
           if (hasDebuff(unit, 'bind')) statusBadgesHtml += `<span class="status-badge badge-bind">⛓️</span>`;
           if (hasDebuff(unit, 'silence')) statusBadgesHtml += `<span class="status-badge badge-silence">🤐</span>`;
         }
 
-        // HPバー
         const hpPct = Math.max(0, Math.min(100, (unit.hp / unit.maxHp) * 100));
         const hpClass = getHpClass(unit.hp, unit.maxHp);
 
-        // シールドゲージ・バッジ
-        const shieldVal = (unit.buffs && unit.buffs.shield) ? unit.buffs.shield.val : 0;
+        const shieldVal = getShieldVal(unit);
         let shieldBarHtml = '';
         let shieldBadgeHtml = '';
         if (shieldVal > 0) {
@@ -269,9 +249,8 @@ export function updateBoardView({
           shieldBadgeHtml = `<div class="piece-shield-badge">🛡️${shieldVal}</div>`;
         }
 
-        // ウルト発動可能バッジ
         let ultBadgeHtml = '';
-        if (unit.typeKey !== 'CORE' && unit.typeKey !== 'BARRICADE' && isUltReady(unit) && !unit.ultUsed) {
+        if (isUnit(unit) && isUltReady(unit) && !unit.ultUsed) {
           ultBadgeHtml = `<div class="ult-ready-badge">ULT!</div>`;
         }
 
@@ -298,34 +277,27 @@ export function updateBoardView({
 
       // 6. 移動先・攻撃先・スキル対象のハイライト
       if (commandMode && commandMode.startsWith('SKILL_')) {
-        const isTarget = validTargets.some(t => t.r === r && t.c === c);
-        if (isTarget) {
+        if (validTargets.some(t => t.r === r && t.c === c)) {
           tile.classList.add('skill-target');
         }
       } else if (commandMode === 'MOVE') {
-        const isTarget = validTargets.some(t => t.r === r && t.c === c);
-        if (isTarget) tile.classList.add('movable');
+        if (validTargets.some(t => t.r === r && t.c === c)) {
+          tile.classList.add('movable');
+        }
       } else if (commandMode === 'ATTACK') {
-        const isTarget = validTargets.some(t => t.r === r && t.c === c);
-        if (isTarget) tile.classList.add('attackable');
+        if (validTargets.some(t => t.r === r && t.c === c)) {
+          tile.classList.add('attackable');
+        }
       } else if (selectedPos && !isDeployPhase) {
-        // 自軍駒選択時の移動可能マス（緑）と攻撃対象マス（赤）の自動同時ハイライト
-        const selHero = board[selectedPos.r][selectedPos.c];
-        if (selHero && selHero.owner === turn && selHero.typeKey !== 'CORE' && selHero.typeKey !== 'BARRICADE') {
-          const canMove = hasActionToken(turn, 'move', 1) && !hasDebuff(selHero, 'bind');
-          const canAttack = hasActionToken(turn, 'attack', 1) && !hasDebuff(selHero, 'disarm');
-
-          if (canMove) {
-            const validMoves = getValidMoves(selectedPos.r, selectedPos.c);
-            if (validMoves.some(t => t.r === r && t.c === c)) {
-              tile.classList.add('movable');
-            }
+        const selHero = board[selectedPos.r]?.[selectedPos.c];
+        if (selHero && selHero.owner === turn && isUnit(selHero)) {
+          const validMoves = getValidMoves(selectedPos.r, selectedPos.c);
+          if (validMoves.some(t => t.r === r && t.c === c)) {
+            tile.classList.add('movable');
           }
-          if (canAttack) {
-            const validAtks = getValidAttacks(selectedPos.r, selectedPos.c);
-            if (validAtks.some(t => t.r === r && t.c === c)) {
-              tile.classList.add('attackable');
-            }
+          const validAtks = getValidAttacks(selectedPos.r, selectedPos.c);
+          if (validAtks.some(t => t.r === r && t.c === c)) {
+            tile.classList.add('attackable');
           }
         }
       }
@@ -333,74 +305,73 @@ export function updateBoardView({
   }
 }
 
-// 物体化行動トークンバーの更新 (Move / Attack / キネシス専用移動等の物理チップ描画)
+// 物体化行動トークンバーの更新
 export function updateRightsDisplay(turn, selectedPos = null, gamePhase = 'BATTLE') {
   const container = document.getElementById('action-tokens-container');
   if (!container) return;
 
-  // 要件３: 初期配置時・ピック時はトークンを表示しない
   if (gamePhase && (gamePhase.startsWith('DEPLOY') || gamePhase.startsWith('PICK'))) {
     container.innerHTML = '';
     return;
   }
 
   const tokens = getPlayerTokens(turn);
-  // 要件２: 使用済みのトークンは所持トークンUIから完全に削除する
-  const activeTokens = (tokens || []).filter(t => !t.used);
+  // 専用トークンも含め、攻撃トークン -> 移動トークンの順にソート（同タイプ内は共通 -> 専用の順）
+  const activeTokens = (tokens || []).filter(t => !t.used).sort((a, b) => {
+    const typeOrder = { attack: 0, move: 1 };
+    const orderA = typeOrder[a.type] !== undefined ? typeOrder[a.type] : 99;
+    const orderB = typeOrder[b.type] !== undefined ? typeOrder[b.type] : 99;
+    if (orderA !== orderB) return orderA - orderB;
+
+    const specialA = (a.scope !== 'all') ? 1 : 0;
+    const specialB = (b.scope !== 'all') ? 1 : 0;
+    if (specialA !== specialB) return specialA - specialB;
+
+    return 0;
+  });
 
   if (activeTokens.length === 0) {
     container.innerHTML = `<span class="tokens-empty">所持トークンなし</span>`;
     return;
   }
 
-  // 選択中ユニットの取得
   const selectedUnit = (selectedPos && board[selectedPos.r]) ? board[selectedPos.r][selectedPos.c] : null;
 
   let html = '';
   for (const t of activeTokens) {
     const isSpecial = (t.scope !== 'all');
-
-    // 要件１: 可能でない場合はトークンを灰色にして可能でないことを表現
     let isAvailable = true;
 
     if (selectedUnit) {
-      // 駒が選択されている時: その選択駒で利用可能か判定
       if (selectedUnit.owner !== turn || !isUnit(selectedUnit)) {
         isAvailable = false;
-      } else if (isSpecial && t.scope !== selectedUnit.typeKey) {
-        // 専用トークンとユニットの不一致
+      } else if (isSpecial && t.scope !== selectedUnit.typeKey && t.scope !== selectedUnit.id) {
         isAvailable = false;
       } else if (t.type === 'move') {
-        const isBound = hasDebuff(selectedUnit, 'bind');
         const validMoves = getValidMoves(selectedPos.r, selectedPos.c);
-        if (isBound || validMoves.length === 0) {
+        if (hasDebuff(selectedUnit, 'bind') || validMoves.length === 0) {
           isAvailable = false;
         }
       } else if (t.type === 'attack') {
-        const isDisarmed = hasDebuff(selectedUnit, 'disarm');
         const validAttacks = getValidAttacks(selectedPos.r, selectedPos.c);
-        if (isDisarmed || validAttacks.length === 0) {
+        if (hasDebuff(selectedUnit, 'disarm') || validAttacks.length === 0) {
           isAvailable = false;
         }
       }
     } else {
-      // 駒が未選択の時: チーム内でそのトークンを使える駒が1体でもいるか判定
       let canAnyoneUse = false;
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           const u = board[r][c];
           if (u && u.owner === turn && isUnit(u)) {
-            if (isSpecial && t.scope !== u.typeKey) continue;
-            if (t.type === 'move') {
-              if (!hasDebuff(u, 'bind') && getValidMoves(r, c).length > 0) {
-                canAnyoneUse = true;
-                break;
-              }
-            } else if (t.type === 'attack') {
-              if (!hasDebuff(u, 'disarm') && getValidAttacks(r, c).length > 0) {
-                canAnyoneUse = true;
-                break;
-              }
+            if (isSpecial && t.scope !== u.typeKey && t.scope !== u.id) continue;
+            if (t.type === 'move' && !hasDebuff(u, 'bind') && getValidMoves(r, c).length > 0) {
+              canAnyoneUse = true;
+              break;
+            }
+            if (t.type === 'attack' && !hasDebuff(u, 'disarm') && getValidAttacks(r, c).length > 0) {
+              canAnyoneUse = true;
+              break;
             }
           }
         }
@@ -417,13 +388,11 @@ export function updateRightsDisplay(turn, selectedPos = null, gamePhase = 'BATTL
     ].filter(Boolean).join(' ');
 
     const scopeBadge = isSpecial
-      ? `<span class="token-chip-scope">${t.unitName || t.scope}専用</span>`
+      ? `<span class="token-chip-scope">${t.unitName || t.scope}</span>`
       : '';
 
-    // 要件１: 「可能」という表現の削除（statusTag 削除）
     html += `
       <div class="${chipClass}" title="${t.desc}${!isAvailable ? ' (現在は実行不可)' : ''}">
-        <span class="token-chip-icon">${t.icon}</span>
         <span class="token-chip-name">${t.badgeText || t.name}</span>
         ${scopeBadge}
       </div>
@@ -434,23 +403,26 @@ export function updateRightsDisplay(turn, selectedPos = null, gamePhase = 'BATTL
 }
 
 // コアHP & チームウルト & ターン表示の更新
-export function updateStatus(turn, gameMode, gamePhase = 'BATTLE') {
+export function updateStatus(turn, gameMode, gamePhase = 'BATTLE', turnCount = 1) {
   const p1Core = findCore('P1');
   const p2Core = findCore('P2');
 
   if (p1Core) {
     const pct1 = Math.max(0, (p1Core.hp / p1Core.maxHp) * 100);
-    document.getElementById('p1-core-bar').style.width = `${pct1}%`;
-    document.getElementById('p1-core-hp').innerText = `${p1Core.hp}/${p1Core.maxHp} HP`;
+    const bar1 = document.getElementById('p1-core-bar');
+    const hp1 = document.getElementById('p1-core-hp');
+    if (bar1) bar1.style.width = `${pct1}%`;
+    if (hp1) hp1.innerText = `${p1Core.hp}/${p1Core.maxHp} HP`;
   }
 
   if (p2Core) {
     const pct2 = Math.max(0, (p2Core.hp / p2Core.maxHp) * 100);
-    document.getElementById('p2-core-bar').style.width = `${pct2}%`;
-    document.getElementById('p2-core-hp').innerText = `${p2Core.hp}/${p2Core.maxHp} HP`;
+    const bar2 = document.getElementById('p2-core-bar');
+    const hp2 = document.getElementById('p2-core-hp');
+    if (bar2) bar2.style.width = `${pct2}%`;
+    if (hp2) hp2.innerText = `${p2Core.hp}/${p2Core.maxHp} HP`;
   }
 
-  // チームウルトゲージ（累計通常攻撃DMG 0〜100）
   const ultP1 = getTeamUltGauge('P1');
   const ultP2 = getTeamUltGauge('P2');
   const ultPct1 = Math.min(100, (ultP1 / ULT_REQUIRED_DAMAGE) * 100);
@@ -473,7 +445,17 @@ export function updateStatus(turn, gameMode, gamePhase = 'BATTLE') {
     p2UltText.className = (ultP2 >= ULT_REQUIRED_DAMAGE) ? "ult-ready-text" : "";
   }
 
-  // ターンバッジ
+  const turnCountEl = document.getElementById('turn-count-badge');
+  if (turnCountEl) {
+    if (gamePhase && gamePhase.startsWith('PICK')) {
+      turnCountEl.innerText = "DRAFT";
+    } else if (gamePhase && gamePhase.startsWith('DEPLOY')) {
+      turnCountEl.innerText = "DEPLOY";
+    } else {
+      turnCountEl.innerText = `TURN ${turnCount}`;
+    }
+  }
+
   const turnBadge = document.getElementById('turn-badge');
   if (turnBadge) {
     if (gamePhase === 'PICK_P1') {
@@ -496,36 +478,104 @@ export function updateStatus(turn, gameMode, gamePhase = 'BATTLE') {
       turnBadge.innerText = '後攻 (RED) 配置中（待機）';
     } else {
       turnBadge.className = `turn-badge turn-${turn.toLowerCase()}`;
-      turnBadge.innerText = `${turn === 'P1' ? 'BLUE' : 'RED'} の番`;
+      turnBadge.innerText = `${turn === 'P1' ? 'BLUE' : 'RED'} の手番`;
     }
   }
 
-  updateRightsDisplay(turn, null, gamePhase);
+  const battleScreen = document.getElementById('screen-battle');
+  if (battleScreen) {
+    const isP1 = (gamePhase === 'DEPLOY_P1' || gamePhase === 'PICK_P1' || (gamePhase === 'BATTLE' && turn === 'P1'));
+    const isP2 = (gamePhase === 'DEPLOY_P2' || gamePhase === 'PICK_P2' || (gamePhase === 'BATTLE' && turn === 'P2'));
+    battleScreen.classList.toggle('turn-p1-bg', isP1);
+    battleScreen.classList.toggle('turn-p2-bg', isP2);
+  }
 }
 
-// 一体型アクションカードサイドパネルのレンダリング (固有スキル・ウルト最優先！)
+// 初期配置フェーズ専用固定バーの更新
+export function updateDeployControlBar({
+  gamePhase,
+  gameMode = 'pve',
+  myOnlineRole = null
+}) {
+  const bar = document.getElementById('deploy-control-bar');
+  const tokenBanner = document.querySelector('.action-status-banner');
+  if (!bar) return;
+
+  const isDeployPhase = (
+    gamePhase === 'DEPLOY_P1' ||
+    gamePhase === 'DEPLOY_P2' ||
+    gamePhase === 'DEPLOY_WAIT_P1' ||
+    gamePhase === 'DEPLOY_WAIT_P2'
+  );
+
+  if (!isDeployPhase) {
+    bar.style.display = 'none';
+    if (tokenBanner && gamePhase === 'BATTLE') {
+      tokenBanner.style.display = 'flex';
+    }
+    return;
+  }
+
+  bar.style.display = 'flex';
+  if (tokenBanner) {
+    tokenBanner.style.display = 'none';
+  }
+
+  const curOwner = (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_WAIT_P2') ? 'P1' : 'P2';
+  const isP1 = (curOwner === 'P1');
+
+  bar.className = 'deploy-control-bar';
+
+  const confirmBtn = document.getElementById('btn-deploy-confirm');
+  const confirmTextEl = document.getElementById('btn-deploy-confirm-text');
+
+  const isDeployWait = (gameMode === 'online' && (
+    gamePhase === 'DEPLOY_WAIT_P1' ||
+    gamePhase === 'DEPLOY_WAIT_P2' ||
+    (gamePhase === 'DEPLOY_P1' && myOnlineRole === 'P2') ||
+    (gamePhase === 'DEPLOY_P2' && myOnlineRole === 'P1')
+  ));
+
+  if (confirmBtn) {
+    confirmBtn.className = `btn-deploy-confirm ${isP1 ? 'p1' : 'p2'}`;
+
+    if (isDeployWait) {
+      confirmBtn.disabled = true;
+      if (confirmTextEl) {
+        confirmTextEl.innerText = '⏳ 相手の配置を待機中...';
+      }
+    } else {
+      confirmBtn.disabled = false;
+      if (confirmTextEl) {
+        if (isP1) {
+          confirmTextEl.innerText = (gameMode === 'online') ? '先行・配置完了（送信 ➔）' : '先行・配置完了（後攻へ ➔）';
+        } else {
+          confirmTextEl.innerText = '⚔️ バトル開始！';
+        }
+      }
+    }
+  }
+}
+
+// 一体型アクションカードサイドパネルのレンダリング
 export function renderHeroControlPanel({
   turn,
   selectedPos,
   selectedHazardPos = null,
   commandMode,
-  gamePhase = 'BATTLE',
-  moveRightAvailable,
-  attackRightAvailable
+  gamePhase = 'BATTLE'
 }) {
   const isDeploy = (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_P2');
   const panel = document.getElementById('unit-detail-panel');
+  if (!panel) return;
 
-  // ハザード単体選択時 (名前・チーム・クラスを同列にまとめ、ステータス欄は削除してシンプル化)
+  // ハザード単体選択時
   if (!selectedPos && selectedHazardPos) {
     const hazard = getHazardInfoAt(selectedHazardPos.r, selectedHazardPos.c);
     if (hazard) {
-      const occupiedUnit = (board[selectedHazardPos.r] && board[selectedHazardPos.r][selectedHazardPos.c])
-        ? board[selectedHazardPos.r][selectedHazardPos.c]
-        : null;
+      const occupiedUnit = board[selectedHazardPos.r]?.[selectedHazardPos.c] || null;
 
       panel.innerHTML = `
-        <!-- ハザードヘッダー (名前・チーム・クラスを同列に配置) -->
         <div class="hero-card-header theme-hazard">
           <div class="hch-top-bar">
             <div class="hch-icon-box">${hazard.icon}</div>
@@ -571,7 +621,7 @@ export function renderHeroControlPanel({
         <div class="esg-icon">👆</div>
         <div class="esg-title">駒またはハザードを選択</div>
         <div class="esg-desc">
-          盤面のキャラクターをクリックすると、固有スキル・ウルトのアクションカードが表示されます。<br>
+          盤面のキャラクターをクリックすると、スキル・アルティメットのアクションカードが表示されます。<br>
           直接ドラッグすることで移動や通常攻撃も可能です。
         </div>
       </div>
@@ -579,7 +629,7 @@ export function renderHeroControlPanel({
     return;
   }
 
-  const hero = board[selectedPos.r][selectedPos.c];
+  const hero = board[selectedPos.r]?.[selectedPos.c];
   if (!hero) {
     panel.innerHTML = `<div class="empty-selection-guide">空のマスです</div>`;
     return;
@@ -587,27 +637,12 @@ export function renderHeroControlPanel({
 
   const heroDef = HERO_TYPES[hero.typeKey];
   const isEnemy = (hero.owner !== turn);
-  const isCore = (hero.typeKey === 'CORE');
+  const isCoreUnit = (hero.typeKey === 'CORE');
   const isBarricade = (hero.typeKey === 'BARRICADE');
   const isTurret = (hero.typeKey === 'TURRET');
 
-
-  const deployHeaderHtml = isDeploy ? `
-    <div class="deploy-mode-indicator-bar ${turn.toLowerCase()}">
-      <div class="dmib-left">
-        <span class="dmib-badge">🎯 ${turn === 'P1' ? 'BLUE' : 'RED'} 初期配置中</span>
-        <span class="dmib-desc">ドラッグで移動、味方上で位置スワップ</span>
-      </div>
-      <div class="dmib-actions">
-        <button class="dmib-btn-confirm ${turn.toLowerCase()}" onclick="window.__onConfirmDeploy()">
-          ${turn === 'P1' ? '配置完了 ➔' : '⚔️ バトル開始！'}
-        </button>
-      </div>
-    </div>
-  ` : '';
-
-  // コア・オブジェクト選択時のシンプル＆洗練カード (名前・チーム・クラスを同列にまとめ、耐久値等の必要最小限のみ表示)
-  if (isCore || isBarricade || isTurret) {
+  // コア・オブジェクト選択時のカード
+  if (isCoreUnit || isBarricade || isTurret) {
     const shieldVal = getShieldVal(hero);
     const hpPct = Math.max(0, Math.min(100, Math.round((hero.hp / hero.maxHp) * 100)));
     const shieldPct = shieldVal > 0 ? Math.min(50, Math.round((shieldVal / hero.maxHp) * 100)) : 0;
@@ -619,11 +654,10 @@ export function renderHeroControlPanel({
     let statsGridHtml = '';
     let featureCardHtml = '';
 
-    if (isCore) {
+    if (isCoreUnit) {
       themeClass = 'theme-core';
       classNameText = 'コア';
       classBadgeClass = 'class-core';
-      // コア: 耐久値のみ
       statsGridHtml = `
         <div class="hch-stats-grid hch-stats-single">
           <div class="hch-stat-box hch-hp-box">
@@ -647,15 +681,11 @@ export function renderHeroControlPanel({
             </div>
           </div>
           <div class="pac-desc" style="font-size: 0.76rem; line-height: 1.45; color: #cbd5e1;">
-            自軍の防衛ターゲットです。耐久値(HP)が 0 になると即座に敗北します。自軍コアを護りつつ、敵軍コアの撃破を狙いましょう。
+            自軍の防衛ターゲットです。耐久値(HP)が 0 になると即座に敗北します。自軍コアを護りつつ、敵軍コアの撃破または敵ユニットの全滅を狙いましょう。
           </div>
         </div>
       `;
     } else if (isBarricade) {
-      themeClass = 'theme-structure';
-      classNameText = 'オブジェクト';
-      classBadgeClass = 'class-structure';
-      // 防壁: 耐久値のみ
       statsGridHtml = `
         <div class="hch-stats-grid hch-stats-single">
           <div class="hch-stat-box hch-hp-box">
@@ -679,7 +709,7 @@ export function renderHeroControlPanel({
             </div>
           </div>
           <div class="pac-desc" style="font-size: 0.76rem; line-height: 1.45; color: #cbd5e1;">
-            味方・敵双方の移動および直線通常攻撃を完全に遮断します。ベクターが隣接すると ATK+4 されます。
+            味方・敵双方の移動および直線射線を完全に遮断します。ベクターが隣接すると ATK+10 されます。
           </div>
         </div>
         ${canDestroyBarricade ? `
@@ -694,9 +724,6 @@ export function renderHeroControlPanel({
       `;
     } else if (isTurret) {
       themeClass = 'theme-turret';
-      classNameText = 'オブジェクト';
-      classBadgeClass = 'class-structure';
-      // タレット: 耐久値 ＋ 迎撃ATKのみ
       statsGridHtml = `
         <div class="hch-stats-grid hch-stats-dual">
           <div class="hch-stat-box hch-hp-box">
@@ -725,15 +752,13 @@ export function renderHeroControlPanel({
             <span class="pac-badge pac-badge-active">周囲8マス</span>
           </div>
           <div class="pac-desc" style="font-size: 0.76rem; line-height: 1.45; color: #cbd5e1;">
-            周囲8マスに侵入した敵、または範囲内で行動を完了した敵に対して、自動で ${hero.atk || 10} DMG を迎撃射撃します。破壊されるとヴァルカンのタレットストックが即座に1回復します。
+            自軍ターン終了時に周囲8マスのすべての敵ユニットに対して、自動で ${hero.atk || 10} DMG を迎撃射撃します。破壊されるとヴァルカンのタレットストックが1回復します。
           </div>
         </div>
       `;
     }
 
     panel.innerHTML = `
-      ${deployHeaderHtml}
-      <!-- 最上部: 名前・チーム・クラスを同列に配置 -->
       <div class="hero-card-header ${themeClass}">
         <div class="hch-top-bar">
           <div class="hch-icon-box">${hero.icon}</div>
@@ -742,15 +767,11 @@ export function renderHeroControlPanel({
               <span class="hch-name">${hero.name}</span>
               <span class="hch-owner-tag ${hero.owner.toLowerCase()}">${hero.owner === 'P1' ? '🔷 BLUE' : '🔶 RED'}</span>
               <span class="hch-class-badge ${classBadgeClass}">${classNameText}</span>
-              ${isEnemy ? `<span class="hch-enemy-inspect-tag">🔍 敵</span>` : ''}
             </div>
           </div>
         </div>
-
         ${statsGridHtml}
       </div>
-
-      <!-- 機能説明＆アクションカード -->
       ${featureCardHtml}
     `;
     return;
@@ -760,22 +781,11 @@ export function renderHeroControlPanel({
   const skills = heroDef.skills || {};
   const effAtk = getEffectiveAtk(hero);
   const shield = getShieldVal(hero);
-  const moves = getValidMoves(selectedPos.r, selectedPos.c);
-  const atks = getValidAttacks(selectedPos.r, selectedPos.c);
 
   const isSilenced = hasDebuff(hero, 'silence');
-  const isDisarmed = hasDebuff(hero, 'disarm');
-  const isBound = hasDebuff(hero, 'bind');
-
-  // スキルトークン廃止に伴い、ストックのみで発動可否を判定
   const canSkillA = !isDeploy && !isEnemy && !isSilenced && (hero.stockA > 0);
   const ultReady = isUltReady(hero);
   const canUlt = !isDeploy && !isEnemy && !isSilenced && ultReady && !hero.ultUsed;
-
-  const hasAtkToken = hasActionToken(turn, 'attack', 1, hero);
-  const canAttack = !isDeploy && !isEnemy && !isDisarmed && hasAtkToken && atks.length > 0;
-  const hasMoveToken = hasActionToken(turn, 'move', 1, hero);
-  const canMove = !isDeploy && !isEnemy && !isBound && hasMoveToken && moves.length > 0;
 
   const teamGauge = getTeamUltGauge(hero.owner);
   const ultPct = Math.min(100, (teamGauge / ULT_REQUIRED_DAMAGE) * 100);
@@ -784,17 +794,13 @@ export function renderHeroControlPanel({
   const roleTheme = (heroDef.roleClass || '').replace('role-', '');
   const hazardOnUnit = getHazardInfoAt(selectedPos.r, selectedPos.c);
 
-  // バフ・デバフ一覧ピル (HP・ATKと同列のステータスボックス用)
   let statusPillsHtml = '';
   if (hero.buffs) {
-    if (hasBuff(hero, 'atk_up')) statusPillsHtml += `<span class="hch-pill buff" title="ATK+${hero.buffs.atk_up.val} (このターン中のみ)">🔥+${hero.buffs.atk_up.val} <small>このT</small></span>`;
+    if (hasBuff(hero, 'atk_up')) statusPillsHtml += `<span class="hch-pill buff" title="ATK+${hero.buffs.atk_up.val} (${hero.buffs.atk_up.turns}ターン)">🔥+${hero.buffs.atk_up.val} <small>${hero.buffs.atk_up.turns}T</small></span>`;
     if (hasBuff(hero, 'shield')) statusPillsHtml += `<span class="hch-pill buff" title="シールド+${hero.buffs.shield.val} (${hero.buffs.shield.turns}ターン)">🛡️+${hero.buffs.shield.val} <small>${hero.buffs.shield.turns}T</small></span>`;
-    if (hasBuff(hero, 'fortress')) statusPillsHtml += `<span class="hch-pill buff" title="要塞化 (${hero.buffs.fortress.turns}ターン)">🏰要塞 <small>${hero.buffs.fortress.turns}T</small></span>`;
-    if (hasBuff(hero, 'extended_move')) statusPillsHtml += `<span class="hch-pill buff" title="移動半径2 (このターン中のみ)">👟移動2 <small>このT</small></span>`;
   }
   if (hero.debuffs) {
-    if (hasDebuff(hero, 'weakness')) statusPillsHtml += `<span class="hch-pill debuff" title="衰弱: HP半減 (${hero.debuffs.weakness.turns}ターン)">💔衰弱 <small>${hero.debuffs.weakness.turns}T</small></span>`;
-    if (hasDebuff(hero, 'vulnerable')) statusPillsHtml += `<span class="hch-pill debuff" title="弱体化: 被ダメ1.5倍 (このターン中のみ)">🎯弱体 <small>このT</small></span>`;
+    if (hasDebuff(hero, 'vulnerable')) statusPillsHtml += `<span class="hch-pill debuff" title="弱体化: 被ダメ1.5倍 (${hero.debuffs.vulnerable.turns}ターン)">🎯弱体 <small>${hero.debuffs.vulnerable.turns}T</small></span>`;
     if (hasDebuff(hero, 'disarm')) statusPillsHtml += `<span class="hch-pill debuff" title="攻撃阻害: 通常攻撃不可 (${hero.debuffs.disarm.turns}ターン)">💢阻害 <small>${hero.debuffs.disarm.turns}T</small></span>`;
     if (hasDebuff(hero, 'bind')) statusPillsHtml += `<span class="hch-pill debuff" title="行動阻害: 移動不可 (${hero.debuffs.bind.turns}ターン)">⛓️拘束 <small>${hero.debuffs.bind.turns}T</small></span>`;
     if (hasDebuff(hero, 'silence')) statusPillsHtml += `<span class="hch-pill debuff" title="スキル阻害: スキル使用不可 (${hero.debuffs.silence.turns}ターン)">🤐沈黙 <small>${hero.debuffs.silence.turns}T</small></span>`;
@@ -803,20 +809,41 @@ export function renderHeroControlPanel({
     statusPillsHtml = `<span class="hch-pill-none">なし (正常)</span>`;
   }
 
-  // 固有パッシブのライブ状態判定（ベクター・キネシス等の発動中判定）
   const passive = heroDef.passive;
   let passiveLiveHtml = '';
   if (passive) {
     let isPassiveActive = false;
     let badgeText = '常時発動';
 
-    if (hero.typeKey === 'DUELIST') {
-      const extra = hero.kinesisExtraMove ?? hero.zephyrExtraMove ?? 0;
-      isPassiveActive = (extra > 0);
+    if (typeof hero.isPassiveActive === 'function') {
+      const pTokens = getPlayerTokens(hero.owner);
+      const ctx = { board, playerTokens: { [hero.owner]: pTokens }, ROWS, COLS };
+      isPassiveActive = hero.isPassiveActive(ctx);
+      badgeText = (typeof hero.getPassiveStatusText === 'function') ? hero.getPassiveStatusText(ctx) : (isPassiveActive ? '発動中' : '未発動');
+    } else if (hero.typeKey === 'KINESIS' || hero.typeKey === 'DUELIST') {
+      const tokens = getPlayerTokens(hero.owner);
+      isPassiveActive = tokens.some(t => t.type === 'move' && (t.scope === 'KINESIS' || t.scope === 'DUELIST') && !t.used);
       badgeText = isPassiveActive ? '✨ 移動可能' : '消費済';
-    } else if (hero.typeKey === 'SENTINEL') {
+    } else if (hero.typeKey === 'VECTOR' || hero.typeKey === 'SENTINEL') {
       isPassiveActive = isVectorBunkerActive(hero);
-      badgeText = isPassiveActive ? '✨ 発動中 (ATK+4)' : '条件未達成';
+      badgeText = isPassiveActive ? '✨ 発動中 (ATK+10)' : '条件未達成';
+    } else if (hero.typeKey === 'VULCAN') {
+      isPassiveActive = isVulcanStockActive(hero);
+      badgeText = isPassiveActive ? '✨ 発動中 (ATK+10)' : 'ストックなし';
+    } else if (hero.typeKey === 'HIVE') {
+      let bitCount = 0;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const u = board[r][c];
+          if (u && u.owner === hero.owner && u.typeKey === 'BIT') bitCount++;
+        }
+      }
+      isPassiveActive = (bitCount > 0);
+      badgeText = isPassiveActive ? `✨ 監視中 (${bitCount}機)` : 'ビット未展開';
+    } else if (hero.typeKey === 'BIT') {
+      const tokens = getPlayerTokens(hero.owner);
+      isPassiveActive = tokens.some(t => t.type === 'attack' && t.scope === hero.id && !t.used);
+      badgeText = isPassiveActive ? '✨ 自律攻撃可' : '消費済';
     }
 
     passiveLiveHtml = `
@@ -824,7 +851,7 @@ export function renderHeroControlPanel({
         <div class="pac-header">
           <div class="pac-title-wrap">
             <span class="pac-icon">${passive.icon || '🔮'}</span>
-            <span class="pac-title">固有パッシブ: ${passive.name}</span>
+            <span class="pac-title">パッシブ: ${passive.name}</span>
           </div>
           <span class="pac-badge ${isPassiveActive ? 'pac-badge-active' : ''}">${badgeText}</span>
         </div>
@@ -834,8 +861,6 @@ export function renderHeroControlPanel({
   }
 
   panel.innerHTML = `
-    ${deployHeaderHtml}
-    <!-- 1. 最上部: ヒーロー名 & 基本スペック -->
     <div class="hero-card-header theme-${roleTheme}">
       <div class="hch-top-bar">
         <div class="hch-icon-box">${hero.icon}</div>
@@ -845,13 +870,11 @@ export function renderHeroControlPanel({
             <span class="hch-owner-tag ${hero.owner.toLowerCase()}">${hero.owner === 'P1' ? '🔷 BLUE' : '🔶 RED'}</span>
             <span class="hch-class-badge class-unit">ユニット</span>
             <span class="hch-role-badge ${heroDef.roleClass}">${heroDef.roleName}</span>
-            ${isEnemy ? `<span class="hch-enemy-inspect-tag">🔍 敵</span>` : ''}
           </div>
         </div>
       </div>
 
       <div class="hch-stats-grid">
-        <!-- HPメーター -->
         <div class="hch-stat-box hch-hp-box">
           <div class="hch-stat-label-row">
             <span class="hch-stat-label">💚 HP</span>
@@ -863,13 +886,11 @@ export function renderHeroControlPanel({
           </div>
         </div>
 
-        <!-- ATKメーター -->
         <div class="hch-stat-box hch-atk-box">
           <span class="hch-stat-label">⚔️ ATK</span>
           <span class="hch-atk-number">${effAtk}</span>
         </div>
 
-        <!-- 状態効果 (バフ/デバフ) -->
         <div class="hch-stat-box hch-status-box">
           <span class="hch-stat-label">📊 状態効果</span>
           <div class="hch-status-pill-list">
@@ -886,18 +907,15 @@ export function renderHeroControlPanel({
       </div>
     ` : ''}
 
-    <!-- 固有パッシブ表示カード -->
     ${passiveLiveHtml}
 
-    <!-- 2. 【最優先・最上部固定】固有スキル ＆ ウルト アクションカード (Bスキル廃止版) -->
     <div class="skills-priority-section">
       <div class="action-card-list">
-        <!-- 通常スキル (旧Aスキル) -->
         ${skills.A ? `
           <div class="action-card-btn acb-skill-a ${commandMode === 'SKILL_A' ? 'active' : ''} ${!canSkillA ? 'disabled' : ''}"
                onclick="${canSkillA ? "setCommandMode('SKILL_A')" : ''}">
             <div class="acb-header">
-              <span class="acb-title">⚡ 通常スキル: ${skills.A.name}</span>
+              <span class="acb-title">⚡ スキル: ${skills.A.name}</span>
               <span class="acb-badge ${canSkillA ? 'badge-ready' : 'badge-used'}">
                 ${isSilenced ? '🤐 スキル阻害中' : (hero.stockA <= 0 ? `ストック 0/${skills.A.maxStock}` : `ストック ${hero.stockA}/${skills.A.maxStock}`)}
               </span>
@@ -906,14 +924,13 @@ export function renderHeroControlPanel({
           </div>
         ` : ''}
 
-        <!-- ウルト (必殺技) -->
         ${skills.ULT ? `
           <div class="action-card-btn acb-ult ${commandMode === 'SKILL_ULT' ? 'active' : ''} ${!canUlt ? 'disabled' : ''} ${ultReady && !hero.ultUsed && !isEnemy ? 'ult-glow' : ''}"
                onclick="${canUlt ? "setCommandMode('SKILL_ULT')" : ''}">
             <div class="acb-header">
-              <span class="acb-title">🌟 ULT: ${skills.ULT.name}</span>
-              <span class="acb-badge ${hero.ultUsed ? 'badge-used' : (isSilenced ? 'badge-used' : (ultReady ? (isEnemy ? 'badge-enemy-ult' : 'badge-ult-ready') : 'badge-used'))}">
-                ${hero.ultUsed ? '【使用済 (0/1)】' : (isSilenced ? '🤐 スキル阻害中' : (ultReady ? (isEnemy ? '⚠️ 敵ウルト準備完了' : '⚡ READY! (発動可能)') : `ゲージ ${teamGauge}/100`))}
+              <span class="acb-title">🌟 アルティメット: ${skills.ULT.name}</span>
+              <span class="acb-badge ${hero.ultUsed ? 'badge-used' : (isSilenced ? 'badge-used' : (ultReady ? (isEnemy ? 'badge-enemy-ult' : 'badge-ult-ready') : 'badge-standby'))}">
+                ${hero.ultUsed ? 'ストック 0/1' : (isSilenced ? '🤐 スキル阻害中' : (ultReady ? (isEnemy ? '⚠️ 敵アルティメット (ストック 1/1)' : 'ストック 1/1 (発動可能)') : 'ストック 1/1'))}
               </span>
             </div>
             <div class="ult-progress-bar-bg">
@@ -924,14 +941,12 @@ export function renderHeroControlPanel({
         ` : ''}
       </div>
     </div>
-
-
   `;
 }
 
-// ポップアップ表示
+// ダメージ・効果ポップアップ表示
 export function showDamagePopup(r, c, text, color = '#ff3333') {
-  const tile = tileElements[r] ? tileElements[r][c] : null;
+  const tile = tileElements[r]?.[c];
   if (!tile) return;
 
   const popup = document.createElement('div');
@@ -943,9 +958,9 @@ export function showDamagePopup(r, c, text, color = '#ff3333') {
   setTimeout(() => popup.remove(), 900);
 }
 
-// ハザード効果トーストポップアップ（タッチ・クリック時に盤面タイル上に表示）
+// ハザード効果トーストポップアップ
 export function showHazardToast(r, c, hazard) {
-  const tile = tileElements[r] ? tileElements[r][c] : null;
+  const tile = tileElements[r]?.[c];
   if (!tile) return;
 
   const oldToast = tile.querySelector('.hazard-popup');
@@ -970,6 +985,7 @@ export function showHazardToast(r, c, hazard) {
 // ログ出力
 export function addLog(text, type = 'system') {
   const box = document.getElementById('log-box');
+  if (!box) return;
   const entry = document.createElement('div');
   entry.className = `log-entry log-${type}`;
   entry.innerText = text;
@@ -978,79 +994,91 @@ export function addLog(text, type = 'system') {
 }
 
 // 勝利モーダル
-export function showGameOverModal(winner) {
+export function showGameOverModal(winner, reason = 'core', myRole = null, gameMode = 'pve') {
   const modal = document.getElementById('victory-modal');
   const title = document.getElementById('winner-title');
   const desc = document.getElementById('winner-desc');
+  if (!modal || !title || !desc) return;
+
+  const isWipeout = (reason === 'wipeout');
 
   if (winner === 'P1') {
     title.innerText = "BLUE VICTORY!";
     title.style.color = "var(--p1-color)";
-    desc.innerText = "敵コアの完全破壊に成功しました！ブルーチームの勝利！";
+    if (gameMode === 'local') {
+      desc.innerText = isWipeout
+        ? "ブルーチームが敵ユニットを全滅させました！ブルーチームの勝利！"
+        : "ブルーチームが敵コアの完全破壊に成功しました！ブルーチームの勝利！";
+    } else {
+      desc.innerText = (myRole === 'P2')
+        ? (isWipeout ? "自軍ユニットが全滅しました...ブルーチームの勝利！" : "自軍コアが破壊されました...ブルーチームの勝利！")
+        : (isWipeout ? "敵ユニットの全滅に成功しました！ブルーチームの勝利！" : "敵コアの完全破壊に成功しました！ブルーチームの勝利！");
+    }
   } else {
     title.innerText = "RED VICTORY!";
     title.style.color = "var(--p2-color)";
-    desc.innerText = "自軍コアが破壊されました...レッドチームの勝利！";
+    if (gameMode === 'local') {
+      desc.innerText = isWipeout
+        ? "レッドチームが敵ユニットを全滅させました！レッドチームの勝利！"
+        : "レッドチームが敵コアの完全破壊に成功しました！レッドチームの勝利！";
+    } else {
+      desc.innerText = (myRole === 'P2')
+        ? (isWipeout ? "敵ユニットの全滅に成功しました！レッドチームの勝利！" : "敵コアの完全破壊に成功しました！レッドチームの勝利！")
+        : (isWipeout ? "自軍ユニットが全滅しました...レッドチームの勝利！" : "自軍コアが破壊されました...レッドチームの勝利！");
+    }
   }
 
   modal.classList.add('active');
 }
 
-// 初期配置フェーズ専用パネルの描画
+// 初期配置フェーズのオンライン待機パネル描画
 export function renderDeployPanel({
   gamePhase,
-  selectedDeployPiece,
-  roster = DEFAULT_ROSTER,
   gameMode = 'pve',
   myOnlineRole = null
 }) {
   const panel = document.getElementById('unit-detail-panel');
-  if (!panel) return;
+  if (!panel || gameMode !== 'online') return;
 
-  // オンライン対戦時の待機中画面
-  if (gameMode === 'online') {
-    if (gamePhase === 'DEPLOY_WAIT_P1' || (gamePhase === 'DEPLOY_P1' && myOnlineRole === 'P2')) {
-      panel.innerHTML = `
-        <div class="deploy-panel">
-          <div class="deploy-header-banner p2">
-            <div class="deploy-title">⏳ 先行 (BLUE) の初期配置を待機中</div>
-            <div class="deploy-desc">
-              ルールに基づき、後攻 (RED) は先行 (BLUE) の初期配置を視認した状態で対抗配置を行います。<br>
-              先行プレイヤーの配置完了をお待ちください...
-            </div>
-            <div class="deploy-waiting-banner">
-              <span class="deploy-waiting-spinner">⏳</span>
-              <span>先行プレイヤーが初期配置中...</span>
-            </div>
+  if (gamePhase === 'DEPLOY_WAIT_P1' || (gamePhase === 'DEPLOY_P1' && myOnlineRole === 'P2')) {
+    panel.innerHTML = `
+      <div class="deploy-panel">
+        <div class="deploy-header-banner p2">
+          <div class="deploy-title">⏳ 先行 (BLUE) の初期配置を待機中</div>
+          <div class="deploy-desc">
+            ルールに基づき、後攻 (RED) は先行 (BLUE) の初期配置を視認した状態で対抗配置を行います。<br>
+            先行プレイヤーの配置完了をお待ちください...
+          </div>
+          <div class="deploy-waiting-banner">
+            <span class="deploy-waiting-spinner">⏳</span>
+            <span>先行プレイヤーが初期配置中...</span>
           </div>
         </div>
-      `;
-      return;
-    }
+      </div>
+    `;
+    return;
+  }
 
-    if (gamePhase === 'DEPLOY_WAIT_P2' || (gamePhase === 'DEPLOY_P2' && myOnlineRole === 'P1')) {
-      panel.innerHTML = `
-        <div class="deploy-panel">
-          <div class="deploy-header-banner p1">
-            <div class="deploy-title">⏳ 後攻 (RED) の初期配置を待機中</div>
-            <div class="deploy-desc">
-              先行 (BLUE) の初期配置が完了し相手に送信されました。<br>
-              後攻プレイヤーの対抗配置が完了すると、自動的にバトルが開戦します...
-            </div>
-            <div class="deploy-waiting-banner">
-              <span class="deploy-waiting-spinner">⏳</span>
-              <span>後攻プレイヤーが対抗初期配置中...</span>
-            </div>
+  if (gamePhase === 'DEPLOY_WAIT_P2' || (gamePhase === 'DEPLOY_P2' && myOnlineRole === 'P1')) {
+    panel.innerHTML = `
+      <div class="deploy-panel">
+        <div class="deploy-header-banner p1">
+          <div class="deploy-title">⏳ 後攻 (RED) の初期配置を待機中</div>
+          <div class="deploy-desc">
+            先行 (BLUE) の初期配置が完了し相手に送信されました。<br>
+            後攻プレイヤーの対抗配置が完了すると、自動的にバトルが開戦します...
+          </div>
+          <div class="deploy-waiting-banner">
+            <span class="deploy-waiting-spinner">⏳</span>
+            <span>後攻プレイヤーが対抗初期配置中...</span>
           </div>
         </div>
-      `;
-      return;
-    }
+      </div>
+    `;
   }
 }
 
-// キャラクター選択モーダル（ピックフェーズ）の描画
-// キャラクターピック画面の描画 (フルスクリーン編成)
+// キャラクターピック画面の描画
 export function renderPickModal({
   currentOwner = 'P1',
   selectedHeroes = [],
@@ -1066,7 +1094,6 @@ export function renderPickModal({
 
   const selCount = selectedHeroes.length;
 
-  // 1. 出撃編成スロット (5枠) のレンダリング
   if (slotsContainer) {
     let slotsHtml = '';
     const isP2 = (currentOwner === 'P2');
@@ -1095,13 +1122,11 @@ export function renderPickModal({
     slotsContainer.innerHTML = slotsHtml;
   }
 
-  // 2. カウンターバッジ更新
   if (counterBadge) {
     counterBadge.innerText = `${selCount} / 5 体`;
     counterBadge.classList.toggle('ready', selCount === 5);
   }
 
-  // 3. 決定ボタン状態
   if (confirmBtn) {
     if (isOnline && myPickConfirmed) {
       confirmBtn.disabled = true;
@@ -1116,7 +1141,6 @@ export function renderPickModal({
     }
   }
 
-  // 4. カード一覧生成 (全ヒーローカード)
   let cardsHtml = '';
   const ownerClass = (currentOwner === 'P2') ? 'p2' : 'p1';
   for (const key of SELECTABLE_HERO_KEYS) {
@@ -1151,7 +1175,7 @@ export function renderPickModal({
             <strong>⚡ スキル [${skills.A ? skills.A.name : '-'}]:</strong> ${skills.A ? skills.A.desc : ''}
           </div>
           <div class="pick-card-skill-line">
-            <strong>🌟 ULT [${skills.ULT ? skills.ULT.name : '-'}]:</strong> ${skills.ULT ? skills.ULT.desc : ''}
+            <strong>🌟 アルティメット [${skills.ULT ? skills.ULT.name : '-'}]:</strong> ${skills.ULT ? skills.ULT.desc : ''}
           </div>
         </div>
       </div>
@@ -1159,10 +1183,6 @@ export function renderPickModal({
   }
 
   cardsGrid.innerHTML = cardsHtml;
-}
-
-export function hidePickModal() {
-  // フルスクリーン画面切り替えに統合されたため互換用
 }
 
 // ルール解説モーダルの開閉
