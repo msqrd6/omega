@@ -30,16 +30,29 @@ export class VectorUnit extends UnitEntity {
     });
   }
 
-  // パッシブ『バンカー・スナイパー』: オブジェクトまたはコアに隣接時、ATK +10
+  // パッシブ『バンカー・スナイパー』: 味方オブジェクトまたは味方コアに隣接時、ATK +10
   isBunkerActive(board) {
     if (!board) return false;
+    let ur = this.r, uc = this.c;
+    if (!inBounds(ur, uc) || board[ur][uc] !== this) {
+      ur = -1; uc = -1;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (board[r][c] === this) { ur = r; uc = c; break; }
+        }
+        if (ur !== -1) break;
+      }
+      if (ur === -1) return false;
+      this.r = ur;
+      this.c = uc;
+    }
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
         if (dr === 0 && dc === 0) continue;
-        const nr = this.r + dr, nc = this.c + dc;
+        const nr = ur + dr, nc = uc + dc;
         if (inBounds(nr, nc)) {
           const neighbor = board[nr][nc];
-          if (neighbor && (neighbor.isCore() || neighbor.isObject())) {
+          if (neighbor && neighbor.owner === this.owner && (neighbor.isCore() || neighbor.isObject())) {
             return true;
           }
         }

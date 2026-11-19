@@ -511,7 +511,7 @@ export function clearAllDebuffs(unit) {
   };
 }
 
-// ベクターのパッシブ『バンカー・スナイパー』判定 (オブジェクトまたはコア隣接時に真)
+// ベクターのパッシブ『バンカー・スナイパー』判定 (味方オブジェクトまたは味方コア隣接時に真)
 export function isVectorBunkerActive(unit) {
   if (!unit || (unit.typeKey !== 'VECTOR' && unit.typeKey !== 'SENTINEL')) return false;
   let ur = -1, uc = -1;
@@ -529,7 +529,7 @@ export function isVectorBunkerActive(unit) {
       const nr = ur + dr, nc = uc + dc;
       if (inBounds(nr, nc)) {
         const neighbor = board[nr][nc];
-        if (neighbor && (isCore(neighbor) || isObject(neighbor))) {
+        if (neighbor && neighbor.owner === unit.owner && (isCore(neighbor) || isObject(neighbor))) {
           return true;
         }
       }

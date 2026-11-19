@@ -745,6 +745,12 @@ function onPieceDrop(fromR, fromC, toR, toC) {
     if (!targetUnit) {
       board[toR][toC] = unit;
       board[fromR][fromC] = null;
+      if (typeof unit.setPosition === 'function') {
+        unit.setPosition(toR, toC);
+      } else {
+        unit.r = toR;
+        unit.c = toC;
+      }
       addLog(`🔄 ${unit.name} の位置を変更しました。`, curOwner.toLowerCase());
       selectedPos = { r: toR, c: toC };
       selectedDeployPos = { r: toR, c: toC };
@@ -752,6 +758,18 @@ function onPieceDrop(fromR, fromC, toR, toC) {
     } else if (targetUnit.owner === curOwner) {
       board[toR][toC] = unit;
       board[fromR][fromC] = targetUnit;
+      if (typeof unit.setPosition === 'function') {
+        unit.setPosition(toR, toC);
+      } else {
+        unit.r = toR;
+        unit.c = toC;
+      }
+      if (typeof targetUnit.setPosition === 'function') {
+        targetUnit.setPosition(fromR, fromC);
+      } else {
+        targetUnit.r = fromR;
+        targetUnit.c = fromC;
+      }
       addLog(`🔀 ${unit.name} と ${targetUnit.name} の配置位置を入れ替えました！`, curOwner.toLowerCase());
       selectedPos = { r: toR, c: toC };
       selectedDeployPos = { r: toR, c: toC };

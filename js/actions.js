@@ -272,6 +272,12 @@ export function executeMove(from, to, onGameOver) {
 
   board[to.r][to.c] = unit;
   board[from.r][from.c] = null;
+  if (typeof unit.setPosition === 'function') {
+    unit.setPosition(to.r, to.c);
+  } else {
+    unit.r = to.r;
+    unit.c = to.c;
+  }
 
   const enemyOwner = (unit.owner === 'P1') ? 'P2' : 'P1';
 
@@ -329,6 +335,19 @@ export function executeAttack(attackerPos, targetPos, onGameOver) {
   const attacker = board[attackerPos.r][attackerPos.c];
   const target = board[targetPos.r][targetPos.c];
   if (!attacker || !target) return;
+
+  if (typeof attacker.setPosition === 'function') {
+    attacker.setPosition(attackerPos.r, attackerPos.c);
+  } else {
+    attacker.r = attackerPos.r;
+    attacker.c = attackerPos.c;
+  }
+  if (typeof target.setPosition === 'function') {
+    target.setPosition(targetPos.r, targetPos.c);
+  } else {
+    target.r = targetPos.r;
+    target.c = targetPos.c;
+  }
 
   consumeActionToken(attacker.owner, 'attack', 1, attacker);
   showDamagePopup(attackerPos.r, attackerPos.c, `⚔️ATK消費`, '#f59e0b');
@@ -446,6 +465,8 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver) {
       if (slot === 'A') {
         board[tPos.r][tPos.c] = hero;
         board[heroPos.r][heroPos.c] = null;
+        if (typeof hero.setPosition === 'function') hero.setPosition(tPos.r, tPos.c);
+        else { hero.r = tPos.r; hero.c = tPos.c; }
         showDamagePopup(tPos.r, tPos.c, `👻影転移!`, '#a855f7');
         addLog(`👻 ${hero.name} が『テレポート』発動！自軍ディメンション・ゾーン (${tPos.r}, ${tPos.c}) へ瞬時に帰還！`, 'skill');
       } else if (slot === 'ULT') {
@@ -631,12 +652,16 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver) {
       if (slot === 'A') {
         board[tPos.r][tPos.c] = hero;
         board[heroPos.r][heroPos.c] = null;
+        if (typeof hero.setPosition === 'function') hero.setPosition(tPos.r, tPos.c);
+        else { hero.r = tPos.r; hero.c = tPos.c; }
         showDamagePopup(tPos.r, tPos.c, `ワープ瞬動!`, '#a855f7');
         addLog(`🌀 ${hero.name} が『グラビティ・ワープ』発動！味方アサルトの隣接マスへ空間跳躍！`, 'skill');
         triggerGlitchDimensionCharge(tPos, enemyOwner);
       } else if (slot === 'ULT') {
         board[tPos.r][tPos.c] = hero;
         board[heroPos.r][heroPos.c] = null;
+        if (typeof hero.setPosition === 'function') hero.setPosition(tPos.r, tPos.c);
+        else { hero.r = tPos.r; hero.c = tPos.c; }
         showDamagePopup(tPos.r, tPos.c, `緊急回避!`, '#c084fc');
         addLog(`✨ ${hero.name} がウルト『緊急回避』発動！任意の空きマスへ完全脱出！`, 'skill');
         triggerGlitchDimensionCharge(tPos, enemyOwner);
@@ -840,6 +865,8 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver) {
       } else if (slot === 'ULT') {
         board[tPos.r][tPos.c] = hero;
         board[heroPos.r][heroPos.c] = null;
+        if (typeof hero.setPosition === 'function') hero.setPosition(tPos.r, tPos.c);
+        else { hero.r = tPos.r; hero.c = tPos.c; }
         showDamagePopup(tPos.r, tPos.c, `💫救援ワープ!`, '#e066ff');
 
         const healedAlliesCount = healAlliesAround(tPos, hero.owner, 20);
