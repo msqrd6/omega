@@ -150,7 +150,7 @@ export class NetworkManager {
     conn.on('open', () => {
       this.isConnected = true;
       if (this.onStatusChange) {
-        this.onStatusChange(`🎉 対戦相手と接続しました！（あなたは ${role === 'P1' ? 'BLUE (先行)' : 'RED (後攻)'} です）`, false);
+        this.onStatusChange(`🎉 対戦相手と接続しました！（あなたは ${role === 'P1' ? 'P1 (先行)' : 'P2 (後攻)'} です）`, false);
       }
       if (this.onConnected) {
         this.onConnected(role);

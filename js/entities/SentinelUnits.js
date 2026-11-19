@@ -2,8 +2,8 @@
    SentinelUnits.js: センチネル (Sentinel) ロール ユニットクラス群
    (ベクター, ヴァルカン, トキシン)
    ============================================================== */
-import { UnitEntity } from './UnitEntity.js?v=20261024_11';
-import { HERO_TYPES, inBounds, ROWS, COLS } from '../config.js?v=20261024_11';
+import { UnitEntity } from './UnitEntity.js?v=urban-v1';
+import { HERO_TYPES, inBounds, ROWS, COLS } from '../config.js?v=urban-v1';
 
 // ==========================================
 // 1. ベクター (Vector / SENTINEL)
@@ -159,19 +159,14 @@ export class VulcanUnit extends UnitEntity {
       }
       return targets;
     } else if (slot === 'ULT') {
-      let hasTurret = false;
       const targets = [];
       for (let tr = 0; tr < ROWS; tr++) {
         for (let tc = 0; tc < COLS; tc++) {
           const u = board[tr][tc];
           if (u && u.typeKey === 'TURRET' && u.owner === this.owner) {
             targets.push({ r: tr, c: tc });
-            hasTurret = true;
           }
         }
-      }
-      if (hasTurret) {
-        targets.push({ r: this.r, c: this.c });
       }
       return targets;
     }
@@ -187,28 +182,35 @@ export class VulcanUnit extends UnitEntity {
       showDamagePopup(targetPos.r, targetPos.c, `🗼タレット設置!`, '#10b981');
       addLog(`⚙️🗼 ${this.name} が『セントリー・タレット』発動！自動防衛タレット（HP 20, ATK 10）を構築！（ヴァルカン破壊後も存続）`, 'skill');
     } else if (slot === 'ULT') {
-      showDamagePopup(this.r, this.c, `フォートレス・プロトコル!!`, '#f97316');
-
-      const myTurrets = [];
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const u = board[r][c];
-          if (u && u.owner === this.owner && u.typeKey === 'TURRET') {
-            myTurrets.push({ r, c, turret: u });
+      let targetTurretPos = null;
+      if (targetPos && inBounds(targetPos.r, targetPos.c)) {
+        const chosen = board[targetPos.r][targetPos.c];
+        if (chosen && chosen.owner === this.owner && chosen.typeKey === 'TURRET') {
+          targetTurretPos = { r: targetPos.r, c: targetPos.c };
+        }
+      }
+      if (!targetTurretPos) {
+        for (let r = 0; r < ROWS && !targetTurretPos; r++) {
+          for (let c = 0; c < COLS && !targetTurretPos; c++) {
+            const u = board[r][c];
+            if (u && u.owner === this.owner && u.typeKey === 'TURRET') {
+              targetTurretPos = { r, c };
+            }
           }
         }
       }
+      if (!targetTurretPos) return;
+
+      showDamagePopup(this.r, this.c, `フォートレス・プロトコル!!`, '#f97316');
+      showDamagePopup(targetTurretPos.r, targetTurretPos.c, `🎯空爆目標!`, '#f59e0b');
 
       const blastTiles = new Set();
-      myTurrets.forEach(({ r: tr, c: tc }) => {
-        showDamagePopup(tr, tc, `🎯空爆目標!`, '#f59e0b');
-        for (let dr = -2; dr <= 2; dr++) {
-          for (let dc = -2; dc <= 2; dc++) {
-            const nr = tr + dr, nc = tc + dc;
-            if (inBounds(nr, nc)) blastTiles.add(`${nr},${nc}`);
-          }
+      for (let dr = -2; dr <= 2; dr++) {
+        for (let dc = -2; dc <= 2; dc++) {
+          const nr = targetTurretPos.r + dr, nc = targetTurretPos.c + dc;
+          if (inBounds(nr, nc)) blastTiles.add(`${nr},${nc}`);
         }
-      });
+      }
 
       let hitCount = 0;
       blastTiles.forEach(key => {

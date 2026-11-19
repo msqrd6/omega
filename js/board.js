@@ -10,8 +10,8 @@ import {
   DEPLOYABLE_ROWS,
   DEFAULT_ROSTER,
   DEFAULT_ACTION_TOKENS
-} from './config.js?v=20261024_11';
-import { createEntity } from './entities/EntityFactory.js?v=20261024_11';
+} from './config.js?v=urban-v1';
+import { createEntity } from './entities/EntityFactory.js?v=urban-v1';
 
 // 盤面・トラップ・ハザード状態
 export let board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
@@ -277,7 +277,9 @@ export function getHazardInfoAt(r, c) {
       name: 'ディメンション・ゾーン',
       icon: '👻',
       owner: fz.owner,
-      desc: 'フェイズが展開したハザード。侵入した敵ユニット（コア除く）に【弱体化(このターン中 / 被ダメ1.5倍)】を付与！フェイズ撃破時に同時消滅。',
+      setter: 'フェイズ',
+      impact: '滞在中は常に弱体化 (被ダメ1.5倍)',
+      desc: 'フェイズが展開したハザード。侵入している敵ユニット（コア除く）は滞在しているあいだ常に【弱体化 (被ダメ1.5倍)】状態になる！フェイズ撃破時に同時消滅。',
       category: 'ハザード（展開者生存時永続 / 撃破時同時消滅）'
     };
   }
@@ -288,8 +290,24 @@ export function getHazardInfoAt(r, c) {
       name: 'トキシック・ゾーン',
       icon: '🧪',
       owner: pzn.owner,
+      setter: 'トキシン',
+      impact: 'ターン開始時 10 DMG',
       desc: '猛毒が立ち込める危険エリア。滞在している敵ユニット（コア除く）は自軍ターン開始時に 10 ダメージを受ける！トキシン撃破時に同時消滅。',
       category: 'ハザード（展開者生存時永続 / 撃破時同時消滅）'
+    };
+  }
+  const tp = traps.find(t => t.r === r && t.c === c && isLocalPlayer(t.owner));
+  if (tp) {
+    const dmg = tp.damage || 25;
+    return {
+      type: 'mine',
+      name: 'マイン',
+      icon: '💣',
+      owner: tp.owner,
+      setter: 'ニトロ',
+      impact: `踏破で ${dmg} DMG 爆発`,
+      desc: `ニトロが設置したステルス地雷。敵が踏むと即座に ${dmg} ダメージを与えて消滅する（自軍のみ視認可能）。`,
+      category: 'トラップ（敵からは不可視 / 踏破で爆発消滅）'
     };
   }
   return null;
@@ -442,14 +460,38 @@ export function hasBuff(unit, key) {
   return !!(unit.buffs && unit.buffs[key] && unit.buffs[key].turns > 0);
 }
 
+// 盤面上のユニット現在座標を取得（unit.r/c が古い場合のフォールバック検索付き）
+export function getUnitPos(unit) {
+  if (!unit) return null;
+  if (typeof unit.r === 'number' && typeof unit.c === 'number' && board[unit.r]?.[unit.c] === unit) {
+    return { r: unit.r, c: unit.c };
+  }
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c] === unit) return { r, c };
+    }
+  }
+  return null;
+}
+
+// 敵ディメンション・ゾーン上に滞在しているユニットかどうかを判定
+export function isUnitInEnemyPhantomZone(unit) {
+  if (!unit || !isUnit(unit) || !phantomZones.length) return false;
+  const pos = getUnitPos(unit);
+  if (!pos) return false;
+  return phantomZones.some(pz => pz.r === pos.r && pz.c === pos.c && pz.owner !== unit.owner);
+}
+
 export function hasDebuff(unit, key) {
   if (!unit) return false;
+  if (key === 'vulnerable' && isUnitInEnemyPhantomZone(unit)) return true;
   if (typeof unit.hasDebuff === 'function') return unit.hasDebuff(key);
   return !!(unit.debuffs && unit.debuffs[key] && unit.debuffs[key].turns > 0);
 }
 
 export function hasAnyDebuff(unit) {
   if (!unit) return false;
+  if (isUnitInEnemyPhantomZone(unit)) return true;
   if (typeof unit.hasAnyDebuff === 'function') return unit.hasAnyDebuff();
   if (!unit.debuffs) return false;
   return Object.values(unit.debuffs).some(d => d && d.turns > 0);
@@ -744,18 +786,13 @@ export function getValidSkillTargets(r, c, slot) {
           }
         }
       } else if (slot === 'ULT') {
-        let hasTurret = false;
         for (let tr = 0; tr < ROWS; tr++) {
           for (let tc = 0; tc < COLS; tc++) {
             const u = board[tr][tc];
             if (u && u.typeKey === 'TURRET' && u.owner === unit.owner) {
               targets.push({ r: tr, c: tc });
-              hasTurret = true;
             }
           }
-        }
-        if (hasTurret) {
-          targets.push({ r, c });
         }
       }
       break;

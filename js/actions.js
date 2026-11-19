@@ -1,7 +1,7 @@
 /* ==============================================================
    actions.js: ゲーム内アクション実行（移動・攻撃・スキル・撃破・ターン前後処理）
    ============================================================== */
-import { HERO_TYPES, ROWS, COLS, STATUS_EFFECT_DEFS, ULT_REQUIRED_DAMAGE } from './config.js?v=20261024_11';
+import { HERO_TYPES, ROWS, COLS, STATUS_EFFECT_DEFS, ULT_REQUIRED_DAMAGE } from './config.js?v=urban-v1';
 import {
   board,
   inBounds,
@@ -26,10 +26,14 @@ import {
   isCore,
   isObject,
   isLocalPlayer,
+  getUnitPos,
   syncActionTokensCount,
   findCore
-} from './board.js?v=20261024_11';
-import { addLog, showDamagePopup } from './ui.js?v=20261024_11';
+} from './board.js?v=urban-v1';
+import { addLog, showDamagePopup } from './ui.js?v=urban-v1';
+import { playCombatPopupFX, playSkillPopupFX, playUltCutinFX } from './urban-ui.js?v=urban-v12';
+
+let lastLethalHit = null;
 
 // ダメージ付与 ＆ 弱体化増幅 ＆ シールド吸収 ＆ チームウルトゲージチャージ処理
 export function dealDamage(attacker, target, damage, targetPos, isNormalAttack = false) {
@@ -69,13 +73,33 @@ export function dealDamage(attacker, target, damage, targetPos, isNormalAttack =
     addTeamUltDamage(attacker.owner, dmg);
     const afterGauge = getTeamUltGauge(attacker.owner);
     if (beforeGauge < ULT_REQUIRED_DAMAGE && afterGauge >= ULT_REQUIRED_DAMAGE) {
-      addLog(`🌟⚡【${attacker.owner === 'P1' ? 'BLUE' : 'RED'}】通常攻撃によりウルトゲージ 100% 蓄積完了！ウルトが発動可能になりました！`, 'skill');
+      addLog(`🌟⚡【${isLocalPlayer(attacker.owner) ? '自軍' : '敵軍'}】通常攻撃によりウルトゲージ 100% 蓄積完了！ウルトが発動可能になりました！`, 'skill');
     }
   }
 
-  // 5. 攻撃者のターン中累計与ダメージを加算（フェイズのウルト吸収等）
+  // 5. 攻撃者のターン中累計与ダメージ加算 ＆ シャドウ・ドレイン発動中のダメージ吸収回復
   if (attacker && isUnit(attacker)) {
     attacker.turnDamageDealt = (attacker.turnDamageDealt || 0) + dmg;
+    if (target.owner !== attacker.owner && dmg > 0 && hasBuff(attacker, 'shadow_drain')) {
+      const actualHealed = Math.min(Math.max(0, attacker.maxHp - attacker.hp), dmg);
+      attacker.hp = Math.min(attacker.maxHp, attacker.hp + dmg);
+      if (actualHealed > 0) {
+        const atkPos = getUnitPos(attacker);
+        if (atkPos) {
+          showDamagePopup(atkPos.r, atkPos.c, `+${actualHealed} HP吸収!`, '#10b981');
+          playCombatPopupFX('heal', atkPos, actualHealed);
+        }
+        addLog(`👤🩸 ${attacker.name} の『シャドウ・ドレイン』！${dmg} DMG を与えて HP を ${actualHealed} 吸収回復！(HP: ${attacker.hp}/${attacker.maxHp})`, 'skill');
+      }
+    }
+  }
+
+  if (dmg > 0) {
+    lastLethalHit = {
+      targetId: target.id,
+      attackerPos: attacker ? getUnitPos(attacker) : null,
+      dmg
+    };
   }
 
   return dmg;
@@ -104,10 +128,26 @@ export function checkDeath(r, c, attackerOwner, onGameOver, killerUnit = null) {
 
   if (target.hp <= 0) {
     target.hp = 0;
+    const hitMeta = (lastLethalHit && lastLethalHit.targetId === target.id) ? lastLethalHit : null;
+    const killerPos = killerUnit ? getUnitPos(killerUnit) : (hitMeta?.attackerPos || null);
+    const finisherContext = {
+      targetPos: { r, c },
+      attackerPos: killerPos,
+      dmg: hitMeta?.dmg || 0,
+      killedUnit: {
+        typeKey: target.typeKey,
+        owner: target.owner,
+        name: target.name,
+        hp: 0,
+        maxHp: target.maxHp,
+        atk: target.atk || 0
+      }
+    };
+
     if (target.typeKey === 'CORE') {
       const winningOwner = (target.owner === 'P1') ? 'P2' : 'P1';
       if (typeof onGameOver === 'function') {
-        onGameOver(winningOwner, 'core');
+        onGameOver(winningOwner, 'core', finisherContext);
       }
       return true;
     }
@@ -202,8 +242,8 @@ export function checkDeath(r, c, attackerOwner, onGameOver, killerUnit = null) {
 
       if (remainingDeadOwnerUnits === 0) {
         const winningOwner = (remainingOpponentUnits === 0 && attackerOwner) ? attackerOwner : opponentOwner;
-        addLog(`👑💥 【部隊全滅】 ${deadOwner === 'P1' ? 'BLUE' : 'RED'} チームのユニットが全滅した！`, 'system');
-        onGameOver(winningOwner, 'wipeout');
+        addLog(`👑💥 【部隊全滅】 ${isLocalPlayer(deadOwner) ? '自軍' : '敵軍'} チームのユニットが全滅した！`, 'system');
+        onGameOver(winningOwner, 'wipeout', finisherContext);
       }
     }
 
@@ -227,7 +267,7 @@ export function executeMove(from, to, onGameOver) {
     addLog(`⚡ ${unit.name} が専用移動トークン（ライトニング・ステップ）を消費して移動！チーム共通枠を温存！`, unit.owner.toLowerCase());
   } else {
     showDamagePopup(to.r, to.c, `👟MOVE消費`, '#00ffaa');
-    addLog(`${unit.owner === 'P1' ? '青' : '赤'}の ${unit.name} が移動しました (移動トークン消費)`, unit.owner.toLowerCase());
+    addLog(`${isLocalPlayer(unit.owner) ? '自軍' : '敵軍'}の ${unit.name} が移動しました (移動トークン消費)`, unit.owner.toLowerCase());
   }
 
   board[to.r][to.c] = unit;
@@ -250,9 +290,8 @@ export function executeMove(from, to, onGameOver) {
   if (board[to.r][to.c] && isUnit(unit)) {
     const inPhantomZone = phantomZones.some(pz => pz.r === to.r && pz.c === to.c && pz.owner === enemyOwner);
     if (inPhantomZone) {
-      applyDebuff(unit, 'vulnerable', 1);
-      showDamagePopup(to.r, to.c, `👻弱体化(このターン)!`, '#a855f7');
-      addLog(`👻 ディメンション・ゾーン侵入！${unit.name} に【弱体化 (このターン中 / 被ダメ1.5倍)】が付与された！`, 'system');
+      showDamagePopup(to.r, to.c, `👻ディメンション(弱体化中)!`, '#a855f7');
+      addLog(`👻 ディメンション・ゾーン侵入！${unit.name} はゾーン内に滞在しているあいだ【弱体化 (被ダメ1.5倍)】状態になります！`, 'system');
     }
   }
 
@@ -307,7 +346,8 @@ export function executeAttack(attackerPos, targetPos, onGameOver) {
   }
 
   const dmg = dealDamage(attacker, target, totalAtk, targetPos, true);
-  addLog(`${attacker.owner === 'P1' ? '青' : '赤'}の ${attacker.name} が ${target.name} を攻撃！(${dmg} DMG / チームウルト蓄積)`, attacker.owner.toLowerCase());
+  playCombatPopupFX('dmg', targetPos, dmg, attackerPos);
+  addLog(`${isLocalPlayer(attacker.owner) ? '自軍' : '敵軍'}の ${attacker.name} が ${target.name} を攻撃！(${dmg} DMG / チームウルト蓄積)`, attacker.owner.toLowerCase());
 
   // ニトロのパッシブ反撃判定
   checkAndTriggerNitroCounter(attacker, target, attackerPos, onGameOver);
@@ -339,7 +379,14 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver) {
     addLog(`✨ チームウルトゲージを消費しました。通常攻撃で再度ダメージを与えると再チャージされます！`, 'system');
   }
 
-  addLog(`⚡ ${hero.owner === 'P1' ? '青' : '赤'}の ${hero.name} が『${skillDef.name}』発動！`, 'skill');
+  addLog(`⚡ ${isLocalPlayer(hero.owner) ? '自軍' : '敵軍'}の ${hero.name} が『${skillDef.name}』発動！`, 'skill');
+
+  // スキル / ULT 演出（updateBoardView() の前にターゲットをスナップショット）
+  if (slot === 'ULT') {
+    playUltCutinFX(heroPos, hero, tPos);
+  } else if (slot === 'A') {
+    playSkillPopupFX(heroPos, tPos, hero);
+  }
 
   // クラスメソッドへの委譲（UnitEntity 派生クラス）
   if (typeof hero.executeSkill === 'function') {
@@ -402,16 +449,9 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver) {
         showDamagePopup(tPos.r, tPos.c, `👻影転移!`, '#a855f7');
         addLog(`👻 ${hero.name} が『テレポート』発動！自軍ディメンション・ゾーン (${tPos.r}, ${tPos.c}) へ瞬時に帰還！`, 'skill');
       } else if (slot === 'ULT') {
-        const drainAmount = hero.turnDamageDealt || 0;
-        if (drainAmount > 0) {
-          const actualHealed = Math.min(hero.maxHp - hero.hp, drainAmount);
-          hero.hp = Math.min(hero.maxHp, hero.hp + drainAmount);
-          showDamagePopup(heroPos.r, heroPos.c, `+${actualHealed} HP吸収!`, '#10b981');
-          addLog(`👤🩸 ${hero.name} がウルト『シャドウ・ドレイン』発動！このターンに敵へ与えた ${drainAmount} DMG を吸収し、HPを ${actualHealed} 回復！(HP: ${hero.hp}/${hero.maxHp})`, 'skill');
-        } else {
-          showDamagePopup(heroPos.r, heroPos.c, `与ダメなし(回復0)`, '#94a3b8');
-          addLog(`👤 ${hero.name} がウルト『シャドウ・ドレイン』発動！しかしこのターンに敵へダメージを与えていないため回復量は 0 です。`, 'system');
-        }
+        applyBuff(hero, 'shadow_drain', 1, 1);
+        showDamagePopup(heroPos.r, heroPos.c, `🩸ドレイン発動!(このターン)`, '#b366ff');
+        addLog(`👤🩸 ${hero.name} がウルト『シャドウ・ドレイン』発動！このターン中、自身が敵に与えたダメージ分だけHPを吸収・回復する状態になった！`, 'skill');
       }
       break;
     }
@@ -479,28 +519,35 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver) {
         showDamagePopup(tPos.r, tPos.c, `🗼タレット設置!`, '#10b981');
         addLog(`⚙️🗼 ${hero.name} が『セントリー・タレット』発動！自動防衛タレット（HP 20, ATK 10）を構築！（ヴァルカン破壊後も存続）`, 'skill');
       } else if (slot === 'ULT') {
-        showDamagePopup(heroPos.r, heroPos.c, `フォートレス・プロトコル!!`, '#f97316');
-
-        const myTurrets = [];
-        for (let r = 0; r < ROWS; r++) {
-          for (let c = 0; c < COLS; c++) {
-            const u = board[r][c];
-            if (u && u.owner === hero.owner && u.typeKey === 'TURRET') {
-              myTurrets.push({ r, c, turret: u });
+        let targetTurretPos = null;
+        if (inBounds(tPos.r, tPos.c)) {
+          const chosen = board[tPos.r][tPos.c];
+          if (chosen && chosen.owner === hero.owner && chosen.typeKey === 'TURRET') {
+            targetTurretPos = { r: tPos.r, c: tPos.c };
+          }
+        }
+        if (!targetTurretPos) {
+          for (let r = 0; r < ROWS && !targetTurretPos; r++) {
+            for (let c = 0; c < COLS && !targetTurretPos; c++) {
+              const u = board[r][c];
+              if (u && u.owner === hero.owner && u.typeKey === 'TURRET') {
+                targetTurretPos = { r, c };
+              }
             }
           }
         }
+        if (!targetTurretPos) break;
+
+        showDamagePopup(heroPos.r, heroPos.c, `フォートレス・プロトコル!!`, '#f97316');
+        showDamagePopup(targetTurretPos.r, targetTurretPos.c, `🎯空爆目標!`, '#f59e0b');
 
         const blastTiles = new Set();
-        myTurrets.forEach(({ r: tr, c: tc }) => {
-          showDamagePopup(tr, tc, `🎯空爆目標!`, '#f59e0b');
-          for (let dr = -2; dr <= 2; dr++) {
-            for (let dc = -2; dc <= 2; dc++) {
-              const nr = tr + dr, nc = tc + dc;
-              if (inBounds(nr, nc)) blastTiles.add(`${nr},${nc}`);
-            }
+        for (let dr = -2; dr <= 2; dr++) {
+          for (let dc = -2; dc <= 2; dc++) {
+            const nr = targetTurretPos.r + dr, nc = targetTurretPos.c + dc;
+            if (inBounds(nr, nc)) blastTiles.add(`${nr},${nc}`);
           }
-        });
+        }
 
         let hitCount = 0;
         blastTiles.forEach(key => {
@@ -984,6 +1031,13 @@ export function tickTurnEffects(currentTurn) {
               addLog(`💨 ${u.name} の【シールド増強】が時間経過で消滅しました`, 'system');
             }
           }
+          if (u.buffs.shadow_drain) {
+            u.buffs.shadow_drain.turns--;
+            if (u.buffs.shadow_drain.turns <= 0) {
+              u.buffs.shadow_drain = null;
+              addLog(`💨 ${u.name} の【シャドウ・ドレイン】が終了しました`, 'system');
+            }
+          }
         }
 
         if (u.debuffs) {
@@ -1086,7 +1140,7 @@ export function destroyBarricade(r, c) {
   if (!unit || unit.typeKey !== 'BARRICADE') return false;
 
   showDamagePopup(r, c, `💥防壁破壊!`, '#ef4444');
-  addLog(`🧱💥 ${unit.owner === 'P1' ? 'BLUE' : 'RED'} の防壁（バリケード）が破壊ボタンにより破壊された！`, 'system');
+  addLog(`🧱💥 ${isLocalPlayer(unit.owner) ? '自軍' : '敵軍'} の防壁（バリケード）が破壊ボタンにより破壊された！`, 'system');
 
   board[r][c] = null;
   return true;

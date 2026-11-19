@@ -77,16 +77,16 @@ body {
 }
 
 /* ==============================================================
-   手番連動アンビエントライティング (BLUE=青系, RED=赤系)
+   手番連動アンビエントライティング (Viewer-Relative: 自軍=イエロー, 敵軍=レッド)
    ============================================================== */
-/* BLUE (自軍) ターン背景: 上部〜中央からシアン/ディープブルーの環境光 */
+/* 自軍ターン背景 */
 #screen-battle.turn-p1-bg {
-  background: radial-gradient(ellipse at 50% 18%, rgba(0, 160, 255, 0.16) 0%, rgba(10, 26, 48, 0.55) 42%, #070a14 100%);
+  background: radial-gradient(ellipse at 50% 18%, rgba(216, 255, 0, 0.12) 0%, rgba(18, 20, 26, 0.55) 42%, #070a14 100%);
 }
 
-/* RED (敵軍) ターン背景: 上部〜中央からクリムゾン/深紅の環境光 */
+/* 敵軍ターン背景 */
 #screen-battle.turn-p2-bg {
-  background: radial-gradient(ellipse at 50% 18%, rgba(255, 45, 90, 0.17) 0%, rgba(48, 12, 24, 0.55) 42%, #070a14 100%);
+  background: radial-gradient(ellipse at 50% 18%, rgba(255, 70, 37, 0.16) 0%, rgba(48, 12, 24, 0.55) 42%, #070a14 100%);
 }
 
 /* 盤面外枠へのアンビエントライト連動 */
@@ -2191,15 +2191,13 @@ h1 {
   display: inline-block;
   font-size: 0.72rem;
   letter-spacing: 2px;
-  color: #38bdf8;
+  color: #d8ff00;
   font-weight: 800;
   margin-bottom: 4px;
 }
-.pick-header-badge.online-p1 {
-  color: #38bdf8;
-}
+.pick-header-badge.online-p1,
 .pick-header-badge.online-p2 {
-  color: #f87171;
+  color: #d8ff00;
 }
 
 .pick-screen-title {
@@ -3229,9 +3227,9 @@ h1 {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  color: #38bdf8;
+  background: rgba(216, 255, 0, 0.12);
+  border: 1px solid rgba(216, 255, 0, 0.45);
+  color: #d8ff00;
   padding: 6px 14px;
   border-radius: 20px;
   font-size: 0.85rem;
@@ -3239,16 +3237,11 @@ h1 {
   letter-spacing: 0.5px;
 }
 
-.current-mode-badge.online-p1 {
-  background: rgba(56, 189, 248, 0.18);
-  border-color: #38bdf8;
-  color: #38bdf8;
-}
-
+.current-mode-badge.online-p1,
 .current-mode-badge.online-p2 {
-  background: rgba(244, 63, 94, 0.18);
-  border-color: #fb7185;
-  color: #fb7185;
+  background: rgba(216, 255, 0, 0.16);
+  border-color: #d8ff00;
+  color: #d8ff00;
 }
 
 .game-control-btns {

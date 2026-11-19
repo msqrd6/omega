@@ -2,8 +2,8 @@
    DisruptorUnits.js: ディスラプター (Disruptor) ロール ユニットクラス群
    (グリッチ, サイファー, ハイヴ)
    ============================================================== */
-import { UnitEntity } from './UnitEntity.js?v=20261024_11';
-import { HERO_TYPES, inBounds, ROWS, COLS } from '../config.js?v=20261024_11';
+import { UnitEntity } from './UnitEntity.js?v=urban-v1';
+import { HERO_TYPES, inBounds, ROWS, COLS } from '../config.js?v=urban-v1';
 
 // ==========================================
 // 1. グリッチ (Glitch / DISRUPTOR)

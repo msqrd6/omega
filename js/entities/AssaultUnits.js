@@ -2,8 +2,8 @@
    AssaultUnits.js: アサルト (Assault) ロール ユニットクラス群
    (キネシス, フェイズ, ニトロ, ビット)
    ============================================================== */
-import { UnitEntity } from './UnitEntity.js?v=20261024_11';
-import { HERO_TYPES, inBounds } from '../config.js?v=20261024_11';
+import { UnitEntity } from './UnitEntity.js?v=urban-v1';
+import { HERO_TYPES, inBounds } from '../config.js?v=urban-v1';
 
 // ==========================================
 // 1. キネシス (Kinesis / DUELIST)
@@ -123,16 +123,9 @@ export class PhaseUnit extends UnitEntity {
       showDamagePopup(targetPos.r, targetPos.c, `👻影転移!`, '#a855f7');
       addLog(`👻 ${this.name} が『テレポート』発動！自軍ディメンション・ゾーン (${targetPos.r}, ${targetPos.c}) へ瞬時に帰還！`, 'skill');
     } else if (slot === 'ULT') {
-      const drainAmount = this.turnDamageDealt || 0;
-      if (drainAmount > 0) {
-        const actualHealed = Math.min(this.maxHp - this.hp, drainAmount);
-        this.hp = Math.min(this.maxHp, this.hp + drainAmount);
-        showDamagePopup(this.r, this.c, `+${actualHealed} HP吸収!`, '#10b981');
-        addLog(`👤🩸 ${this.name} がウルト『シャドウ・ドレイン』発動！このターンに敵へ与えた ${drainAmount} DMG を吸収し、HPを ${actualHealed} 回復！(HP: ${this.hp}/${this.maxHp})`, 'skill');
-      } else {
-        showDamagePopup(this.r, this.c, `与ダメなし(回復0)`, '#94a3b8');
-        addLog(`👤 ${this.name} がウルト『シャドウ・ドレイン』発動！しかしこのターンに敵へダメージを与えていないため回復量は 0 です。`, 'system');
-      }
+      this.applyBuff('shadow_drain', 1, 1);
+      showDamagePopup(this.r, this.c, `🩸ドレイン発動!(このターン)`, '#b366ff');
+      addLog(`👤🩸 ${this.name} がウルト『シャドウ・ドレイン』発動！このターン中、自身が敵に与えたダメージ分だけHPを吸収・回復する状態になった！`, 'skill');
     }
   }
 }

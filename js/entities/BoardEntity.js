@@ -31,7 +31,8 @@ export class BoardEntity {
     // バフ（シールド等はコアやオブジェクトにも付与される場合がある）
     this.buffs = {
       atk_up: null,
-      shield: null
+      shield: null,
+      shadow_drain: null
     };
 
     // デバフ（通常はユニットのみ有効）

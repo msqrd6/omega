@@ -9,7 +9,7 @@ import {
   ULT_REQUIRED_DAMAGE,
   SELECTABLE_HERO_KEYS,
   DEFAULT_ROSTER
-} from './config.js?v=20261024_11';
+} from './config.js?v=urban-v1';
 import {
   board,
   traps,
@@ -32,7 +32,9 @@ import {
   getPlayerTokens,
   isLocalPlayer,
   isUnit
-} from './board.js?v=20261024_11';
+} from './board.js?v=urban-v1';
+
+import { characterArt, renderUrbanHero, icon, roleIcon, roleKey, floorGraphicHtml, getSkillPreviewTargets, getUltPreviewTargets, isHealSkillHero } from './urban-ui.js?v=urban-v12';
 
 export let tileElements = [];
 export let isBoardFlipped = false;
@@ -43,7 +45,7 @@ export function setPhaseInstruction(text) {
   if (el) el.innerText = text;
 }
 
-// プレイヤー視点の設定（RED側なら自陣手前(flipped)に固定）
+// プレイヤー視点の設定（P2側なら自陣手前(flipped)に固定）
 export function setBoardPerspective(flipped) {
   isBoardFlipped = !!flipped;
   for (let r = 0; r < ROWS; r++) {
@@ -56,10 +58,20 @@ export function setBoardPerspective(flipped) {
     }
   }
 
+  const boardEl = document.getElementById('board');
+  if (boardEl) {
+    boardEl.classList.toggle('flipped-perspective', isBoardFlipped);
+  }
   const coreBar = document.querySelector('.core-status-bar');
   if (coreBar) {
     coreBar.classList.toggle('flipped-bar', isBoardFlipped);
   }
+  const battlefield = document.querySelector('.battlefield');
+  if (battlefield) {
+    battlefield.classList.toggle('flipped-perspective', isBoardFlipped);
+  }
+  document.querySelectorAll('#urban-coord-cols span').forEach((el, i) => el.textContent = 'ABCDEFG'[isBoardFlipped ? 6 - i : i]);
+  document.querySelectorAll('#urban-coord-rows span').forEach((el, i) => el.textContent = isBoardFlipped ? i + 1 : 7 - i);
 }
 
 export function getHpClass(hp, max) {
@@ -70,11 +82,15 @@ export function getHpClass(hp, max) {
 }
 
 // 盤面DOMを最初に1回だけ構築 (ドラッグ＆ドロップリスナー付き)
-export function createBoardDOMOnce({ onTileClickCallback, onPieceDropCallback }) {
+export function createBoardDOMOnce({ onTileClickCallback, onPieceDropCallback, onTileHoverCallback }) {
   const boardEl = document.getElementById('board');
   if (!boardEl) return;
   boardEl.innerHTML = '';
   tileElements = [];
+
+  if (onTileHoverCallback) {
+    boardEl.addEventListener('mouseleave', () => onTileHoverCallback(null));
+  }
 
   for (let r = 0; r < ROWS; r++) {
     tileElements[r] = [];
@@ -83,6 +99,11 @@ export function createBoardDOMOnce({ onTileClickCallback, onPieceDropCallback })
       tile.className = 'tile';
       tile.dataset.r = r;
       tile.dataset.c = c;
+      tile.tabIndex = 0;
+      tile.setAttribute('role', 'button');
+      tile.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onTileClickCallback(r, c); }
+      });
       tile.style.order = isBoardFlipped
         ? (ROWS - 1 - r) * COLS + (COLS - 1 - c)
         : r * COLS + c;
@@ -92,20 +113,27 @@ export function createBoardDOMOnce({ onTileClickCallback, onPieceDropCallback })
         onTileClickCallback(r, c);
       });
 
+      if (onTileHoverCallback) {
+        tile.addEventListener('mouseenter', () => onTileHoverCallback({ r, c }));
+        tile.addEventListener('focus', () => onTileHoverCallback({ r, c }));
+      }
+
       tile.addEventListener('dragover', (e) => {
         e.preventDefault();
         if (e.dataTransfer) {
           e.dataTransfer.dropEffect = 'move';
         }
-        if (tile.classList.contains('movable') || tile.classList.contains('deploy-area-p1') || tile.classList.contains('deploy-area-p2')) {
+        if (tile.classList.contains('movable') || tile.classList.contains('deploy-area-ally') || tile.classList.contains('deploy-area-p1') || tile.classList.contains('deploy-area-p2')) {
           tile.classList.add('drag-over-valid');
         } else if (tile.classList.contains('attackable')) {
           tile.classList.add('drag-over-attack');
         }
       });
 
-      tile.addEventListener('dragleave', () => {
-        tile.classList.remove('drag-over-valid', 'drag-over-attack');
+      tile.addEventListener('dragleave', (e) => {
+        if (!tile.contains(e.relatedTarget)) {
+          tile.classList.remove('drag-over-valid', 'drag-over-attack');
+        }
       });
 
       tile.addEventListener('drop', (e) => {
@@ -128,6 +156,132 @@ export function createBoardDOMOnce({ onTileClickCallback, onPieceDropCallback })
   }
 }
 
+// スキル・ULTの待機時＆ホバー効果範囲プレビュー更新（ピースDOM再構築なし）
+export function updateTargetingPreview({
+  turn,
+  selectedPos,
+  commandMode,
+  validTargets = [],
+  hoveredPos = null,
+  gamePhase = 'BATTLE'
+}) {
+  const isDeployPhase = (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_P2');
+  const stageEl = document.getElementById('battle-stage');
+  const selHeroGlobal = (selectedPos && board[selectedPos.r]?.[selectedPos.c]) || null;
+  const isMyActiveUnit = Boolean(!isDeployPhase && selHeroGlobal && selHeroGlobal.owner === turn && isUnit(selHeroGlobal));
+  const isUltTargeting = Boolean(commandMode === 'SKILL_ULT' && isMyActiveUnit);
+  const isSkillFocus = Boolean(commandMode === 'SKILL_A' && !isUltTargeting && isMyActiveUnit);
+
+  if (stageEl) {
+    stageEl.classList.toggle('is-ult-armed', isUltTargeting);
+    stageEl.classList.toggle('is-skill-armed', isSkillFocus);
+  }
+
+  if (!isUltTargeting && !isSkillFocus) return;
+
+  const validHoveredTarget = (hoveredPos && validTargets.some(t => t.r === hoveredPos.r && t.c === hoveredPos.c))
+    ? hoveredPos
+    : null;
+
+  const ultPreviewTargets = isUltTargeting
+    ? getUltPreviewTargets(selectedPos, selHeroGlobal, validHoveredTarget, true)
+    : [];
+  const ultPreviewMap = new Map(ultPreviewTargets.map(t => [`${t.r},${t.c}`, t]));
+
+  const skillPreviewTargets = isSkillFocus
+    ? getSkillPreviewTargets(selectedPos, selHeroGlobal, validHoveredTarget)
+    : [];
+  const skillPreviewMap = new Map(skillPreviewTargets.map(t => [`${t.r},${t.c}`, t]));
+
+  const previewClasses = [
+    'is-ult-caster', 'ult-zone', 'is-toxic-ult', 'ult-target',
+    'skill-target', 'heal-target', 'skill-zone', 'is-heal-zone',
+    'is-toxic-zone', 'is-debuff-zone', 'is-beam-zone', 'is-preview-hit'
+  ];
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const tile = tileElements[r]?.[c];
+      if (!tile) continue;
+
+      tile.classList.remove(...previewClasses);
+
+      let targetKind = null;
+      let showUltMark = false;
+      const isSelectableTarget = validTargets.some(t => t.r === r && t.c === c);
+
+      if (isUltTargeting) {
+        const isCaster = selectedPos && selectedPos.r === r && selectedPos.c === c;
+        const uHit = ultPreviewMap.get(`${r},${c}`);
+        if (isCaster) {
+          tile.classList.add('is-ult-caster');
+        }
+        if (uHit && !isCaster) {
+          tile.classList.add('ult-zone');
+          if (selHeroGlobal.typeKey === 'TOXIN') tile.classList.add('is-toxic-ult');
+        }
+        if (uHit?.hitPiece) {
+          tile.classList.add('is-preview-hit');
+        }
+        if (isSelectableTarget) {
+          tile.classList.add('ult-target');
+        }
+        const isHoveredValid = Boolean(validHoveredTarget && validHoveredTarget.r === r && validHoveredTarget.c === c);
+        if (validTargets.length <= 8) {
+          if (isSelectableTarget) {
+            showUltMark = true;
+          }
+        } else if (isHoveredValid) {
+          showUltMark = true;
+        }
+      } else if (isSkillFocus) {
+        const sHit = skillPreviewMap.get(`${r},${c}`);
+        if (isSelectableTarget) {
+          if (isHealSkillHero(selHeroGlobal)) {
+            tile.classList.add('skill-target', 'heal-target');
+            targetKind = 'heal';
+          } else {
+            tile.classList.add('skill-target');
+            targetKind = 'skill';
+          }
+        }
+        if (sHit) {
+          tile.classList.add('skill-zone');
+          if (sHit.kind === 'heal') tile.classList.add('is-heal-zone');
+          else if (sHit.kind === 'toxic') tile.classList.add('is-toxic-zone');
+          else if (sHit.kind === 'debuff') tile.classList.add('is-debuff-zone');
+          else if (sHit.kind === 'beam') tile.classList.add('is-beam-zone');
+          if (sHit.hitPiece) tile.classList.add('is-preview-hit');
+        }
+      }
+
+      let markEl = tile.querySelector('.target-mark');
+      if (targetKind) {
+        if (!markEl) {
+          markEl = document.createElement('span');
+          markEl.className = 'target-mark';
+          tile.appendChild(markEl);
+        }
+        markEl.innerHTML = icon(targetKind === 'attack' ? 'attack' : targetKind === 'move' ? 'move' : 'skill');
+      } else if (markEl) {
+        markEl.remove();
+      }
+
+      let ultMarkEl = tile.querySelector('.ult-target-mark');
+      if (showUltMark) {
+        if (!ultMarkEl) {
+          ultMarkEl = document.createElement('span');
+          ultMarkEl.className = 'ult-target-mark';
+          tile.appendChild(ultMarkEl);
+        }
+        ultMarkEl.innerHTML = icon('ult');
+      } else if (ultMarkEl) {
+        ultMarkEl.remove();
+      }
+    }
+  }
+}
+
 // 盤面ビューの更新
 export function updateBoardView({
   turn,
@@ -135,6 +289,7 @@ export function updateBoardView({
   selectedHazardPos,
   commandMode,
   validTargets = [],
+  hoveredPos = null,
   gamePhase = 'BATTLE',
   gameMode = 'pve',
   myOnlineRole = null,
@@ -144,6 +299,19 @@ export function updateBoardView({
   const isDeployPhase = (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_P2');
   const deployOwner = (gamePhase === 'DEPLOY_P1') ? 'P1' : (gamePhase === 'DEPLOY_P2' ? 'P2' : null);
   const isMyDeployPhase = !isDeployPhase ? false : (gameMode !== 'online' || deployOwner === myOnlineRole);
+  const stageEl = document.getElementById('battle-stage');
+  const selHeroGlobal = (selectedPos && board[selectedPos.r]?.[selectedPos.c]) || null;
+  const isUltTargeting = Boolean(
+    commandMode === 'SKILL_ULT' && !isDeployPhase && selHeroGlobal && selHeroGlobal.owner === turn && isUnit(selHeroGlobal)
+  );
+  const isSkillFocus = Boolean(
+    commandMode === 'SKILL_A' && !isUltTargeting && !isDeployPhase && selHeroGlobal && selHeroGlobal.owner === turn && isUnit(selHeroGlobal)
+  );
+
+  if (stageEl) {
+    stageEl.classList.toggle('is-ult-armed', isUltTargeting);
+    stageEl.classList.toggle('is-skill-armed', isSkillFocus);
+  }
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -152,34 +320,55 @@ export function updateBoardView({
       const unit = board[r][c];
 
       tile.className = 'tile';
+      const topZoneRow = isBoardFlipped ? (r > 4) : (r < 2);
+      const bottomZoneRow = isBoardFlipped ? (r < 2) : (r > 4);
+      if (topZoneRow) tile.classList.add('enemy-zone');
+      else if (bottomZoneRow) tile.classList.add('ally-zone');
       tile.title = '';
 
       // 1. 初期配置フェーズの枠線ガイドハイライト
       if (isDeployPhase && isMyDeployPhase && canDeployAt(deployOwner, r, c)) {
-        tile.classList.add(deployOwner === 'P1' ? 'deploy-area-p1' : 'deploy-area-p2');
+        tile.classList.add('deploy-area-ally');
       }
 
-      // 2. トラップ表示（自軍トラップのみ常時表示、敵トラップは常時非表示）
+      // 2. トラップ・ハザード表示
       const trap = traps.find(tp => tp.r === r && tp.c === c);
-      if (trap && isLocalPlayer(trap.owner)) {
-        tile.classList.add(trap.owner === 'P1' ? 'has-trap-p1' : 'has-trap-p2');
+      const hasVisibleTrap = !!(trap && isLocalPlayer(trap.owner));
+      if (hasVisibleTrap) {
+        tile.classList.add(isLocalPlayer(trap.owner) ? 'has-trap-ally' : 'has-trap-enemy');
         tile.title = 'マイン（地雷 / 自軍のみ視認可能）';
       }
 
-      // 3. ハザード表示
       const fz = phantomZones.find(z => z.r === r && z.c === c);
       const pzn = poisonZones.find(z => z.r === r && z.c === c);
 
       if (fz) {
-        tile.classList.add('has-hazard', 'phantom-zone', fz.owner === 'P1' ? 'hazard-owner-p1' : 'hazard-owner-p2');
-        tile.title = `👻 ディメンション・ゾーン (${fz.owner === 'P1' ? 'BLUE' : 'RED'} / 侵入敵に弱体化1.5倍 / フェイズ撃破で消滅)`;
+        tile.classList.add('has-hazard', 'phantom-zone', isLocalPlayer(fz.owner) ? 'hazard-owner-ally' : 'hazard-owner-enemy');
+        tile.title = `👻 ディメンション・ゾーン (${isLocalPlayer(fz.owner) ? '自軍' : '敵軍'} / 侵入中は常に弱体化1.5倍 / フェイズ撃破で消滅)`;
       } else if (pzn) {
-        tile.classList.add('has-hazard', 'poison-zone', pzn.owner === 'P1' ? 'hazard-owner-p1' : 'hazard-owner-p2');
-        tile.title = `🧪 トキシック・ゾーン (${pzn.owner === 'P1' ? 'BLUE' : 'RED'} / ターン開始時10DMG / トキシン撃破で消滅)`;
+        tile.classList.add('has-hazard', 'poison-zone', isLocalPlayer(pzn.owner) ? 'hazard-owner-ally' : 'hazard-owner-enemy');
+        tile.title = `🧪 トキシック・ゾーン (${isLocalPlayer(pzn.owner) ? '自軍' : '敵軍'} / ターン開始時10DMG / トキシン撃破で消滅)`;
       }
 
       if (selectedHazardPos && selectedHazardPos.r === r && selectedHazardPos.c === c) {
-        tile.classList.add('hazard-selected');
+        tile.classList.add('selected', 'hazard-selected');
+      }
+
+      // フロアハザード・トラップバッジ描画
+      let floorEl = tile.querySelector('.floor');
+      const floorType = pzn ? 'toxic' : fz ? 'dimension' : hasVisibleTrap ? 'mine' : null;
+      const floorOwner = pzn ? pzn.owner : fz ? fz.owner : hasVisibleTrap ? trap.owner : null;
+      if (floorType) {
+        if (!floorEl || floorEl.tagName !== 'DIV') {
+          if (floorEl) floorEl.remove();
+          floorEl = document.createElement('div');
+          tile.prepend(floorEl);
+        }
+        floorEl.className = `floor ${floorType}`;
+        floorEl.dataset.relation = isLocalPlayer(floorOwner) ? 'ally' : 'enemy';
+        floorEl.innerHTML = floorGraphicHtml({ type: floorType, name: floorType === 'toxic' ? 'トキシック' : floorType === 'dimension' ? 'ディメンション' : 'マイン' });
+      } else if (floorEl) {
+        floorEl.remove();
       }
 
       // 4. 駒の描画
@@ -191,10 +380,14 @@ export function updateBoardView({
           tile.appendChild(pieceEl);
         }
 
-        pieceEl.className = `piece ${unit.owner.toLowerCase()} ${unit.typeKey.toLowerCase()}`;
+        const isEnemy = !isLocalPlayer(unit.owner);
+        const isStructure = !isUnit(unit);
+        pieceEl.className = `piece ${isEnemy ? 'enemy' : 'ally'} ${isStructure ? 'structure' : ''} ${unit.typeKey.toLowerCase()}`;
+        tile.setAttribute('aria-label', `${'ABCDEFG'[c]}${7 - r} ${unit.name} HP ${unit.hp}/${unit.maxHp}`);
         if (unit.typeKey === 'CORE') pieceEl.classList.add('core');
 
-        const isCurrentTurnHero = (!isDeployPhase && unit.owner === turn && isUnit(unit));
+        const localTurn = gameMode === 'online' ? turn === myOnlineRole : turn === 'P1';
+        const isCurrentTurnHero = (gamePhase === 'BATTLE' && localTurn && unit.owner === turn && isUnit(unit));
         const canDragInDeploy = (isDeployPhase && isMyDeployPhase && unit.owner === deployOwner);
 
         if (isCurrentTurnHero || canDragInDeploy) {
@@ -224,50 +417,59 @@ export function updateBoardView({
           pieceEl.classList.add('selected');
         }
 
-        // バフ・デバフのインジケーターアイコン
-        let statusBadgesHtml = '';
-        if (unit.buffs) {
-          if (hasBuff(unit, 'atk_up')) statusBadgesHtml += `<span class="status-badge badge-atk-up">🔥</span>`;
-          if (hasBuff(unit, 'shield')) statusBadgesHtml += `<span class="status-badge badge-shield-buff">🛡️</span>`;
-        }
-        if (unit.debuffs) {
-          if (hasDebuff(unit, 'vulnerable')) statusBadgesHtml += `<span class="status-badge badge-vulnerable">🎯</span>`;
-          if (hasDebuff(unit, 'disarm')) statusBadgesHtml += `<span class="status-badge badge-disarm">💢</span>`;
-          if (hasDebuff(unit, 'bind')) statusBadgesHtml += `<span class="status-badge badge-bind">⛓️</span>`;
-          if (hasDebuff(unit, 'silence')) statusBadgesHtml += `<span class="status-badge badge-silence">🤐</span>`;
-        }
-
-        const hpPct = Math.max(0, Math.min(100, (unit.hp / unit.maxHp) * 100));
-        const hpClass = getHpClass(unit.hp, unit.maxHp);
+        const hasAnyDebuff = unit.debuffs && (
+          hasDebuff(unit, 'vulnerable') ||
+          hasDebuff(unit, 'disarm') ||
+          hasDebuff(unit, 'bind') ||
+          hasDebuff(unit, 'silence')
+        );
+        const hasAtkBuff = unit.buffs && (hasBuff(unit, 'atk_up') || hasBuff(unit, 'shadow_drain'));
+        const statusIconHtml = hasAnyDebuff ? icon('debuff') : (hasAtkBuff ? icon('buff') : '');
 
         const shieldVal = getShieldVal(unit);
-        let shieldBarHtml = '';
-        let shieldBadgeHtml = '';
-        if (shieldVal > 0) {
-          const shieldPct = Math.max(0, Math.min(100, (shieldVal / unit.maxHp) * 100));
-          shieldBarHtml = `<div class="piece-shield-bar" style="width: ${shieldPct}%;"></div>`;
-          shieldBadgeHtml = `<div class="piece-shield-badge">🛡️${shieldVal}</div>`;
-        }
+        const displayHp = unit.hp + shieldVal;
+        const shieldHtml = shieldVal > 0 ? `<span class="piece-shield">${icon('shield')}${shieldVal}</span>` : '';
+        const faceHtml = unit.typeKey === 'CORE'
+          ? icon('core')
+          : unit.typeKey === 'TURRET'
+            ? icon('turret')
+            : characterArt(unit.typeKey, unit.owner, unit.name);
+        const atkVal = isUnit(unit)
+          ? getEffectiveAtk(unit)
+          : (unit.atk ? unit.atk : '');
+        const baseAtk = isUnit(unit) ? (HERO_TYPES[unit.typeKey]?.atk ?? unit.atk ?? 0) : (unit.atk || 0);
+        const hasAtk = atkVal !== '' && Number(atkVal) > 0;
+        const isAtkBuffed = Boolean(hasAtk && (hasAtkBuff || Number(atkVal) > Number(baseAtk)));
+        const atkText = hasAtk ? String(atkVal) : '—';
+        const atkCls = hasAtk ? (isAtkBuffed ? 'is-buffed' : '') : 'is-none';
+        const maxHp = Math.max(1, unit.maxHp || unit.hp || 1);
+        const hpPct = Math.max(0, Math.min(100, (unit.hp / maxHp) * 100));
+        const shieldUnits = (unit.hp < maxHp && shieldVal > 0) ? Math.min(maxHp - unit.hp, shieldVal) : 0;
+        const shieldPct = Math.max(0, Math.min(100 - hpPct, (shieldUnits / maxHp) * 100));
 
-        let ultBadgeHtml = '';
-        if (isUnit(unit) && isUltReady(unit) && !unit.ultUsed) {
-          ultBadgeHtml = `<div class="ult-ready-badge">ULT!</div>`;
-        }
+        pieceEl.dataset.role = roleKey(unit);
+        pieceEl.style.removeProperty('--hp-color');
 
         pieceEl.innerHTML = `
-          ${ultBadgeHtml}
-          ${shieldBadgeHtml}
-          <div class="piece-status-badges">${statusBadgesHtml}</div>
-          <div class="piece-icon">${unit.icon}</div>
-          <div class="piece-name">${unit.name}</div>
-          <div class="piece-hp-container">
-            <div class="piece-hp-bar ${hpClass}" style="width: ${hpPct}%;"></div>
-          </div>
-          ${shieldBarHtml}
-          <div class="piece-hp-text">${unit.hp}/${unit.maxHp}</div>
+          <span class="piece-face">${faceHtml}</span>
+          <span class="piece-role">${icon(roleIcon(unit))}</span>
+          <span class="piece-status">${statusIconHtml}</span>
+          ${shieldHtml}
+          <span class="piece-readout">
+            <svg class="piece-dock-svg" viewBox="0 0 80 35" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M 4,1 L 26,1 Q 28,1 28.8,3 L 31.2,15 Q 32,17 34,17 L 56.5,17 Q 58.5,17 59.3,15 L 60.8,7.5 Q 61.6,5.5 63.6,5.5 L 76,5.5 Q 79,5.5 79,8.5 L 79,30 Q 79,34 75,34 L 5,34 Q 1,34 1,30 L 1,4 Q 1,1 4,1 Z"/>
+            </svg>
+            <span class="piece-values">
+              <b class="${shieldVal > 0 ? 'has-shield' : ''}">${displayHp}</b>
+              <span class="${atkCls}">${atkText}</span>
+            </span>
+            <span class="piece-hp-track"><i style="width:${hpPct.toFixed(2)}%"></i>${shieldPct > 0 ? `<i class="shield-fill" style="width:${shieldPct.toFixed(2)}%"></i>` : ''}</span>
+            <span class="piece-name">${unit.name}</span>
+          </span>
         `;
       } else {
         if (pieceEl) pieceEl.remove();
+        tile.setAttribute('aria-label', `${'ABCDEFG'[c]}${7 - r} 空きマス`);
       }
 
       // 5. 選択中のハイライト
@@ -275,219 +477,225 @@ export function updateBoardView({
         tile.classList.add('selected');
       }
 
-      // 6. 移動先・攻撃先・スキル対象のハイライト
-      if (commandMode && commandMode.startsWith('SKILL_')) {
-        if (validTargets.some(t => t.r === r && t.c === c)) {
-          tile.classList.add('skill-target');
-        }
-      } else if (commandMode === 'MOVE') {
-        if (validTargets.some(t => t.r === r && t.c === c)) {
-          tile.classList.add('movable');
-        }
-      } else if (commandMode === 'ATTACK') {
-        if (validTargets.some(t => t.r === r && t.c === c)) {
-          tile.classList.add('attackable');
-        }
-      } else if (selectedPos && !isDeployPhase) {
-        const selHero = board[selectedPos.r]?.[selectedPos.c];
-        if (selHero && selHero.owner === turn && isUnit(selHero)) {
-          const validMoves = getValidMoves(selectedPos.r, selectedPos.c);
-          if (validMoves.some(t => t.r === r && t.c === c)) {
-            tile.classList.add('movable');
-          }
-          const validAtks = getValidAttacks(selectedPos.r, selectedPos.c);
-          if (validAtks.some(t => t.r === r && t.c === c)) {
-            tile.classList.add('attackable');
+      // 6. 移動先・攻撃先のハイライト（スキル・ULT待機中は updateTargetingPreview へ委譲）
+      if (!isUltTargeting && !isSkillFocus) {
+        let targetKind = null;
+        if (selectedPos && !isDeployPhase) {
+          const selHero = board[selectedPos.r]?.[selectedPos.c];
+          if (selHero && selHero.owner === turn && isUnit(selHero)) {
+            const validMoves = getValidMoves(selectedPos.r, selectedPos.c);
+            if (validMoves.some(t => t.r === r && t.c === c)) {
+              tile.classList.add('movable', 'valid-move');
+              targetKind = 'move';
+            }
+            const validAtks = getValidAttacks(selectedPos.r, selectedPos.c);
+            if (validAtks.some(t => t.r === r && t.c === c)) {
+              tile.classList.add('attackable', 'valid-attack');
+              targetKind = 'attack';
+            }
           }
         }
+
+        let markEl = tile.querySelector('.target-mark');
+        if (targetKind) {
+          if (!markEl) {
+            markEl = document.createElement('span');
+            markEl.className = 'target-mark';
+            tile.appendChild(markEl);
+          }
+          markEl.innerHTML = icon(targetKind === 'attack' ? 'attack' : 'move');
+        } else if (markEl) {
+          markEl.remove();
+        }
+
+        const ultMarkEl = tile.querySelector('.ult-target-mark');
+        if (ultMarkEl) ultMarkEl.remove();
       }
     }
   }
+
+  if (isUltTargeting || isSkillFocus) {
+    updateTargetingPreview({
+      turn,
+      selectedPos,
+      commandMode,
+      validTargets,
+      hoveredPos,
+      gamePhase
+    });
+  }
 }
 
-// 物体化行動トークンバーの更新
+// 物体化行動トークンバーの更新（TOKENS 案A: 2列スロット + EX帯）
 export function updateRightsDisplay(turn, selectedPos = null, gamePhase = 'BATTLE') {
   const container = document.getElementById('action-tokens-container');
+  const tokenBanner = document.getElementById('action-status-banner');
   if (!container) return;
 
-  if (gamePhase && (gamePhase.startsWith('DEPLOY') || gamePhase.startsWith('PICK'))) {
+  const isNonBattle = Boolean(gamePhase && (gamePhase.startsWith('DEPLOY') || gamePhase.startsWith('PICK')));
+  const tokens = isNonBattle ? [] : (getPlayerTokens(turn) || []);
+  const commonAtk = tokens.filter(t => t.scope === 'all' && t.type === 'attack');
+  const commonMove = tokens.filter(t => t.scope === 'all' && t.type === 'move');
+  const specialTokens = tokens.filter(t => t.scope !== 'all').sort((a, b) => {
+    if (Boolean(a.used) !== Boolean(b.used)) return a.used ? 1 : -1;
+    const typeOrder = { attack: 0, move: 1 };
+    return (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
+  });
+
+  const atkUnused = commonAtk.filter(t => !t.used);
+  const moveUnused = commonMove.filter(t => !t.used);
+  const specialUnused = specialTokens.filter(t => !t.used);
+  const atkUsed = atkUnused.length === 0;
+  const moveUsed = moveUnused.length === 0;
+  const totalReadyCount = commonAtk.length + commonMove.length + specialTokens.length;
+  const readyCount = atkUnused.length + moveUnused.length + specialUnused.length;
+
+  if (tokenBanner) {
+    tokenBanner.classList.toggle('enemy-turn', !isLocalPlayer(turn));
+    const titleEl = tokenBanner.querySelector('.tokens-banner-title');
+    if (titleEl) {
+      titleEl.textContent = 'TOKENS';
+      if (isNonBattle) delete titleEl.dataset.ready;
+      else titleEl.dataset.ready = `${readyCount}/${totalReadyCount}`;
+    }
+  }
+
+  if (isNonBattle) {
     container.innerHTML = '';
     return;
   }
 
-  const tokens = getPlayerTokens(turn);
-  // 専用トークンも含め、攻撃トークン -> 移動トークンの順にソート（同タイプ内は共通 -> 専用の順）
-  const activeTokens = (tokens || []).filter(t => !t.used).sort((a, b) => {
-    const typeOrder = { attack: 0, move: 1 };
-    const orderA = typeOrder[a.type] !== undefined ? typeOrder[a.type] : 99;
-    const orderB = typeOrder[b.type] !== undefined ? typeOrder[b.type] : 99;
-    if (orderA !== orderB) return orderA - orderB;
-
-    const specialA = (a.scope !== 'all') ? 1 : 0;
-    const specialB = (b.scope !== 'all') ? 1 : 0;
-    if (specialA !== specialB) return specialA - specialB;
-
-    return 0;
-  });
-
-  if (activeTokens.length === 0) {
-    container.innerHTML = `<span class="tokens-empty">所持トークンなし</span>`;
-    return;
-  }
-
-  const selectedUnit = (selectedPos && board[selectedPos.r]) ? board[selectedPos.r][selectedPos.c] : null;
-
-  let html = '';
-  for (const t of activeTokens) {
-    const isSpecial = (t.scope !== 'all');
-    let isAvailable = true;
-
-    if (selectedUnit) {
-      if (selectedUnit.owner !== turn || !isUnit(selectedUnit)) {
-        isAvailable = false;
-      } else if (isSpecial && t.scope !== selectedUnit.typeKey && t.scope !== selectedUnit.id) {
-        isAvailable = false;
-      } else if (t.type === 'move') {
-        const validMoves = getValidMoves(selectedPos.r, selectedPos.c);
-        if (hasDebuff(selectedUnit, 'bind') || validMoves.length === 0) {
-          isAvailable = false;
-        }
-      } else if (t.type === 'attack') {
-        const validAttacks = getValidAttacks(selectedPos.r, selectedPos.c);
-        if (hasDebuff(selectedUnit, 'disarm') || validAttacks.length === 0) {
-          isAvailable = false;
-        }
-      }
-    } else {
-      let canAnyoneUse = false;
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const u = board[r][c];
-          if (u && u.owner === turn && isUnit(u)) {
-            if (isSpecial && t.scope !== u.typeKey && t.scope !== u.id) continue;
-            if (t.type === 'move' && !hasDebuff(u, 'bind') && getValidMoves(r, c).length > 0) {
-              canAnyoneUse = true;
-              break;
-            }
-            if (t.type === 'attack' && !hasDebuff(u, 'disarm') && getValidAttacks(r, c).length > 0) {
-              canAnyoneUse = true;
-              break;
-            }
-          }
-        }
-        if (canAnyoneUse) break;
-      }
-      isAvailable = canAnyoneUse;
-    }
-
-    const chipClass = [
-      'token-chip',
-      isAvailable ? 'token-active' : 'token-disabled',
-      `token-type-${t.type}`,
-      isSpecial ? 'token-special' : ''
-    ].filter(Boolean).join(' ');
-
-    const scopeBadge = isSpecial
-      ? `<span class="token-chip-scope">${t.unitName || t.scope}</span>`
-      : '';
-
-    html += `
-      <div class="${chipClass}" title="${t.desc}${!isAvailable ? ' (現在は実行不可)' : ''}">
-        <span class="token-chip-name">${t.badgeText || t.name}</span>
-        ${scopeBadge}
+  const exHtml = specialTokens.map(t => {
+    const lbl = t.type === 'move' ? 'EXTRA MOVE' : 'EXTRA ATK';
+    const unitLabel = String(t.unitName || t.scope || '');
+    const safeDesc = String(t.desc || `${unitLabel}専用トークン`).replace(/"/g, '&quot;');
+    return `
+      <div class="tk-ex-strip is-ex ${t.used ? 'is-used' : ''}" title="${safeDesc}">
+        <span class="tk-ex-ico">${icon(t.type === 'move' ? 'move' : 'attack')}</span>
+        <strong class="tk-ex-txt">${lbl}</strong>
+        <span class="tk-ex-unit">${unitLabel}</span>
       </div>
     `;
-  }
+  }).join('');
 
-  container.innerHTML = html;
+  container.innerHTML = `
+    <div class="tk-slot-grid">
+      <div class="tk-slot is-atk ${atkUsed ? 'is-used' : ''}" title="共通攻撃トークン (${atkUnused.length}/${commonAtk.length || 1})">
+        <span class="tk-slot-ico">${icon('attack')}</span>
+        <strong class="tk-slot-lbl">ATK</strong>
+      </div>
+      <div class="tk-slot is-move ${moveUsed ? 'is-used' : ''}" title="共通移動トークン (${moveUnused.length}/${commonMove.length || 1})">
+        <span class="tk-slot-ico">${icon('move')}</span>
+        <strong class="tk-slot-lbl">MOVE</strong>
+      </div>
+    </div>
+    ${exHtml}
+  `;
 }
 
-// コアHP & チームウルト & ターン表示の更新
+// コアHP & チームウルト & ターン表示の更新（Viewer-Relative: 自軍=下/Yellow, 敵軍=上/Red）
 export function updateStatus(turn, gameMode, gamePhase = 'BATTLE', turnCount = 1) {
-  const p1Core = findCore('P1');
-  const p2Core = findCore('P2');
+  const allyOwner = isLocalPlayer('P1') ? 'P1' : 'P2';
+  const enemyOwner = allyOwner === 'P1' ? 'P2' : 'P1';
 
-  if (p1Core) {
-    const pct1 = Math.max(0, (p1Core.hp / p1Core.maxHp) * 100);
-    const bar1 = document.getElementById('p1-core-bar');
-    const hp1 = document.getElementById('p1-core-hp');
-    if (bar1) bar1.style.width = `${pct1}%`;
-    if (hp1) hp1.innerText = `${p1Core.hp}/${p1Core.maxHp} HP`;
+  const allyCore = findCore(allyOwner);
+  const enemyCore = findCore(enemyOwner);
+
+  if (allyCore) {
+    const pctAlly = Math.max(0, (allyCore.hp / allyCore.maxHp) * 100);
+    const barAlly = document.getElementById('ally-core-bar');
+    const hpAlly = document.getElementById('ally-core-hp');
+    if (barAlly) barAlly.style.width = `${pctAlly}%`;
+    if (hpAlly) hpAlly.innerText = `${allyCore.hp}/${allyCore.maxHp}`;
   }
 
-  if (p2Core) {
-    const pct2 = Math.max(0, (p2Core.hp / p2Core.maxHp) * 100);
-    const bar2 = document.getElementById('p2-core-bar');
-    const hp2 = document.getElementById('p2-core-hp');
-    if (bar2) bar2.style.width = `${pct2}%`;
-    if (hp2) hp2.innerText = `${p2Core.hp}/${p2Core.maxHp} HP`;
+  if (enemyCore) {
+    const pctEnemy = Math.max(0, (enemyCore.hp / enemyCore.maxHp) * 100);
+    const barEnemy = document.getElementById('enemy-core-bar');
+    const hpEnemy = document.getElementById('enemy-core-hp');
+    if (barEnemy) barEnemy.style.width = `${pctEnemy}%`;
+    if (hpEnemy) hpEnemy.innerText = `${enemyCore.hp}/${enemyCore.maxHp}`;
   }
 
-  const ultP1 = getTeamUltGauge('P1');
-  const ultP2 = getTeamUltGauge('P2');
-  const ultPct1 = Math.min(100, (ultP1 / ULT_REQUIRED_DAMAGE) * 100);
-  const ultPct2 = Math.min(100, (ultP2 / ULT_REQUIRED_DAMAGE) * 100);
+  const ultAlly = getTeamUltGauge(allyOwner);
+  const ultEnemy = getTeamUltGauge(enemyOwner);
+  const ultPctAlly = Math.min(100, (ultAlly / ULT_REQUIRED_DAMAGE) * 100);
+  const ultPctEnemy = Math.min(100, (ultEnemy / ULT_REQUIRED_DAMAGE) * 100);
 
-  const p1UltBar = document.getElementById('p1-ult-bar');
-  const p2UltBar = document.getElementById('p2-ult-bar');
-  const p1UltText = document.getElementById('p1-ult-text');
-  const p2UltText = document.getElementById('p2-ult-text');
+  const allyUltBar = document.getElementById('ally-ult-bar');
+  const enemyUltBar = document.getElementById('enemy-ult-bar');
+  const allyUltText = document.getElementById('ally-ult-text');
+  const enemyUltText = document.getElementById('enemy-ult-text');
 
-  if (p1UltBar) p1UltBar.style.width = `${ultPct1}%`;
-  if (p2UltBar) p2UltBar.style.width = `${ultPct2}%`;
+  if (allyUltBar) allyUltBar.style.width = `${ultPctAlly}%`;
+  if (enemyUltBar) enemyUltBar.style.width = `${ultPctEnemy}%`;
 
-  if (p1UltText) {
-    p1UltText.innerText = (ultP1 >= ULT_REQUIRED_DAMAGE) ? "⚡ READY! (100)" : `${ultP1} / 100`;
-    p1UltText.className = (ultP1 >= ULT_REQUIRED_DAMAGE) ? "ult-ready-text" : "";
+  if (allyUltText) {
+    allyUltText.innerText = `${Math.round(ultPctAlly)}%`;
+    allyUltText.className = (ultAlly >= ULT_REQUIRED_DAMAGE) ? 'ult-ready-text' : '';
   }
-  if (p2UltText) {
-    p2UltText.innerText = (ultP2 >= ULT_REQUIRED_DAMAGE) ? "⚡ READY! (100)" : `${ultP2} / 100`;
-    p2UltText.className = (ultP2 >= ULT_REQUIRED_DAMAGE) ? "ult-ready-text" : "";
+  if (enemyUltText) {
+    enemyUltText.innerText = `${Math.round(ultPctEnemy)}%`;
+    enemyUltText.className = (ultEnemy >= ULT_REQUIRED_DAMAGE) ? 'ult-ready-text' : '';
   }
 
+  const coreBarAlly = document.getElementById('core-bar-ally');
+  const coreBarEnemy = document.getElementById('core-bar-enemy');
+  if (coreBarAlly) {
+    coreBarAlly.classList.toggle('is-ult-full', ultAlly >= ULT_REQUIRED_DAMAGE);
+    const tagEl = coreBarAlly.querySelector('.core-tag');
+    if (tagEl) tagEl.textContent = 'ALLY ULT';
+  }
+  if (coreBarEnemy) {
+    coreBarEnemy.classList.toggle('is-ult-full', ultEnemy >= ULT_REQUIRED_DAMAGE);
+    const tagEl = coreBarEnemy.querySelector('.core-tag');
+    if (tagEl) tagEl.textContent = 'ENEMY ULT';
+  }
+
+  const turnEyebrowEl = document.getElementById('turn-label-eyebrow');
   const turnCountEl = document.getElementById('turn-count-badge');
   if (turnCountEl) {
     if (gamePhase && gamePhase.startsWith('PICK')) {
-      turnCountEl.innerText = "DRAFT";
+      if (turnEyebrowEl) turnEyebrowEl.innerText = 'PHASE';
+      turnCountEl.innerText = 'DR';
     } else if (gamePhase && gamePhase.startsWith('DEPLOY')) {
-      turnCountEl.innerText = "DEPLOY";
+      if (turnEyebrowEl) turnEyebrowEl.innerText = 'PHASE';
+      turnCountEl.innerText = 'DP';
     } else {
-      turnCountEl.innerText = `TURN ${turnCount}`;
+      if (turnEyebrowEl) turnEyebrowEl.innerText = 'TURN';
+      turnCountEl.innerText = String(turnCount).padStart(2, '0');
     }
   }
 
   const turnBadge = document.getElementById('turn-badge');
+  const turnDisplay = document.getElementById('turn-display-box');
+  const activeOwner = (
+    gamePhase === 'PICK_P1' || gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_WAIT_P1'
+  ) ? 'P1' : (
+    gamePhase === 'PICK_P2' || gamePhase === 'DEPLOY_P2' || gamePhase === 'DEPLOY_WAIT_P2'
+  ) ? 'P2' : turn;
+  const isEnemyActive = !isLocalPlayer(activeOwner);
+
+  if (turnDisplay) {
+    turnDisplay.classList.toggle('enemy-turn', isEnemyActive);
+  }
   if (turnBadge) {
-    if (gamePhase === 'PICK_P1') {
-      turnBadge.className = 'turn-badge turn-p1';
-      turnBadge.innerText = '先行 (BLUE) ピック中';
-    } else if (gamePhase === 'PICK_P2') {
-      turnBadge.className = 'turn-badge turn-p2';
-      turnBadge.innerText = '後攻 (RED) ピック中';
-    } else if (gamePhase === 'DEPLOY_P1') {
-      turnBadge.className = 'turn-badge turn-p1';
-      turnBadge.innerText = '先行 (BLUE) 初期配置';
-    } else if (gamePhase === 'DEPLOY_P2') {
-      turnBadge.className = 'turn-badge turn-p2';
-      turnBadge.innerText = '後攻 (RED) 初期配置';
-    } else if (gamePhase === 'DEPLOY_WAIT_P1') {
-      turnBadge.className = 'turn-badge turn-p1';
-      turnBadge.innerText = '先行 (BLUE) 配置中（待機）';
-    } else if (gamePhase === 'DEPLOY_WAIT_P2') {
-      turnBadge.className = 'turn-badge turn-p2';
-      turnBadge.innerText = '後攻 (RED) 配置中（待機）';
+    turnBadge.className = `turn-owner-pill ${isEnemyActive ? 'turn-enemy' : 'turn-ally'}`;
+    if (gamePhase === 'PICK_P1' || gamePhase === 'PICK_P2') {
+      turnBadge.innerText = isEnemyActive ? 'ENEMY DRAFT' : 'YOUR DRAFT';
+    } else if (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_P2') {
+      turnBadge.innerText = isEnemyActive ? 'WAIT ENEMY' : 'YOUR DEPLOY';
+    } else if (gamePhase === 'DEPLOY_WAIT_P1' || gamePhase === 'DEPLOY_WAIT_P2') {
+      turnBadge.innerText = isEnemyActive ? 'WAIT ENEMY' : 'YOUR DEPLOY';
     } else {
-      turnBadge.className = `turn-badge turn-${turn.toLowerCase()}`;
-      turnBadge.innerText = `${turn === 'P1' ? 'BLUE' : 'RED'} の手番`;
+      turnBadge.innerText = isEnemyActive ? 'ENEMY TURN' : 'YOUR TURN';
     }
   }
 
   const battleScreen = document.getElementById('screen-battle');
   if (battleScreen) {
-    const isP1 = (gamePhase === 'DEPLOY_P1' || gamePhase === 'PICK_P1' || (gamePhase === 'BATTLE' && turn === 'P1'));
-    const isP2 = (gamePhase === 'DEPLOY_P2' || gamePhase === 'PICK_P2' || (gamePhase === 'BATTLE' && turn === 'P2'));
-    battleScreen.classList.toggle('turn-p1-bg', isP1);
-    battleScreen.classList.toggle('turn-p2-bg', isP2);
+    battleScreen.classList.toggle('turn-p1-bg', !isEnemyActive);
+    battleScreen.classList.toggle('turn-p2-bg', isEnemyActive);
   }
 }
 
@@ -498,7 +706,7 @@ export function updateDeployControlBar({
   myOnlineRole = null
 }) {
   const bar = document.getElementById('deploy-control-bar');
-  const tokenBanner = document.querySelector('.action-status-banner');
+  const tokenBanner = document.getElementById('action-status-banner');
   if (!bar) return;
 
   const isDeployPhase = (
@@ -521,40 +729,120 @@ export function updateDeployControlBar({
     tokenBanner.style.display = 'none';
   }
 
-  const curOwner = (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_WAIT_P2') ? 'P1' : 'P2';
-  const isP1 = (curOwner === 'P1');
-
-  bar.className = 'deploy-control-bar';
-
-  const confirmBtn = document.getElementById('btn-deploy-confirm');
-  const confirmTextEl = document.getElementById('btn-deploy-confirm-text');
-
+  const curOwner = (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_WAIT_P1') ? 'P1' : 'P2';
   const isDeployWait = (gameMode === 'online' && (
     gamePhase === 'DEPLOY_WAIT_P1' ||
     gamePhase === 'DEPLOY_WAIT_P2' ||
     (gamePhase === 'DEPLOY_P1' && myOnlineRole === 'P2') ||
     (gamePhase === 'DEPLOY_P2' && myOnlineRole === 'P1')
   ));
+  const isEnemyColor = isDeployWait || !isLocalPlayer(curOwner);
+  bar.className = `deploy-control-bar ${isEnemyColor ? 'is-enemy' : 'ally'}`;
 
-  if (confirmBtn) {
-    confirmBtn.className = `btn-deploy-confirm ${isP1 ? 'p1' : 'p2'}`;
-
+  const descEl = document.getElementById('deploy-bar-instruction');
+  if (descEl) {
     if (isDeployWait) {
-      confirmBtn.disabled = true;
-      if (confirmTextEl) {
-        confirmTextEl.innerText = '⏳ 相手の配置を待機中...';
-      }
+      descEl.innerText = '相手プレイヤーが初期配置中です。完了までしばらくお待ちください...';
+    } else if (curOwner === 'P1') {
+      descEl.innerText = '手前2マスに味方ユニットとコアを配置してください。完了したら画面右下のボタンを長押し！';
     } else {
-      confirmBtn.disabled = false;
-      if (confirmTextEl) {
-        if (isP1) {
-          confirmTextEl.innerText = (gameMode === 'online') ? '先行・配置完了（送信 ➔）' : '先行・配置完了（後攻へ ➔）';
-        } else {
-          confirmTextEl.innerText = '⚔️ バトル開始！';
-        }
-      }
+      descEl.innerText = '先行の布陣を確認し、対抗初期配置を完了したら画面右下のボタンを長押し！';
     }
   }
+}
+
+// 画面右下アクション確定ボタン（ターン終了 / 配置完了）の表示・状態更新
+export function updateHoldActionButton({
+  gamePhase,
+  turn,
+  gameMode = 'pve',
+  myOnlineRole = null,
+  isGameOver = false
+}) {
+  const btn = document.getElementById('btn-end-turn');
+  if (!btn) return;
+
+  const mainTextEl = document.getElementById('hold-main-text');
+  const subTextEl = document.getElementById('hold-sub-text');
+  const iconEl = document.getElementById('hold-icon-box');
+  const mainInvEl = document.getElementById('hold-main-text-inv');
+  const subInvEl = document.getElementById('hold-sub-text-inv');
+  const iconInvEl = document.getElementById('hold-icon-box-inv');
+
+  const setContent = (main, sub, iconName) => {
+    if (mainTextEl) mainTextEl.innerText = main;
+    if (subTextEl) subTextEl.innerText = sub;
+    if (iconEl && iconName) iconEl.innerHTML = icon(iconName);
+    if (mainInvEl) mainInvEl.innerText = main;
+    if (subInvEl) subInvEl.innerText = sub;
+    if (iconInvEl && iconName) iconInvEl.innerHTML = icon(iconName);
+    btn.setAttribute('aria-label', `${main}。${sub}`);
+  };
+
+  const isDeployPhase = (
+    gamePhase === 'DEPLOY_P1' ||
+    gamePhase === 'DEPLOY_P2' ||
+    gamePhase === 'DEPLOY_WAIT_P1' ||
+    gamePhase === 'DEPLOY_WAIT_P2'
+  );
+
+  btn.classList.remove('ally', 'is-enemy', 'p1', 'p2', 'unusable');
+
+  if (isGameOver) {
+    btn.disabled = true;
+    btn.classList.add('unusable');
+    setContent('GAME OVER', '作戦終了', 'endturn');
+    return;
+  }
+
+  if (isDeployPhase) {
+    const curOwner = (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_WAIT_P1') ? 'P1' : 'P2';
+    const isFirstDeployer = (curOwner === 'P1');
+    const isDeployWait = (gameMode === 'online' && (
+      gamePhase === 'DEPLOY_WAIT_P1' ||
+      gamePhase === 'DEPLOY_WAIT_P2' ||
+      (gamePhase === 'DEPLOY_P1' && myOnlineRole === 'P2') ||
+      (gamePhase === 'DEPLOY_P2' && myOnlineRole === 'P1')
+    ));
+    const isEnemyBtn = isDeployWait || !isLocalPlayer(curOwner);
+
+    btn.classList.add(isEnemyBtn ? 'is-enemy' : 'ally');
+
+    if (isDeployWait) {
+      btn.disabled = true;
+      btn.classList.add('unusable');
+      setContent('WAITING...', '相手の配置を待機中', 'time');
+    } else {
+      btn.disabled = false;
+      if (isFirstDeployer) {
+        const sub = (gameMode === 'online') ? '長押しで配置送信 ➔' : '長押しで配置確定 ➔';
+        setContent('DEPLOY CONFIRM', sub, 'check');
+      } else {
+        setContent('START BATTLE', '長押しでバトル開始 ➔', 'attack');
+      }
+    }
+    return;
+  }
+
+  if (gamePhase === 'BATTLE') {
+    const isMyTurn = (gameMode === 'online') ? (turn === myOnlineRole) : isLocalPlayer(turn);
+    btn.classList.add(isMyTurn ? 'ally' : 'is-enemy');
+
+    if (isMyTurn) {
+      btn.disabled = false;
+      setContent('END TURN', '長押しで確定', 'endturn');
+    } else {
+      btn.disabled = true;
+      btn.classList.add('unusable');
+      const sub = (gameMode === 'online') ? '相手の手番中...' : 'AI思考中...';
+      setContent('ENEMY TURN', sub, 'endturn');
+    }
+    return;
+  }
+
+  btn.disabled = true;
+  btn.classList.add('unusable');
+  setContent('STANDBY', '待機中', 'endturn');
 }
 
 // 一体型アクションカードサイドパネルのレンダリング
@@ -563,8 +851,13 @@ export function renderHeroControlPanel({
   selectedPos,
   selectedHazardPos = null,
   commandMode,
-  gamePhase = 'BATTLE'
+  gamePhase = 'BATTLE',
+  canControl = false
 }) {
+  if (document.getElementById('battle-stage')) {
+    renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandMode, gamePhase, canControl });
+    return;
+  }
   const isDeploy = (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_P2');
   const panel = document.getElementById('unit-detail-panel');
   if (!panel) return;
@@ -582,7 +875,7 @@ export function renderHeroControlPanel({
             <div class="hch-meta">
               <div class="hch-name-row">
                 <span class="hch-name">${hazard.name}</span>
-                ${hazard.owner ? (hazard.owner === 'P1' ? '<span class="hch-owner-tag p1">🔷 BLUE</span>' : '<span class="hch-owner-tag p2">🔶 RED</span>') : '<span class="hch-owner-tag neutral">🌐 中立</span>'}
+                ${hazard.owner ? (isLocalPlayer(hazard.owner) ? '<span class="hch-owner-tag p1">自軍</span>' : '<span class="hch-owner-tag p2">敵軍</span>') : '<span class="hch-owner-tag neutral">🌐 中立</span>'}
                 <span class="hch-class-badge class-hazard">ハザード</span>
               </div>
             </div>
@@ -593,7 +886,7 @@ export function renderHeroControlPanel({
           <div class="hazard-on-unit-banner" style="margin-bottom: 8px;">
             <span class="hoa-icon">${occupiedUnit.icon}</span>
             <div class="hoa-info">
-              <div class="hoa-title">👤 現在滞在中: ${occupiedUnit.name} (${occupiedUnit.owner === 'P1' ? 'BLUE' : 'RED'})</div>
+              <div class="hoa-title">👤 現在滞在中: ${occupiedUnit.name} (${isLocalPlayer(occupiedUnit.owner) ? '自軍' : '敵軍'})</div>
               <div class="hoa-desc">HP: ${occupiedUnit.hp}/${occupiedUnit.maxHp}</div>
             </div>
           </div>
@@ -621,8 +914,8 @@ export function renderHeroControlPanel({
         <div class="esg-icon">👆</div>
         <div class="esg-title">駒またはハザードを選択</div>
         <div class="esg-desc">
-          盤面のキャラクターをクリックすると、スキル・アルティメットのアクションカードが表示されます。<br>
-          直接ドラッグすることで移動や通常攻撃も可能です。
+          盤面のキャラクターをクリックすると、詳細ステータスやスキルカードを確認できます。<br>
+          移動と通常攻撃は駒を直接ドラッグ＆ドロップして行います。
         </div>
       </div>
     `;
@@ -765,7 +1058,7 @@ export function renderHeroControlPanel({
           <div class="hch-meta">
             <div class="hch-name-row">
               <span class="hch-name">${hero.name}</span>
-              <span class="hch-owner-tag ${hero.owner.toLowerCase()}">${hero.owner === 'P1' ? '🔷 BLUE' : '🔶 RED'}</span>
+              <span class="hch-owner-tag ${isLocalPlayer(hero.owner) ? 'p1' : 'p2'}">${isLocalPlayer(hero.owner) ? '自軍' : '敵軍'}</span>
               <span class="hch-class-badge ${classBadgeClass}">${classNameText}</span>
             </div>
           </div>
@@ -798,9 +1091,15 @@ export function renderHeroControlPanel({
   if (hero.buffs) {
     if (hasBuff(hero, 'atk_up')) statusPillsHtml += `<span class="hch-pill buff" title="ATK+${hero.buffs.atk_up.val} (${hero.buffs.atk_up.turns}ターン)">🔥+${hero.buffs.atk_up.val} <small>${hero.buffs.atk_up.turns}T</small></span>`;
     if (hasBuff(hero, 'shield')) statusPillsHtml += `<span class="hch-pill buff" title="シールド+${hero.buffs.shield.val} (${hero.buffs.shield.turns}ターン)">🛡️+${hero.buffs.shield.val} <small>${hero.buffs.shield.turns}T</small></span>`;
+    if (hasBuff(hero, 'shadow_drain')) statusPillsHtml += `<span class="hch-pill buff" title="シャドウ・ドレイン発動中: 与ダメージ分HP吸収 (${hero.buffs.shadow_drain.turns}ターン)">🩸ドレイン <small>${hero.buffs.shadow_drain.turns}T</small></span>`;
   }
   if (hero.debuffs) {
-    if (hasDebuff(hero, 'vulnerable')) statusPillsHtml += `<span class="hch-pill debuff" title="弱体化: 被ダメ1.5倍 (${hero.debuffs.vulnerable.turns}ターン)">🎯弱体 <small>${hero.debuffs.vulnerable.turns}T</small></span>`;
+    if (hasDebuff(hero, 'vulnerable')) {
+      const vTurns = hero.debuffs?.vulnerable?.turns;
+      const vLabel = vTurns > 0 ? `${vTurns}T` : '滞在中';
+      const vTitle = vTurns > 0 ? `弱体化: 被ダメ1.5倍 (${vTurns}ターン)` : '弱体化: 被ダメ1.5倍 (ディメンション・ゾーン滞在中)';
+      statusPillsHtml += `<span class="hch-pill debuff" title="${vTitle}">🎯弱体 <small>${vLabel}</small></span>`;
+    }
     if (hasDebuff(hero, 'disarm')) statusPillsHtml += `<span class="hch-pill debuff" title="攻撃阻害: 通常攻撃不可 (${hero.debuffs.disarm.turns}ターン)">💢阻害 <small>${hero.debuffs.disarm.turns}T</small></span>`;
     if (hasDebuff(hero, 'bind')) statusPillsHtml += `<span class="hch-pill debuff" title="行動阻害: 移動不可 (${hero.debuffs.bind.turns}ターン)">⛓️拘束 <small>${hero.debuffs.bind.turns}T</small></span>`;
     if (hasDebuff(hero, 'silence')) statusPillsHtml += `<span class="hch-pill debuff" title="スキル阻害: スキル使用不可 (${hero.debuffs.silence.turns}ターン)">🤐沈黙 <small>${hero.debuffs.silence.turns}T</small></span>`;
@@ -867,7 +1166,7 @@ export function renderHeroControlPanel({
         <div class="hch-meta">
           <div class="hch-name-row">
             <span class="hch-name">${hero.name}</span>
-            <span class="hch-owner-tag ${hero.owner.toLowerCase()}">${hero.owner === 'P1' ? '🔷 BLUE' : '🔶 RED'}</span>
+            <span class="hch-owner-tag ${isLocalPlayer(hero.owner) ? 'p1' : 'p2'}">${isLocalPlayer(hero.owner) ? '自軍' : '敵軍'}</span>
             <span class="hch-class-badge class-unit">ユニット</span>
             <span class="hch-role-badge ${heroDef.roleClass}">${heroDef.roleName}</span>
           </div>
@@ -986,14 +1285,69 @@ export function showHazardToast(r, c, hazard) {
 export function addLog(text, type = 'system') {
   const box = document.getElementById('log-box');
   if (!box) return;
+  const raw = String(text ?? '');
+  const isUlt = type === 'skill' && (raw.includes('ウルト') || raw.includes('ULT'));
+  const kind = isUlt
+    ? 'ult'
+    : type === 'damage'
+      ? 'attack'
+      : type === 'skill'
+        ? 'skill'
+        : type === 'p1'
+          ? (raw.includes('攻撃') ? 'attack' : 'move')
+          : type === 'p2'
+            ? (raw.includes('攻撃') ? 'attack' : 'move')
+            : (raw.includes('DMG') || raw.includes('爆発') ? 'attack' : 'system');
+
+  const badgeLabel = isUlt
+    ? 'ULT'
+    : type === 'damage'
+      ? 'COMBAT'
+      : type === 'skill'
+        ? 'SKILL'
+        : type === 'p1'
+          ? (isLocalPlayer('P1') ? 'ALLY' : 'ENEMY')
+          : type === 'p2'
+            ? (isLocalPlayer('P2') ? 'ALLY' : 'ENEMY')
+            : 'SYSTEM';
+
+  const turnBadgeText = (document.getElementById('turn-count-badge')?.innerText || '01').trim();
+  const cleanTurn = turnBadgeText.replace(/[<>&"']/g, '');
+  const groupKey = cleanTurn;
+  const groupTitle = cleanTurn === 'DR'
+    ? 'DRAFT PHASE'
+    : cleanTurn === 'DP'
+      ? 'DEPLOY PHASE'
+      : `TURN ${cleanTurn}`;
+
+  let group = box.firstElementChild;
+  if (!group || !group.classList.contains('ar-log-group') || group.dataset.turn !== groupKey) {
+    group = document.createElement('section');
+    group.className = 'ar-log-group';
+    group.dataset.turn = groupKey;
+    group.innerHTML = `<div class="ar-log-turn">${groupTitle}</div><div class="ar-log-rows"></div>`;
+    box.prepend(group);
+  }
+
+  const rowsWrap = group.querySelector('.ar-log-rows') || group;
   const entry = document.createElement('div');
-  entry.className = `log-entry log-${type}`;
-  entry.innerText = text;
-  box.appendChild(entry);
-  box.scrollTop = box.scrollHeight;
+  entry.className = `ar-log-row log-entry log-${type}`;
+  entry.dataset.kind = kind;
+
+  const escaped = raw.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const highlighted = escaped
+    .replace(/(\d+\s*DMG|\d+\s*ダメージ)/g, '<b class="dmg">$1</b>')
+    .replace(/(HP\s*\+\d+(?:\s*回復)?|HPを\s*\d+\s*(?:大)?回復)/g, '<b class="heal">$1</b>')
+    .replace(/(シールド\s*(?:増強)?\s*(?:\([^)]+\)|\+\d+)|ATK\s*\d+\s*➔\s*\d+)/g, '<b class="buff">$1</b>');
+
+  entry.innerHTML = `<span class="ar-log-kind">${badgeLabel}</span><p>${highlighted}</p>`;
+  rowsWrap.prepend(entry);
+
+  const scroller = box.closest('.ar-log-scroll') || box;
+  scroller.scrollTop = 0;
 }
 
-// 勝利モーダル
+// 勝利モーダル（Viewer-Relative: 自軍勝利=Yellow, 敵軍勝利=Red）
 export function showGameOverModal(winner, reason = 'core', myRole = null, gameMode = 'pve') {
   const modal = document.getElementById('victory-modal');
   const title = document.getElementById('winner-title');
@@ -1001,31 +1355,26 @@ export function showGameOverModal(winner, reason = 'core', myRole = null, gameMo
   if (!modal || !title || !desc) return;
 
   const isWipeout = (reason === 'wipeout');
+  const isViewerWin = myRole ? (winner === myRole) : isLocalPlayer(winner);
 
-  if (winner === 'P1') {
-    title.innerText = "BLUE VICTORY!";
-    title.style.color = "var(--p1-color)";
-    if (gameMode === 'local') {
-      desc.innerText = isWipeout
-        ? "ブルーチームが敵ユニットを全滅させました！ブルーチームの勝利！"
-        : "ブルーチームが敵コアの完全破壊に成功しました！ブルーチームの勝利！";
-    } else {
-      desc.innerText = (myRole === 'P2')
-        ? (isWipeout ? "自軍ユニットが全滅しました...ブルーチームの勝利！" : "自軍コアが破壊されました...ブルーチームの勝利！")
-        : (isWipeout ? "敵ユニットの全滅に成功しました！ブルーチームの勝利！" : "敵コアの完全破壊に成功しました！ブルーチームの勝利！");
-    }
+  if (gameMode === 'local') {
+    title.innerText = `${winner} VICTORY!`;
+    title.style.color = isViewerWin ? 'var(--lime)' : 'var(--orange)';
+    desc.innerText = isWipeout
+      ? `${winner} が敵ユニットの全滅に成功しました！`
+      : `${winner} が敵コアの完全破壊に成功しました！`;
+  } else if (isViewerWin) {
+    title.innerText = 'VICTORY!';
+    title.style.color = 'var(--lime)';
+    desc.innerText = isWipeout
+      ? '敵ユニットの全滅に成功しました！自軍の勝利！'
+      : '敵コアの完全破壊に成功しました！自軍の勝利！';
   } else {
-    title.innerText = "RED VICTORY!";
-    title.style.color = "var(--p2-color)";
-    if (gameMode === 'local') {
-      desc.innerText = isWipeout
-        ? "レッドチームが敵ユニットを全滅させました！レッドチームの勝利！"
-        : "レッドチームが敵コアの完全破壊に成功しました！レッドチームの勝利！";
-    } else {
-      desc.innerText = (myRole === 'P2')
-        ? (isWipeout ? "敵ユニットの全滅に成功しました！レッドチームの勝利！" : "敵コアの完全破壊に成功しました！レッドチームの勝利！")
-        : (isWipeout ? "自軍ユニットが全滅しました...レッドチームの勝利！" : "自軍コアが破壊されました...レッドチームの勝利！");
-    }
+    title.innerText = 'DEFEAT...';
+    title.style.color = 'var(--orange)';
+    desc.innerText = isWipeout
+      ? '自軍ユニットが全滅しました...敗北...'
+      : '自軍コアが破壊されました...敗北...';
   }
 
   modal.classList.add('active');
@@ -1043,10 +1392,10 @@ export function renderDeployPanel({
   if (gamePhase === 'DEPLOY_WAIT_P1' || (gamePhase === 'DEPLOY_P1' && myOnlineRole === 'P2')) {
     panel.innerHTML = `
       <div class="deploy-panel">
-        <div class="deploy-header-banner p2">
-          <div class="deploy-title">⏳ 先行 (BLUE) の初期配置を待機中</div>
+        <div class="deploy-header-banner is-enemy">
+          <div class="deploy-title">⏳ 先行プレイヤーの初期配置を待機中</div>
           <div class="deploy-desc">
-            ルールに基づき、後攻 (RED) は先行 (BLUE) の初期配置を視認した状態で対抗配置を行います。<br>
+            ルールに基づき、後攻プレイヤーは先行の初期配置を視認した状態で対抗配置を行います。<br>
             先行プレイヤーの配置完了をお待ちください...
           </div>
           <div class="deploy-waiting-banner">
@@ -1062,10 +1411,10 @@ export function renderDeployPanel({
   if (gamePhase === 'DEPLOY_WAIT_P2' || (gamePhase === 'DEPLOY_P2' && myOnlineRole === 'P1')) {
     panel.innerHTML = `
       <div class="deploy-panel">
-        <div class="deploy-header-banner p1">
-          <div class="deploy-title">⏳ 後攻 (RED) の初期配置を待機中</div>
+        <div class="deploy-header-banner is-enemy">
+          <div class="deploy-title">⏳ 後攻プレイヤーの初期配置を待機中</div>
           <div class="deploy-desc">
-            先行 (BLUE) の初期配置が完了し相手に送信されました。<br>
+            あなたの初期配置が完了し相手へ送信されました。<br>
             後攻プレイヤーの対抗配置が完了すると、自動的にバトルが開戦します...
           </div>
           <div class="deploy-waiting-banner">
@@ -1093,17 +1442,18 @@ export function renderPickModal({
   if (!cardsGrid) return;
 
   const selCount = selectedHeroes.length;
+  const isEnemyPicker = !isLocalPlayer(currentOwner);
+  const ownerClass = isEnemyPicker ? 'p2' : 'p1';
 
   if (slotsContainer) {
     let slotsHtml = '';
-    const isP2 = (currentOwner === 'P2');
     for (let i = 0; i < 5; i++) {
       const heroKey = selectedHeroes[i];
       if (heroKey) {
         const hero = HERO_TYPES[heroKey];
         slotsHtml += `
-          <div class="draft-slot filled ${isP2 ? 'p2' : ''}">
-            <div class="draft-slot-icon">${hero.icon}</div>
+          <div class="draft-slot filled ${ownerClass}">
+            <div class="draft-slot-icon">${characterArt(heroKey, currentOwner, hero.name)}</div>
             <div class="draft-slot-info">
               <div class="draft-slot-name">${hero.name}</div>
               <div class="draft-slot-role">${hero.roleName}</div>
@@ -1114,7 +1464,7 @@ export function renderPickModal({
       } else {
         slotsHtml += `
           <div class="draft-slot">
-            <div class="draft-slot-empty">+ SLOT 0${i + 1}</div>
+            <div class="draft-slot-empty">SLOT 0${i + 1}</div>
           </div>
         `;
       }
@@ -1123,7 +1473,7 @@ export function renderPickModal({
   }
 
   if (counterBadge) {
-    counterBadge.innerText = `${selCount} / 5 体`;
+    counterBadge.innerText = `${selCount} / 5 AGENTS`;
     counterBadge.classList.toggle('ready', selCount === 5);
   }
 
@@ -1131,18 +1481,22 @@ export function renderPickModal({
     if (isOnline && myPickConfirmed) {
       confirmBtn.disabled = true;
       confirmBtn.className = 'pick-btn-confirm waiting';
-      confirmBtn.innerHTML = `<span>⏳ 相手のチーム編成完了を待機中...</span>`;
+      confirmBtn.innerHTML = `<span>WAITING FOR OPPONENT...</span>`;
     } else {
       confirmBtn.disabled = (selCount !== 5);
       confirmBtn.className = 'pick-btn-confirm';
       confirmBtn.innerHTML = (selCount === 5)
-        ? `<span>🚀 この編成で決定（初期配置へ ➔）</span>`
-        : `<span>⚠️ あと ${5 - selCount} 体 選択してください</span>`;
+        ? `<span>DEPLOY SQUAD // 出撃配置へ ➔</span>`
+        : `<span>SELECT ${5 - selCount} MORE AGENT${5 - selCount === 1 ? '' : 'S'}</span>`;
     }
   }
 
   let cardsHtml = '';
-  const ownerClass = (currentOwner === 'P2') ? 'p2' : 'p1';
+  const slotNum = (key) => {
+    const idx = selectedHeroes.indexOf(key);
+    return idx >= 0 ? `0${idx + 1}` : '';
+  };
+
   for (const key of SELECTABLE_HERO_KEYS) {
     const hero = HERO_TYPES[key];
     const isSelected = selectedHeroes.includes(key);
@@ -1151,31 +1505,38 @@ export function renderPickModal({
     cardsHtml += `
       <div class="pick-card ${isSelected ? 'selected ' + ownerClass : ''} ${myPickConfirmed ? 'disabled-pick' : ''}"
            onclick="${myPickConfirmed ? '' : `window.__onTogglePickHero('${key}')`}">
-        <div class="pick-card-check">${isSelected ? '✓' : ''}</div>
+        <div class="pick-card-check">${isSelected ? slotNum(key) : '+'}</div>
         <div class="pick-card-top">
-          <div class="pick-card-icon">${hero.icon}</div>
+          <div class="pick-card-icon">${characterArt(key, currentOwner, hero.name)}</div>
           <div class="pick-card-identity">
+            <span class="pick-card-code">${key}</span>
             <div class="pick-card-name">${hero.name}</div>
-            <div class="pick-card-role-pill ${hero.roleClass}">${hero.roleName}</div>
+            <div class="pick-card-role-pill ${hero.roleClass}">${icon(roleIcon({ typeKey: key, roleName: hero.roleName }))}<span>${hero.roleName}</span></div>
           </div>
         </div>
 
         <div class="pick-card-stats">
-          <span class="pcs-hp">💚 HP: ${hero.maxHp}</span>
-          <span class="pcs-atk">⚔️ ATK: ${hero.atk}</span>
+          <span class="pcs-hp">${icon('hp')}<b>HP ${hero.maxHp}</b></span>
+          <span class="pcs-atk">${icon('attack')}<b>ATK ${hero.atk}</b></span>
         </div>
 
         <div class="pick-card-skills-summary">
           ${hero.passive ? `
             <div class="pick-card-skill-line pick-card-passive-line">
-              <strong>🔮 パッシブ [${hero.passive.name}]:</strong> ${hero.passive.desc}
+              <span class="pcs-tag passive">PASSIVE</span>
+              <strong>${hero.passive.name}</strong>
+              <small>${hero.passive.desc}</small>
             </div>
           ` : ''}
           <div class="pick-card-skill-line">
-            <strong>⚡ スキル [${skills.A ? skills.A.name : '-'}]:</strong> ${skills.A ? skills.A.desc : ''}
+            <span class="pcs-tag skill">SKILL</span>
+            <strong>${skills.A ? skills.A.name : '-'}</strong>
+            <small>${skills.A ? skills.A.desc : ''}</small>
           </div>
           <div class="pick-card-skill-line">
-            <strong>🌟 アルティメット [${skills.ULT ? skills.ULT.name : '-'}]:</strong> ${skills.ULT ? skills.ULT.desc : ''}
+            <span class="pcs-tag ult">ULT</span>
+            <strong>${skills.ULT ? skills.ULT.name : '-'}</strong>
+            <small>${skills.ULT ? skills.ULT.desc : ''}</small>
           </div>
         </div>
       </div>

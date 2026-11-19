@@ -1,8 +1,8 @@
 /* ==============================================================
    Structures.js: 設置物 (Object) クラス群 (防壁・自動タレット)
    ============================================================== */
-import { BoardEntity } from './BoardEntity.js?v=20261024_11';
-import { inBounds } from '../config.js?v=20261024_11';
+import { BoardEntity } from './BoardEntity.js?v=urban-v1';
+import { inBounds } from '../config.js?v=urban-v1';
 
 // 1. 防壁 (バリケード)
 export class BarricadeEntity extends BoardEntity {

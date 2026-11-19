@@ -2,7 +2,7 @@
    ai.js: CPU (AI) 思考ルーチン - スマート連携・キル優先・ハザード回避対応
    (UI/DOM直接参照を排除し、エラーハンドリングを完全装備)
    ============================================================== */
-import { ROWS, COLS } from './config.js?v=20261024_11';
+import { ROWS, COLS } from './config.js?v=urban-v1';
 import {
   board,
   inBounds,
@@ -17,10 +17,11 @@ import {
   hasAnyDebuff,
   hasActionToken,
   isUnit,
-  isObject
-} from './board.js?v=20261024_11';
-import { executeMove, executeAttack, executeSkill } from './actions.js?v=20261024_11';
-import { setPhaseInstruction } from './ui.js?v=20261024_11';
+  isObject,
+  isCore
+} from './board.js?v=urban-v1';
+import { executeMove, executeAttack, executeSkill } from './actions.js?v=urban-v1';
+import { setPhaseInstruction } from './ui.js?v=urban-v1';
 
 // RULEBOOK正式名と旧エイリアスの双方に対応する判定ヘルパー
 const isType = (u, ...keys) => {
@@ -57,15 +58,15 @@ function getMyHeroes() {
 
 export async function runAITurn({ onGameOver, onEndTurnCallback, updateViewCallback }) {
   let gameOverTriggered = false;
-  const handleGameOver = (winner, reason = 'core') => {
+  const handleGameOver = (winner, reason = 'core', context = null) => {
     gameOverTriggered = true;
     if (typeof onGameOver === 'function') {
-      onGameOver(winner, reason);
+      onGameOver(winner, reason, context);
     }
   };
 
   try {
-    setPhaseInstruction("RED AI思考中...");
+    setPhaseInstruction("ENEMY AI思考中...");
     await sleep(400);
 
     const usedSkillUnitIds = new Set();
@@ -355,9 +356,10 @@ function scoreSkillAction(h, slot, tPos) {
 
   // 7. シャドウ・ドレイン (フェイズ ULT)
   else if (isType(hero, 'PHASE') && slot === 'ULT') {
-    const drain = hero.turnDamageDealt || 0;
     const needHeal = hero.maxHp - hero.hp;
-    score = (drain > 0 && needHeal >= 15) ? 85 : 0;
+    const canAttackThisTurn = hasActionToken('P2', 'attack', 1) && !hasDebuff(hero, 'disarm');
+    const targetsInRange = canAttackThisTurn ? getValidAttacks(h.r, h.c).length : 0;
+    score = (needHeal >= 15 && targetsInRange > 0) ? 85 : 0;
   }
 
   // 8. 防壁設置 (ベクター A)
@@ -397,7 +399,17 @@ function scoreSkillAction(h, slot, tPos) {
 
   // 13. フォートレス・プロトコル (ヴァルカン ULT)
   else if (isType(hero, 'VULCAN') && slot === 'ULT') {
-    score = 70;
+    let hitCount = 0;
+    for (let dr = -2; dr <= 2; dr++) {
+      for (let dc = -2; dc <= 2; dc++) {
+        const nr = tPos.r + dr, nc = tPos.c + dc;
+        if (inBounds(nr, nc)) {
+          const u = board[nr][nc];
+          if (u && u.owner === 'P1' && !isCore(u) && (isUnit(u) || isObject(u))) hitCount++;
+        }
+      }
+    }
+    score = hitCount > 0 ? 50 + hitCount * 30 : 0;
   }
 
   // 14. グラビティ・ワープ (グリッチ A)

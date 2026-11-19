@@ -19,10 +19,10 @@ export const DEFAULT_ACTION_TOKENS = {
   ATK: 1
 };
 
-// 初期配置可能な自陣行（自陣から縦3マス以内）
+// 初期配置可能な自陣行（自陣から縦2マス以内）
 export const DEPLOYABLE_ROWS = {
-  P1: [4, 5, 6], // BLUE (先行): 下側3行
-  P2: [0, 1, 2]  // RED (後攻): 上側3行
+  P1: [5, 6], // BLUE (先攻): 下側2行 (行5〜6)
+  P2: [0, 1]  // RED (後攻): 上側2行 (行0〜1)
 };
 
 // 選択可能なヒーロー一覧 (全12体から5体選択 - 正式キャラクター名)
@@ -58,6 +58,13 @@ export const STATUS_EFFECT_DEFS = {
     type: "buff",
     color: "#00d2ff",
     desc: "耐久値分の被ダメージを肩代わりします（持続ターン経過で消失）"
+  },
+  shadow_drain: {
+    name: "シャドウ・ドレイン",
+    icon: "🩸",
+    type: "buff",
+    color: "#b366ff",
+    desc: "発動中（このターン中）、敵に与えたダメージ分だけ自身のHPを吸収・回復します"
   },
   vulnerable: {
     name: "弱体化",
@@ -143,7 +150,7 @@ const BASE_DEFINITIONS = {
     passive: {
       name: "シャドウ・オリジン",
       icon: "👤",
-      desc: "バトル開始時、初期配置マスに「ディメンション・ゾーン（侵入敵に弱体化付与）」を自動展開。"
+      desc: "バトル開始時、初期配置マスに「ディメンション・ゾーン（侵入中の敵は常に弱体化1.5倍）」を自動展開。"
     },
     skills: {
       A: {
@@ -156,7 +163,7 @@ const BASE_DEFINITIONS = {
       ULT: {
         name: "シャドウ・ドレイン",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "この自軍ターン中に自身が敵に与えた合計ダメージ分、自身のHPを即座に回復（吸収）する！",
+        desc: "発動中（この自軍ターン中）、自身が敵に与えたダメージ分、自身のHPを即座に吸収・回復する！",
         type: "SHADOW_DRAIN",
         range: 0
       }
