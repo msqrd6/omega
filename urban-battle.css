@@ -2490,7 +2490,8 @@ button .icon { pointer-events: none; }
   background: #08090c;
   box-shadow: none;
 }
-#battle-stage .ar-dot.used {
+#battle-stage .ar-dot.used,
+#battle-stage .ar-card.ult .ar-dot.used {
   background: transparent;
   border: 1.5px solid #56627c;
   box-shadow: none;
@@ -3476,7 +3477,8 @@ button .icon { pointer-events: none; }
 #battle-stage[data-layout^="zzz-"] .ar-card.ult.armed .ar-card-desc { color: var(--z-ink); opacity: 0.88; text-shadow: none; }
 #battle-stage[data-layout^="zzz-"] .ar-dot { background: var(--z-p1); box-shadow: 0 0 6px color-mix(in srgb, var(--z-p1) 60%, transparent); }
 #battle-stage[data-layout^="zzz-"] .ar-card.ult .ar-dot { background: var(--z-ult); box-shadow: 0 0 6px color-mix(in srgb, var(--z-ult) 60%, transparent); }
-#battle-stage[data-layout^="zzz-"] .ar-dot.used { background: transparent; box-shadow: none; }
+#battle-stage[data-layout^="zzz-"] .ar-dot.used,
+#battle-stage[data-layout^="zzz-"] .ar-card.ult .ar-dot.used { background: transparent; box-shadow: none; }
 #battle-stage[data-layout^="zzz-"] .ar-card.armed .ar-dot,
 #battle-stage[data-layout^="zzz-"] .ar-card.ult.armed .ar-dot {
   background: var(--z-ink);
