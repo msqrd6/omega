@@ -31,7 +31,14 @@ import {
   findCore
 } from './board.js?v=urban-v1';
 import { addLog, showDamagePopup } from './ui.js?v=urban-v1';
-import { playCombatPopupFX, playSkillPopupFX, playUltCutinFX } from './urban-ui.js?v=urban-v12';
+import {
+  playCombatPopupFX,
+  playSkillPopupFX,
+  playUltCutinFX,
+  playPassivePopupFX,
+  playBeamFX,
+  playUltChargeFX
+} from './urban-ui.js?v=urban-v12';
 
 let lastLethalHit = null;
 
@@ -114,6 +121,13 @@ export function handleTurretDestruction(turretOwner) {
         const maxStock = HERO_TYPES.VULCAN?.skills?.A?.maxStock || 1;
         u.stockA = Math.min(maxStock, u.stockA + 1);
         showDamagePopup(r, c, `⚙️再装填 & ATK+10!`, '#f59e0b');
+        playPassivePopupFX({ r, c }, {
+          label: '再装填 & ATK+10',
+          kind: 'buff',
+          color: '#f59e0b',
+          color2: '#ffe07d',
+          delayMs: 120
+        });
         addLog(`⚙️🗼 ヴァルカンのパッシブ『クロスファイア・リンク』発動！タレット破壊に伴い、『セントリー・タレット』のストックを1回復（現在: ${u.stockA}/${maxStock}）！さらにストック保持により攻撃力増強 (+10) が有効化！`, 'skill');
       }
     }
@@ -169,25 +183,45 @@ export function checkDeath(r, c, attackerOwner, onGameOver, killerUnit = null) {
         syncActionTokensCount(target.owner);
       }
 
-      let hiveAlive = false;
+      let hivePos = null;
       for (let hr = 0; hr < ROWS; hr++) {
         for (let hc = 0; hc < COLS; hc++) {
           const hu = board[hr][hc];
           if (hu && hu.owner === target.owner && hu.typeKey === 'HIVE') {
-            hiveAlive = true;
+            hivePos = { r: hr, c: hc };
             break;
           }
         }
-        if (hiveAlive) break;
+        if (hivePos) break;
       }
 
-      if (hiveAlive && killerUnit && isUnit(killerUnit) && killerUnit.owner !== target.owner && killerUnit.hp > 0) {
+      if (hivePos && killerUnit && isUnit(killerUnit) && killerUnit.owner !== target.owner && killerUnit.hp > 0) {
         applyDebuff(killerUnit, 'vulnerable', 2);
         applyDebuff(killerUnit, 'silence', 2);
         for (let kr = 0; kr < ROWS; kr++) {
           for (let kc = 0; kc < COLS; kc++) {
             if (board[kr][kc] === killerUnit) {
               showDamagePopup(kr, kc, `🎯弱体&🤐沈黙(2T)!`, '#a855f7');
+              playPassivePopupFX(hivePos, {
+                label: 'ニューロ・カウンター',
+                kind: 'debuff',
+                color: '#a855f7',
+                color2: '#66fff2',
+                delayMs: 120
+              });
+              playBeamFX(hivePos, { r: kr, c: kc }, {
+                kind: 'debuff',
+                color: '#a855f7',
+                color2: '#66fff2',
+                delayMs: 140
+              });
+              playPassivePopupFX({ r: kr, c: kc }, {
+                label: '弱体 & 沈黙(2T)!',
+                kind: 'debuff',
+                color: '#ff3ec8',
+                color2: '#a855f7',
+                delayMs: 210
+              });
             }
           }
         }
@@ -288,7 +322,12 @@ export function executeMove(from, to, onGameOver) {
     traps.splice(trapIdx, 1);
     addLog(`💥💣 【マイン爆発！】${unit.name} が地雷を踏み、${tp.damage} DMG！マインは消滅した！`, 'system');
     showDamagePopup(to.r, to.c, `💥マイン爆発! -${tp.damage}`, '#f97316');
-    dealDamage(null, unit, tp.damage, to, false);
+    const dealt = dealDamage(null, unit, tp.damage, to, false);
+    playCombatPopupFX('dmg', to, dealt, null, undefined, {
+      color: '#f97316',
+      color2: '#ffd447',
+      label: dealt > 0 ? `💣 -${dealt} DMG` : null
+    });
     checkDeath(to.r, to.c, enemyOwner, onGameOver);
   }
 
@@ -297,6 +336,13 @@ export function executeMove(from, to, onGameOver) {
     const inPhantomZone = phantomZones.some(pz => pz.r === to.r && pz.c === to.c && pz.owner === enemyOwner);
     if (inPhantomZone) {
       showDamagePopup(to.r, to.c, `👻ディメンション(弱体化中)!`, '#a855f7');
+      playPassivePopupFX(to, {
+        label: '弱体化 x1.5',
+        kind: 'debuff',
+        color: '#a855f7',
+        color2: '#f2b8ff',
+        delayMs: 80
+      });
       addLog(`👻 ディメンション・ゾーン侵入！${unit.name} はゾーン内に滞在しているあいだ【弱体化 (被ダメ1.5倍)】状態になります！`, 'system');
     }
   }
@@ -316,16 +362,40 @@ export function checkAndTriggerNitroCounter(attacker, target, attackerPos, onGam
       checkDeath,
       showDamagePopup,
       addLog,
-      onGameOver
+      onGameOver,
+      playCombatPopupFX,
+      playPassivePopupFX,
+      playBeamFX
     });
     return;
   }
 
   if (target.typeKey !== 'NITRO' && target.typeKey !== 'BOMBER') return;
 
+  const targetPos = getUnitPos(target);
   addLog(`💣💥 ニトロのパッシブ『カウンター・デトネーション』発動！攻撃してきた敵 ${attacker.name} に 10 ダメージの爆破反撃！`, 'skill');
   showDamagePopup(attackerPos.r, attackerPos.c, `💥カウンター 10!`, '#ff0055');
-  dealDamage(target, attacker, 10, attackerPos, false);
+  if (targetPos) {
+    playPassivePopupFX(targetPos, {
+      label: '反撃爆破!',
+      kind: 'attack',
+      color: '#ff5a26',
+      color2: '#ffd447',
+      delayMs: 180
+    });
+    playBeamFX(targetPos, attackerPos, {
+      kind: 'attack',
+      color: '#ff5a26',
+      color2: '#ffd447',
+      delayMs: 200
+    });
+  }
+  const dealt = dealDamage(target, attacker, 10, attackerPos, false);
+  playCombatPopupFX('dmg', attackerPos, dealt, targetPos, undefined, {
+    skipLunge: true,
+    delayMs: 240,
+    label: dealt > 0 ? `💥 -${dealt} DMG` : null
+  });
   checkDeath(attackerPos.r, attackerPos.c, target.owner, onGameOver);
 }
 
@@ -430,7 +500,8 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver) {
       applyDebuff,
       clearAllDebuffs,
       getEffectiveAtk,
-      findCore
+      findCore,
+      playPassivePopupFX
     });
     return;
   }
@@ -912,6 +983,13 @@ function triggerGlitchDimensionCharge(landingPos, enemyOwner) {
         if (u && u.owner === enemyOwner && isUnit(u)) {
           applyDebuff(u, 'vulnerable', 1);
           showDamagePopup(nr, nc, `🎯弱体化(このターン)!`, '#ea580c');
+          playPassivePopupFX({ r: nr, c: nc }, {
+            label: '弱体化 x1.5!',
+            kind: 'debuff',
+            color: '#ea580c',
+            color2: '#ffd447',
+            delayMs: 160
+          });
           count++;
         }
       }
@@ -937,7 +1015,12 @@ export function processTurnEndPassives(currentTurn) {
             showDamagePopup,
             addLog,
             addTeamUltDamage,
-            inBounds
+            getTeamUltGauge,
+            inBounds,
+            playCombatPopupFX,
+            playPassivePopupFX,
+            playBeamFX,
+            playUltChargeFX
           });
         }
       }
@@ -976,6 +1059,23 @@ export function processTurnEndPassives(currentTurn) {
           closestAlly.unit.hp = Math.min(closestAlly.unit.maxHp, closestAlly.unit.hp + 5);
           const healed = closestAlly.unit.hp - oldHp;
           showDamagePopup(closestAlly.r, closestAlly.c, `💉ナノ回復 +${healed}`, '#00ffaa');
+          if (healed > 0) {
+            playPassivePopupFX({ r, c }, {
+              label: 'ナノ回復',
+              kind: 'heal',
+              color: '#2ee59d',
+              color2: '#b9ffe4'
+            });
+            playBeamFX({ r, c }, { r: closestAlly.r, c: closestAlly.c }, {
+              kind: 'heal',
+              color: '#2ee59d',
+              color2: '#b9ffe4'
+            });
+            playCombatPopupFX('heal', { r: closestAlly.r, c: closestAlly.c }, healed, { r, c }, undefined, {
+              skipLunge: true,
+              delayMs: 110
+            });
+          }
           addLog(`💉✨ アイリスのパッシブ『ナノ・エンハンスメント』発動！上一直線上の味方 ${closestAlly.unit.name} を ${healed} HP自動回復！(現在HP: ${closestAlly.unit.hp}/${closestAlly.unit.maxHp})`, 'skill');
         }
       }
@@ -983,20 +1083,32 @@ export function processTurnEndPassives(currentTurn) {
   }
 
   // 2-2. ネクサスのパッシブ『システム・オーバーライド』
-  let nexusAliveFallback = false;
+  let nexusPosFallback = null;
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const u = board[r][c];
       if (u && u.owner === currentTurn && (u.typeKey === 'HACKER' || u.typeKey === 'NEXUS') && typeof u.onTurnEnd !== 'function') {
-        nexusAliveFallback = true;
+        nexusPosFallback = { r, c };
         break;
       }
     }
-    if (nexusAliveFallback) break;
+    if (nexusPosFallback) break;
   }
 
-  if (nexusAliveFallback) {
+  if (nexusPosFallback) {
+    const before = getTeamUltGauge(currentTurn);
     addTeamUltDamage(currentTurn, 10);
+    const after = getTeamUltGauge(currentTurn);
+    const gained = Math.max(0, after - before);
+    playPassivePopupFX(nexusPosFallback, {
+      label: gained > 0 ? `ULT +${gained}%` : 'ULT MAX',
+      kind: 'ult',
+      color: '#38bdf8',
+      color2: '#38f6b4'
+    });
+    if (gained > 0) {
+      playUltChargeFX(currentTurn, gained);
+    }
     addLog(`💻⚡ ネクサスのパッシブ『システム・オーバーライド』発動！チームウルトゲージが直接 +10 チャージされた！`, 'skill');
   }
 
@@ -1028,6 +1140,26 @@ export function processTurnEndPassives(currentTurn) {
           lowestAlly.unit.hp = Math.min(lowestAlly.unit.maxHp, lowestAlly.unit.hp + 5);
           const healed = lowestAlly.unit.hp - oldHp;
           showDamagePopup(lowestAlly.r, lowestAlly.c, `💫オーラ回復 +${healed}`, '#e066ff');
+          if (healed > 0) {
+            const isSelf = (lowestAlly.r === r && lowestAlly.c === c);
+            playPassivePopupFX({ r, c }, {
+              label: isSelf ? '' : 'バイタル・オーラ',
+              kind: 'heal',
+              color: '#e066ff',
+              color2: '#a6ffdb'
+            });
+            if (!isSelf) {
+              playBeamFX({ r, c }, { r: lowestAlly.r, c: lowestAlly.c }, {
+                kind: 'heal',
+                color: '#2ee59d',
+                color2: '#e066ff'
+              });
+            }
+            playCombatPopupFX('heal', { r: lowestAlly.r, c: lowestAlly.c }, healed, { r, c }, undefined, {
+              skipLunge: true,
+              delayMs: isSelf ? 50 : 110
+            });
+          }
           addLog(`💫✨ オーラのパッシブ『バイタル・オーラ』発動！周囲で最も負傷している ${lowestAlly.unit.name} を ${healed} HP自動回復！(現在HP: ${lowestAlly.unit.hp}/${lowestAlly.unit.maxHp})`, 'skill');
         }
       }
@@ -1111,7 +1243,10 @@ export function processTurretAttacks(currentTurn, onGameOver) {
             showDamagePopup,
             addLog,
             checkDeath,
-            onGameOver
+            onGameOver,
+            playCombatPopupFX,
+            playPassivePopupFX,
+            playBeamFX
           });
           continue;
         }
@@ -1130,9 +1265,28 @@ export function processTurretAttacks(currentTurn, onGameOver) {
           }
         }
 
+        if (hitEnemies.length > 0) {
+          playPassivePopupFX({ r, c }, {
+            label: '自動迎撃!',
+            kind: 'turret',
+            color: '#ff5a26',
+            color2: '#ffd447'
+          });
+        }
+
         hitEnemies.forEach(({ r: er, c: ec, unit: eu }) => {
-          dealDamage(u, eu, u.atk, { r: er, c: ec }, false);
+          const dealt = dealDamage(u, eu, u.atk, { r: er, c: ec }, false);
           showDamagePopup(er, ec, `🗼迎撃! -${u.atk}`, '#f43f5e');
+          playBeamFX({ r, c }, { r: er, c: ec }, {
+            kind: 'attack',
+            color: '#ff5a26',
+            color2: '#ffd447'
+          });
+          playCombatPopupFX('dmg', { r: er, c: ec }, dealt, { r, c }, undefined, {
+            skipLunge: true,
+            delayMs: 90,
+            label: dealt > 0 ? `-${dealt} DMG` : null
+          });
           addLog(`🗼 自動防衛タレットが周囲迎撃ゾーンの敵ユニット ${eu.name} に自動迎撃！(${u.atk} DMG)`, 'skill');
           checkDeath(er, ec, u.owner, onGameOver);
         });
@@ -1152,8 +1306,14 @@ export function processTurnStartHazards(currentTurn, onGameOver) {
 
       const inEnemyPoison = poisonZones.some(pz => pz.r === r && pz.c === c && pz.owner === enemyOwner);
       if (inEnemyPoison) {
-        dealDamage(null, u, 10, { r, c }, false);
+        const dealt = dealDamage(null, u, 10, { r, c }, false);
         showDamagePopup(r, c, `毒 -10`, '#10b981');
+        playCombatPopupFX('dmg', { r, c }, dealt, null, undefined, {
+          delayMs: 220,
+          color: '#2ee59d',
+          color2: '#c4ff4d',
+          label: dealt > 0 ? `🧪 -${dealt} DMG` : null
+        });
         addLog(`🧪 トキシック・ゾーン汚染！${u.name} がターン開始時に 10 DMG を受けた！`, 'system');
         checkDeath(r, c, enemyOwner, onGameOver);
       }

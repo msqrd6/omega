@@ -66,7 +66,7 @@ export class GlitchUnit extends UnitEntity {
   }
 
   executeSkill(slot, targetPos, context = {}) {
-    const { board, showDamagePopup, addLog } = context;
+    const { board, showDamagePopup, addLog, playPassivePopupFX } = context;
     const enemyOwner = (this.owner === 'P1') ? 'P2' : 'P1';
 
     board[targetPos.r][targetPos.c] = this;
@@ -92,6 +92,15 @@ export class GlitchUnit extends UnitEntity {
           if (u && u.owner === enemyOwner && u.isUnit()) {
             u.applyDebuff('vulnerable', 1);
             showDamagePopup(nr, nc, `🎯弱体化(このターン)!`, '#ea580c');
+            if (playPassivePopupFX) {
+              playPassivePopupFX({ r: nr, c: nc }, {
+                label: '弱体化 x1.5!',
+                kind: 'debuff',
+                color: '#ea580c',
+                color2: '#ffd447',
+                delayMs: 160
+              });
+            }
             count++;
           }
         }

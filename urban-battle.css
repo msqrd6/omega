@@ -4460,6 +4460,128 @@ button .icon { pointer-events: none; }
   0%, 100% { transform: scale(1); filter: none; }
   30% { transform: scale(1.14) translateY(-5px); filter: brightness(1.35) drop-shadow(0 0 14px var(--skill-fx-color, #00e5ff)); }
 }
+#battle-stage .tile.is-passive-cast .piece {
+  z-index: 10;
+  animation: passiveCastPulse 0.56s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes passiveCastPulse {
+  0%, 100% { transform: scale(1); filter: none; }
+  32% { transform: scale(1.15) translateY(-6px); filter: brightness(1.4) drop-shadow(0 0 16px var(--passive-fx-color, #2ee59d)); }
+}
+#battle-stage .tile.is-turret-fire .piece {
+  z-index: 10;
+  animation: turretFireRecoil 0.52s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes turretFireRecoil {
+  0%, 100% { transform: scale(1); filter: none; }
+  20% { transform: scale(1.2) translateY(-4px); filter: brightness(1.65) drop-shadow(0 0 18px var(--passive-fx-color, #ff5a26)); }
+  46% { transform: scale(0.92) translateY(2px); filter: brightness(1.25) drop-shadow(0 0 10px var(--passive-fx-color, #ff5a26)); }
+}
+.fx-pop.is-passive {
+  top: -28px;
+  padding: 3px 9px;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--fx-c) 90%, #0b0d12);
+  color: #06090e;
+  box-shadow: 0 3px 0 #000, 0 0 14px var(--fx-c);
+}
+.fx-pop.is-passive.is-debuff {
+  background: #ff3ec8;
+  color: #fff;
+}
+.fx-pop.is-passive.is-turret,
+.fx-pop.is-passive.is-attack {
+  background: #ff5a26;
+  color: #fff;
+}
+.fx-pop.is-passive.is-ult {
+  background: #38bdf8;
+  color: #04131c;
+}
+.fx-ring.is-passive {
+  border-width: 3px;
+  border-color: var(--fx-c);
+  box-shadow: 0 0 14px var(--fx-c), inset 0 0 10px var(--fx-c);
+}
+.fx-beam-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.fx-beam-glow {
+  fill: none;
+  stroke: var(--beam-c, #ff5a26);
+  stroke-width: 16;
+  stroke-linecap: round;
+  opacity: 0;
+  filter: blur(4px);
+  animation: fxBeamGlow 0.62s ease-out var(--beam-delay, 0ms) both;
+}
+.fx-beam-core {
+  fill: none;
+  stroke: var(--beam-c2, #fff);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: fxBeamCore 0.56s cubic-bezier(0.16, 1, 0.3, 1) var(--beam-delay, 0ms) both;
+}
+.fx-beam-packet {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 24 100;
+  stroke-dashoffset: 24;
+  filter: drop-shadow(0 0 6px var(--beam-c, #ff5a26));
+  animation: fxBeamPacket 0.44s cubic-bezier(0.22, 1, 0.36, 1) var(--beam-delay, 0ms) both;
+}
+.fx-beam-node {
+  fill: var(--beam-c2, #fff);
+  stroke: var(--beam-c, #ff5a26);
+  stroke-width: 3;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fxBeamEndPulse 0.54s ease-out var(--beam-delay, 0ms) both;
+}
+@keyframes fxBeamGlow {
+  0% { opacity: 0; }
+  22% { opacity: 0.58; }
+  100% { opacity: 0; }
+}
+@keyframes fxBeamCore {
+  0% { opacity: 0.95; stroke-dashoffset: 100; }
+  38% { opacity: 1; stroke-dashoffset: 0; }
+  100% { opacity: 0; stroke-dashoffset: 0; }
+}
+@keyframes fxBeamPacket {
+  0% { opacity: 0; stroke-dashoffset: 24; }
+  18% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; stroke-dashoffset: -100; }
+}
+@keyframes fxBeamEndPulse {
+  0% { opacity: 0; transform: scale(0.3); }
+  25% { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(0.5); }
+}
+#battle-stage .core-bar.is-ult-charging {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 4px 0 var(--z-shadow, #000), 0 0 24px rgba(56, 189, 248, 0.72) !important;
+}
+#battle-stage .core-bar.is-ult-charging::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent 0%, rgba(56, 246, 180, 0.55) 45%, rgba(56, 189, 248, 0.75) 60%, transparent 100%);
+  animation: ultBarDischarge 0.72s ease-out forwards;
+  pointer-events: none;
+}
 @keyframes fxPopFloat {
   0% { opacity: 0; transform: translate(-50%, 10px) skewX(-8deg) scale(0.6); }
   20% { opacity: 1; transform: translate(-50%, -14px) skewX(-8deg) scale(1.12); }

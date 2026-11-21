@@ -745,6 +745,37 @@ export function getUltPreviewTargets(casterPos, unit, clickedTarget = null, isHo
 
 let ultTimers = [];
 let finisherTimers = [];
+let fxTimers = [];
+
+function scheduleFxTimeout(fn, delayMs) {
+  if (!delayMs || delayMs <= 0) {
+    fn();
+    return null;
+  }
+  const id = setTimeout(() => {
+    fxTimers = fxTimers.filter(t => t !== id);
+    fn();
+  }, delayMs);
+  fxTimers.push(id);
+  return id;
+}
+
+function applyTileAnimClass(pos, className, durationMs, cssProps = null) {
+  if (!pos) return;
+  requestAnimationFrame(() => {
+    const tile = document.querySelector(`#board .tile[data-r="${pos.r}"][data-c="${pos.c}"]`);
+    if (!tile) return;
+    if (cssProps) {
+      for (const [k, v] of Object.entries(cssProps)) {
+        tile.style.setProperty(k, v);
+      }
+    }
+    tile.classList.remove(className);
+    void tile.offsetWidth;
+    tile.classList.add(className);
+    setTimeout(() => tile.classList.remove(className), durationMs);
+  });
+}
 
 export function clearFinisherFxState() {
   finisherTimers.forEach(clearTimeout);
@@ -772,6 +803,8 @@ export function clearFinisherFxState() {
 export function clearUltFxState() {
   ultTimers.forEach(clearTimeout);
   ultTimers = [];
+  fxTimers.forEach(clearTimeout);
+  fxTimers = [];
   clearFinisherFxState();
   const stage = document.getElementById('battle-stage');
   const cutin = document.getElementById('ult-cutin-overlay');
@@ -779,10 +812,12 @@ export function clearUltFxState() {
   if (stage) {
     stage.classList.remove('is-ult-impact');
     stage.querySelectorAll('.piece.is-ult-casting').forEach(el => el.classList.remove('is-ult-casting'));
-    stage.querySelectorAll('.tile.is-ult-hit').forEach(el => el.classList.remove('is-ult-hit'));
+    stage.querySelectorAll('.tile.is-ult-hit, .tile.is-passive-cast, .tile.is-turret-fire').forEach(el => {
+      el.classList.remove('is-ult-hit', 'is-passive-cast', 'is-turret-fire');
+    });
   }
-  document.getElementById('core-bar-ally')?.classList.remove('is-ult-discharging');
-  document.getElementById('core-bar-enemy')?.classList.remove('is-ult-discharging');
+  document.getElementById('core-bar-ally')?.classList.remove('is-ult-discharging', 'is-ult-charging');
+  document.getElementById('core-bar-enemy')?.classList.remove('is-ult-discharging', 'is-ult-charging');
   if (cutin) {
     cutin.classList.remove('is-active');
     cutin.hidden = true;
@@ -863,78 +898,219 @@ function spawnTargetWave(fxLayer, target, casterPos, meta, boardFlipped) {
   }
 }
 
-export function playCombatPopupFX(kind, targetPos, amount, attackerPos, boardFlipped) {
-  const fxLayer = document.getElementById('board-fx-layer');
-  if (!fxLayer || !targetPos) return;
-  const vpTarget = resolveVisualPos(targetPos, boardFlipped);
+export function playCombatPopupFX(kind, targetPos, amount, attackerPos, boardFlipped, options = {}) {
+  if (!targetPos) return;
+  const {
+    delayMs = 0,
+    label = null,
+    color = null,
+    color2 = null,
+    skipLunge = false
+  } = options;
 
-  if (kind === 'dmg' && attackerPos) {
-    requestAnimationFrame(() => {
-      const atkTile = document.querySelector(`#board .tile[data-r="${attackerPos.r}"][data-c="${attackerPos.c}"]`);
-      if (atkTile) {
-        const sign = vpTarget.flipped ? -1 : 1;
-        const dx = sign * Math.sign(targetPos.c - attackerPos.c) * 16;
-        const dy = sign * Math.sign(targetPos.r - attackerPos.r) * 16;
-        atkTile.style.setProperty('--lunge-x', `${dx}px`);
-        atkTile.style.setProperty('--lunge-y', `${dy}px`);
-        atkTile.classList.remove('is-atk-lunge');
-        void atkTile.offsetWidth;
-        atkTile.classList.add('is-atk-lunge');
-        setTimeout(() => atkTile.classList.remove('is-atk-lunge'), 360);
-      }
-    });
-  }
+  const run = () => {
+    const fxLayer = document.getElementById('board-fx-layer');
+    if (!fxLayer) return;
+    const vpTarget = resolveVisualPos(targetPos, boardFlipped);
 
-  requestAnimationFrame(() => {
-    const tgtTile = document.querySelector(`#board .tile[data-r="${targetPos.r}"][data-c="${targetPos.c}"]`);
-    if (tgtTile) {
-      const cls = kind === 'heal' ? 'is-heal-hit' : 'is-dmg-hit';
-      tgtTile.classList.remove('is-dmg-hit', 'is-heal-hit');
-      void tgtTile.offsetWidth;
-      tgtTile.classList.add(cls);
-      setTimeout(() => tgtTile.classList.remove(cls), 620);
+    if (kind === 'dmg' && attackerPos && !skipLunge) {
+      const sign = vpTarget.flipped ? -1 : 1;
+      const dx = sign * Math.sign(targetPos.c - attackerPos.c) * 16;
+      const dy = sign * Math.sign(targetPos.r - attackerPos.r) * 16;
+      applyTileAnimClass(attackerPos, 'is-atk-lunge', 360, {
+        '--lunge-x': `${dx}px`,
+        '--lunge-y': `${dy}px`
+      });
     }
-  });
 
-  const node = document.createElement('div');
-  node.className = 'ult-fx-node';
-  node.style.left = `${((vpTarget.c + 0.5) / 7) * 100}%`;
-  node.style.top = `${((vpTarget.r + 0.5) / 7) * 100}%`;
+    const hitCls = kind === 'heal' ? 'is-heal-hit' : 'is-dmg-hit';
+    applyTileAnimClass(targetPos, hitCls, 620);
 
-  if (kind === 'heal') {
-    node.style.setProperty('--fx-c', '#2ee59d');
-    node.style.setProperty('--fx-c2', '#b9ffe4');
-    const plusHtml = [
-      { x: -24, y: 10, d: 0 },
-      { x: 22, y: 14, d: 70 },
-      { x: -12, y: -12, d: 130 },
-      { x: 18, y: -16, d: 180 }
-    ].map(p => `<span class="fx-heal-plus" style="left:${p.x}px;top:${p.y}px;--hp-delay:${p.d}ms">+</span>`).join('');
-    node.innerHTML = `
-      <span class="fx-heal-aura"></span>
-      <span class="fx-ring" style="--ring-scale:1.45;--ring-dur:0.64s;--ring-delay:0s"></span>
-      ${plusHtml}
-      <span class="fx-pop is-heal is-big">+${amount} HP</span>
+    const node = document.createElement('div');
+    node.className = 'ult-fx-node';
+    node.style.left = `${((vpTarget.c + 0.5) / 7) * 100}%`;
+    node.style.top = `${((vpTarget.r + 0.5) / 7) * 100}%`;
+
+    if (kind === 'heal') {
+      node.style.setProperty('--fx-c', color || '#2ee59d');
+      node.style.setProperty('--fx-c2', color2 || '#b9ffe4');
+      const plusHtml = [
+        { x: -24, y: 10, d: 0 },
+        { x: 22, y: 14, d: 70 },
+        { x: -12, y: -12, d: 130 },
+        { x: 18, y: -16, d: 180 }
+      ].map(p => `<span class="fx-heal-plus" style="left:${p.x}px;top:${p.y}px;--hp-delay:${p.d}ms">+</span>`).join('');
+      const popText = label ?? `+${amount} HP`;
+      node.innerHTML = `
+        <span class="fx-heal-aura"></span>
+        <span class="fx-ring" style="--ring-scale:1.45;--ring-dur:0.64s;--ring-delay:0s"></span>
+        ${plusHtml}
+        <span class="fx-pop is-heal is-big">${esc(popText)}</span>
+      `;
+    } else {
+      const blocked = !label && Number(amount) <= 0;
+      node.style.setProperty('--fx-c', color || (blocked ? '#38e8ff' : '#ff4625'));
+      node.style.setProperty('--fx-c2', color2 || (blocked ? '#d0faff' : '#ffd0b8'));
+      let sparksHtml = '';
+      for (let i = 0; i < 6; i++) {
+        const ang = 25 + i * 58;
+        sparksHtml += `<span class="fx-spark" style="--sp-ang:${ang}deg;--sp-dist:76px;--sp-sc:0.85;--sp-delay:0ms"></span>`;
+      }
+      const popText = label ?? (blocked ? '🛡️ SHIELD!' : `-${amount} DMG`);
+      const popVariant = blocked ? 'is-shield' : 'is-dmg';
+      node.innerHTML = `
+        <span class="fx-slash"></span>
+        <span class="fx-slash is-cross"></span>
+        <span class="fx-ring" style="--ring-scale:1.45;--ring-dur:0.54s;--ring-delay:0s"></span>
+        ${sparksHtml}
+        <span class="fx-pop ${popVariant} is-big">${esc(popText)}</span>
+      `;
+    }
+
+    fxLayer.appendChild(node);
+    setTimeout(() => node.remove(), 1120);
+  };
+
+  scheduleFxTimeout(run, delayMs);
+}
+
+/**
+ * 盤面上の2点間を繋ぐ射撃/回復ビームエフェクトを再生する
+ */
+export function playBeamFX(fromPos, toPos, options = {}) {
+  if (!fromPos || !toPos) return;
+  if (fromPos.r === toPos.r && fromPos.c === toPos.c) return;
+  const {
+    kind = 'attack',
+    color = null,
+    color2 = null,
+    delayMs = 0,
+    boardFlipped
+  } = options;
+
+  const palette = kind === 'heal'
+    ? { c1: '#2ee59d', c2: '#b9ffe4' }
+    : kind === 'debuff'
+      ? { c1: '#a855f7', c2: '#f2b8ff' }
+      : { c1: '#ff5a26', c2: '#ffd447' };
+  const c1 = color || palette.c1;
+  const c2 = color2 || palette.c2;
+
+  const run = () => {
+    const fxLayer = document.getElementById('board-fx-layer');
+    if (!fxLayer) return;
+    const vpFrom = resolveVisualPos(fromPos, boardFlipped);
+    const vpTo = resolveVisualPos(toPos, boardFlipped);
+    const x1 = (vpFrom.c + 0.5) * 100;
+    const y1 = (vpFrom.r + 0.5) * 100;
+    const x2 = (vpTo.c + 0.5) * 100;
+    const y2 = (vpTo.r + 0.5) * 100;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'fx-beam-svg');
+    svg.setAttribute('viewBox', '0 0 700 700');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.style.setProperty('--beam-c', c1);
+    svg.style.setProperty('--beam-c2', c2);
+    svg.innerHTML = `
+      <line class="fx-beam-glow" pathLength="100" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />
+      <line class="fx-beam-core" pathLength="100" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />
+      <line class="fx-beam-packet" pathLength="100" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />
+      <circle class="fx-beam-node" cx="${x1}" cy="${y1}" r="9" />
+      <circle class="fx-beam-node" cx="${x2}" cy="${y2}" r="11" />
     `;
-  } else {
-    node.style.setProperty('--fx-c', '#ff4625');
-    node.style.setProperty('--fx-c2', '#ffd0b8');
+    fxLayer.appendChild(svg);
+    setTimeout(() => svg.remove(), 760);
+  };
+
+  scheduleFxTimeout(run, delayMs);
+}
+
+/**
+ * パッシブスキルや自動発動効果の発動演出を再生する
+ */
+export function playPassivePopupFX(casterPos, options = {}) {
+  if (!casterPos) return;
+  const {
+    label = '',
+    kind = 'buff',
+    color = null,
+    color2 = null,
+    targetPos = null,
+    delayMs = 0,
+    boardFlipped,
+    tileAnimClass = null
+  } = options;
+
+  const palettes = {
+    heal:   { c1: '#2ee59d', c2: '#b9ffe4' },
+    turret: { c1: '#ff5a26', c2: '#ffd447' },
+    attack: { c1: '#ff5a26', c2: '#ffd447' },
+    ult:    { c1: '#38bdf8', c2: '#38f6b4' },
+    debuff: { c1: '#a855f7', c2: '#f2b8ff' },
+    buff:   { c1: '#f59e0b', c2: '#ffe07d' }
+  };
+  const pal = palettes[kind] || palettes.buff;
+  const c1 = color || pal.c1;
+  const c2 = color2 || pal.c2;
+
+  const run = () => {
+    const fxLayer = document.getElementById('board-fx-layer');
+    if (!fxLayer) return;
+
+    const animCls = tileAnimClass || (kind === 'turret' ? 'is-turret-fire' : 'is-passive-cast');
+    applyTileAnimClass(casterPos, animCls, 580, { '--passive-fx-color': c1 });
+
+    const vp = resolveVisualPos(casterPos, boardFlipped);
+    const node = document.createElement('div');
+    node.className = 'ult-fx-node is-passive-node';
+    node.style.left = `${((vp.c + 0.5) / 7) * 100}%`;
+    node.style.top = `${((vp.r + 0.5) / 7) * 100}%`;
+    node.style.setProperty('--fx-c', c1);
+    node.style.setProperty('--fx-c2', c2);
+
     let sparksHtml = '';
     for (let i = 0; i < 6; i++) {
-      const ang = 25 + i * 58;
-      sparksHtml += `<span class="fx-spark" style="--sp-ang:${ang}deg;--sp-dist:76px;--sp-sc:0.85;--sp-delay:0ms"></span>`;
+      const ang = i * 60 + 15;
+      sparksHtml += `<span class="fx-spark" style="--sp-ang:${ang}deg;--sp-dist:64px;--sp-sc:0.78;--sp-delay:0ms"></span>`;
     }
-    node.innerHTML = `
-      <span class="fx-slash"></span>
-      <span class="fx-slash is-cross"></span>
-      <span class="fx-ring" style="--ring-scale:1.45;--ring-dur:0.54s;--ring-delay:0s"></span>
-      ${sparksHtml}
-      <span class="fx-pop is-dmg is-big">-${amount} DMG</span>
-    `;
-  }
 
-  fxLayer.appendChild(node);
-  setTimeout(() => node.remove(), 1120);
+    node.innerHTML = `
+      <span class="fx-target-pulse"></span>
+      <span class="fx-ring is-passive" style="--ring-scale:1.45;--ring-dur:0.56s;--ring-delay:0s"></span>
+      ${sparksHtml}
+      ${label ? `<span class="fx-pop is-passive is-${esc(kind)}">${esc(label)}</span>` : ''}
+    `;
+    fxLayer.appendChild(node);
+    setTimeout(() => node.remove(), 1060);
+
+    if (targetPos && (targetPos.r !== casterPos.r || targetPos.c !== casterPos.c)) {
+      playBeamFX(casterPos, targetPos, {
+        kind: kind === 'turret' ? 'attack' : kind,
+        color: c1,
+        color2: c2,
+        boardFlipped
+      });
+    }
+  };
+
+  scheduleFxTimeout(run, delayMs);
+}
+
+/**
+ * チームウルトゲージへの直接チャージ演出を再生する
+ */
+export function playUltChargeFX(owner, amount = 10, delayMs = 0) {
+  if (!owner || amount <= 0) return;
+  const run = () => {
+    const barEl = document.getElementById(isLocalPlayer(owner) ? 'core-bar-ally' : 'core-bar-enemy');
+    if (!barEl) return;
+    barEl.classList.remove('is-ult-charging');
+    void barEl.offsetWidth;
+    barEl.classList.add('is-ult-charging');
+    scheduleFxTimeout(() => barEl.classList.remove('is-ult-charging'), 820);
+  };
+  scheduleFxTimeout(run, delayMs);
 }
 
 export function playSkillPopupFX(casterPos, targetPos, casterUnit, boardFlipped) {

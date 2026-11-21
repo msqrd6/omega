@@ -81,7 +81,14 @@ export class IrisUnit extends UnitEntity {
 
   // パッシブ『ナノ・エンハンスメント』: 前方一直線上の最も近い負傷した味方を5回復
   onTurnEnd(context = {}) {
-    const { board, showDamagePopup, addLog } = context;
+    const {
+      board,
+      showDamagePopup,
+      addLog,
+      playCombatPopupFX,
+      playPassivePopupFX,
+      playBeamFX
+    } = context;
     const forwardDir = (this.owner === 'P1') ? -1 : 1;
     let closestAlly = null;
     let step = 1;
@@ -108,6 +115,29 @@ export class IrisUnit extends UnitEntity {
       closestAlly.unit.hp = Math.min(closestAlly.unit.maxHp, closestAlly.unit.hp + 5);
       const healed = closestAlly.unit.hp - oldHp;
       showDamagePopup(closestAlly.r, closestAlly.c, `💉ナノ回復 +${healed}`, '#00ffaa');
+      if (healed > 0) {
+        if (playPassivePopupFX) {
+          playPassivePopupFX({ r: this.r, c: this.c }, {
+            label: 'ナノ回復',
+            kind: 'heal',
+            color: '#2ee59d',
+            color2: '#b9ffe4'
+          });
+        }
+        if (playBeamFX) {
+          playBeamFX({ r: this.r, c: this.c }, { r: closestAlly.r, c: closestAlly.c }, {
+            kind: 'heal',
+            color: '#2ee59d',
+            color2: '#b9ffe4'
+          });
+        }
+        if (playCombatPopupFX) {
+          playCombatPopupFX('heal', { r: closestAlly.r, c: closestAlly.c }, healed, { r: this.r, c: this.c }, undefined, {
+            skipLunge: true,
+            delayMs: 110
+          });
+        }
+      }
       addLog(`💉✨ アイリスのパッシブ『ナノ・エンハンスメント』発動！上一直線上の味方 ${closestAlly.unit.name} を ${healed} HP自動回復！(現在HP: ${closestAlly.unit.hp}/${closestAlly.unit.maxHp})`, 'skill');
     }
   }
@@ -248,9 +278,23 @@ export class NexusUnit extends UnitEntity {
 
   // パッシブ『システム・オーバーライド』: 毎ターン終了時、ウルトゲージを直接 +10 チャージ
   onTurnEnd(context = {}) {
-    const { addTeamUltDamage, addLog } = context;
+    const { addTeamUltDamage, getTeamUltGauge, addLog, playPassivePopupFX, playUltChargeFX } = context;
     if (addTeamUltDamage) {
+      const before = getTeamUltGauge ? getTeamUltGauge(this.owner) : 0;
       addTeamUltDamage(this.owner, 10);
+      const after = getTeamUltGauge ? getTeamUltGauge(this.owner) : before + 10;
+      const gained = Math.max(0, after - before);
+      if (playPassivePopupFX) {
+        playPassivePopupFX({ r: this.r, c: this.c }, {
+          label: gained > 0 ? `ULT +${gained}%` : 'ULT MAX',
+          kind: 'ult',
+          color: '#38bdf8',
+          color2: '#38f6b4'
+        });
+      }
+      if (playUltChargeFX && gained > 0) {
+        playUltChargeFX(this.owner, gained);
+      }
       addLog(`💻⚡ ネクサスのパッシブ『システム・オーバーライド』発動！チームウルトゲージが直接 +10 チャージされた！`, 'skill');
     }
   }
@@ -351,7 +395,14 @@ export class AuraUnit extends UnitEntity {
 
   // パッシブ『バイタル・オーラ』: ターン終了時、周囲1マス範囲の一番HPが少ない味方ユニットを5回復
   onTurnEnd(context = {}) {
-    const { board, showDamagePopup, addLog } = context;
+    const {
+      board,
+      showDamagePopup,
+      addLog,
+      playCombatPopupFX,
+      playPassivePopupFX,
+      playBeamFX
+    } = context;
     let lowestAlly = null;
     let lowestHp = Infinity;
 
@@ -375,6 +426,30 @@ export class AuraUnit extends UnitEntity {
       lowestAlly.unit.hp = Math.min(lowestAlly.unit.maxHp, lowestAlly.unit.hp + 5);
       const healed = lowestAlly.unit.hp - oldHp;
       showDamagePopup(lowestAlly.r, lowestAlly.c, `💫オーラ回復 +${healed}`, '#e066ff');
+      if (healed > 0) {
+        const isSelf = (lowestAlly.r === this.r && lowestAlly.c === this.c);
+        if (playPassivePopupFX) {
+          playPassivePopupFX({ r: this.r, c: this.c }, {
+            label: isSelf ? '' : 'バイタル・オーラ',
+            kind: 'heal',
+            color: '#e066ff',
+            color2: '#a6ffdb'
+          });
+        }
+        if (!isSelf && playBeamFX) {
+          playBeamFX({ r: this.r, c: this.c }, { r: lowestAlly.r, c: lowestAlly.c }, {
+            kind: 'heal',
+            color: '#2ee59d',
+            color2: '#e066ff'
+          });
+        }
+        if (playCombatPopupFX) {
+          playCombatPopupFX('heal', { r: lowestAlly.r, c: lowestAlly.c }, healed, { r: this.r, c: this.c }, undefined, {
+            skipLunge: true,
+            delayMs: isSelf ? 50 : 110
+          });
+        }
+      }
       addLog(`💫✨ オーラのパッシブ『バイタル・オーラ』発動！周囲で最も負傷している ${lowestAlly.unit.name} を ${healed} HP自動回復！(現在HP: ${lowestAlly.unit.hp}/${lowestAlly.unit.maxHp})`, 'skill');
     }
   }

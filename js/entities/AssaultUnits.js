@@ -225,11 +225,44 @@ export class NitroUnit extends UnitEntity {
   onAttacked(attacker, attackerPos, context = {}) {
     if (!attacker || !attacker.isUnit() || attacker.owner === this.owner) return;
     if (!attackerPos) return;
-    const { showDamagePopup, addLog, dealDamage, checkDeath, onGameOver } = context;
+    const {
+      showDamagePopup,
+      addLog,
+      dealDamage,
+      checkDeath,
+      onGameOver,
+      playCombatPopupFX,
+      playPassivePopupFX,
+      playBeamFX
+    } = context;
 
     addLog(`💣💥 ニトロのパッシブ『カウンター・デトネーション』発動！攻撃してきた敵 ${attacker.name} に 10 ダメージの爆破反撃！`, 'skill');
     showDamagePopup(attackerPos.r, attackerPos.c, `💥カウンター 10!`, '#ff0055');
-    dealDamage(this, attacker, 10, attackerPos, false);
+    if (playPassivePopupFX) {
+      playPassivePopupFX({ r: this.r, c: this.c }, {
+        label: '反撃爆破!',
+        kind: 'attack',
+        color: '#ff5a26',
+        color2: '#ffd447',
+        delayMs: 180
+      });
+    }
+    if (playBeamFX) {
+      playBeamFX({ r: this.r, c: this.c }, attackerPos, {
+        kind: 'attack',
+        color: '#ff5a26',
+        color2: '#ffd447',
+        delayMs: 200
+      });
+    }
+    const dealt = dealDamage(this, attacker, 10, attackerPos, false);
+    if (playCombatPopupFX) {
+      playCombatPopupFX('dmg', attackerPos, dealt, { r: this.r, c: this.c }, undefined, {
+        skipLunge: true,
+        delayMs: 240,
+        label: dealt > 0 ? `💥 -${dealt} DMG` : null
+      });
+    }
     checkDeath(attackerPos.r, attackerPos.c, this.owner, onGameOver);
   }
 }

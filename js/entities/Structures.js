@@ -40,7 +40,17 @@ export class TurretEntity extends BoardEntity {
   }
 
   // ターン終了時の自動迎撃射撃（周囲8マスの敵ユニットに10 DMG）
-  triggerTurnEndAttack({ board, dealDamage, showDamagePopup, addLog, checkDeath, onGameOver }) {
+  triggerTurnEndAttack({
+    board,
+    dealDamage,
+    showDamagePopup,
+    addLog,
+    checkDeath,
+    onGameOver,
+    playCombatPopupFX,
+    playPassivePopupFX,
+    playBeamFX
+  }) {
     const enemyOwner = (this.owner === 'P1') ? 'P2' : 'P1';
     const hitEnemies = [];
 
@@ -57,9 +67,32 @@ export class TurretEntity extends BoardEntity {
       }
     }
 
+    if (hitEnemies.length > 0 && playPassivePopupFX) {
+      playPassivePopupFX({ r: this.r, c: this.c }, {
+        label: '自動迎撃!',
+        kind: 'turret',
+        color: '#ff5a26',
+        color2: '#ffd447'
+      });
+    }
+
     hitEnemies.forEach(({ r: er, c: ec, unit: eu }) => {
-      dealDamage(this, eu, this.atk, { r: er, c: ec }, false);
+      const dealt = dealDamage(this, eu, this.atk, { r: er, c: ec }, false);
       showDamagePopup(er, ec, `🗼迎撃! -${this.atk}`, '#f43f5e');
+      if (playBeamFX) {
+        playBeamFX({ r: this.r, c: this.c }, { r: er, c: ec }, {
+          kind: 'attack',
+          color: '#ff5a26',
+          color2: '#ffd447'
+        });
+      }
+      if (playCombatPopupFX) {
+        playCombatPopupFX('dmg', { r: er, c: ec }, dealt, { r: this.r, c: this.c }, undefined, {
+          skipLunge: true,
+          delayMs: 90,
+          label: dealt > 0 ? `-${dealt} DMG` : null
+        });
+      }
       addLog(`🗼 自動防衛タレットが周囲迎撃ゾーンの敵ユニット ${eu.name} に自動迎撃！(${this.atk} DMG)`, 'skill');
       checkDeath(er, ec, this.owner, onGameOver);
     });
