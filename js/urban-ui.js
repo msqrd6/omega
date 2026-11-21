@@ -554,7 +554,7 @@ export const ULT_FX_META = {
 export const SKILL_FX_META = {
   KINESIS: { color: '#d8ff00', color2: '#b8ff99', pop: 'ATK +5', selfCast: true },
   PHASE:   { color: '#b366ff', color2: '#ecc4ff', pop: 'TELEPORT', selfCast: false },
-  NITRO:   { color: '#ff7b24', color2: '#ffe07d', pop: 'MINE SET', selfCast: false },
+  NITRO:   { color: '#ff7b24', color2: '#ffe07d', pop: 'MINE SET', selfCast: false, hideTargetFromEnemy: true },
   BIT:     { color: '#ff7b24', color2: '#ffe07d', pop: 'SELF DESTRUCT', selfCast: true },
   VECTOR:  { color: '#00e5ff', color2: '#b8f8ff', pop: 'BARRICADE', selfCast: false },
   VULCAN:  { color: '#00d8ff', color2: '#b8f8ff', pop: 'TURRET SET', selfCast: false },
@@ -1149,7 +1149,8 @@ export function playSkillPopupFX(casterPos, targetPos, casterUnit, boardFlipped)
     return;
   }
 
-  const fxPos = (meta.selfCast || !targetPos) ? casterPos : targetPos;
+  const hideTarget = Boolean(meta.hideTargetFromEnemy && !isLocalPlayer(casterUnit.owner));
+  const fxPos = (meta.selfCast || hideTarget || !targetPos) ? casterPos : targetPos;
   const vp = resolveVisualPos(fxPos, boardFlipped);
   const node = document.createElement('div');
   node.className = 'ult-fx-node';

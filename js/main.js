@@ -38,7 +38,7 @@ import {
   processTurretAttacks,
   processTurnStartHazards,
   processTurnEndPassives
-} from './actions.js?v=urban-v1';
+} from './actions.js?v=urban-v13';
 import {
   tileElements,
   createBoardDOMOnce,
@@ -56,10 +56,10 @@ import {
   addLog,
   setBoardPerspective,
   setPhaseInstruction
-} from './ui.js?v=urban-v12';
-import { runAITurn } from './ai.js?v=urban-v1';
+} from './ui.js?v=urban-v13';
+import { runAITurn } from './ai.js?v=urban-v13';
 import { network } from './network.js?v=urban-v1';
-import { initUrbanUI, clearUltFxState, playFinisherFX } from './urban-ui.js?v=urban-v12';
+import { initUrbanUI, clearUltFxState, playFinisherFX } from './urban-ui.js?v=urban-v13';
 
 // ゲーム進行ステート
 // 'TITLE' -> 'PICK_P1' -> 'DEPLOY_P1' -> 'DEPLOY_P2' -> 'BATTLE'

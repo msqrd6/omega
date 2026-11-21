@@ -38,7 +38,7 @@ import {
   playPassivePopupFX,
   playBeamFX,
   playUltChargeFX
-} from './urban-ui.js?v=urban-v12';
+} from './urban-ui.js?v=urban-v13';
 
 let lastLethalHit = null;
 
@@ -471,10 +471,15 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver) {
   addLog(`⚡ ${isLocalPlayer(hero.owner) ? '自軍' : '敵軍'}の ${hero.name} が『${skillDef.name}』発動！`, 'skill');
 
   // スキル / ULT 演出（updateBoardView() の前にターゲットをスナップショット）
+  const isEnemyStealthMine = (
+    slot === 'A' &&
+    (hero.typeKey === 'NITRO' || hero.typeKey === 'BOMBER') &&
+    !isLocalPlayer(hero.owner)
+  );
   if (slot === 'ULT') {
     playUltCutinFX(heroPos, hero, tPos);
   } else if (slot === 'A') {
-    playSkillPopupFX(heroPos, tPos, hero);
+    playSkillPopupFX(heroPos, isEnemyStealthMine ? heroPos : tPos, hero);
   }
 
   // クラスメソッドへの委譲（UnitEntity 派生クラス）

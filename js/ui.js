@@ -34,7 +34,7 @@ import {
   isUnit
 } from './board.js?v=urban-v1';
 
-import { characterArt, renderUrbanHero, icon, roleIcon, roleKey, floorGraphicHtml, getSkillPreviewTargets, getUltPreviewTargets, isHealSkillHero } from './urban-ui.js?v=urban-v12';
+import { characterArt, renderUrbanHero, icon, roleIcon, roleKey, floorGraphicHtml, getSkillPreviewTargets, getUltPreviewTargets, isHealSkillHero } from './urban-ui.js?v=urban-v13';
 
 export let tileElements = [];
 export let isBoardFlipped = false;
@@ -332,10 +332,10 @@ export function updateBoardView({
       }
 
       // 2. トラップ・ハザード表示
-      const trap = traps.find(tp => tp.r === r && tp.c === c);
-      const hasVisibleTrap = !!(trap && isLocalPlayer(trap.owner));
+      const trap = traps.find(tp => tp.r === r && tp.c === c && isLocalPlayer(tp.owner));
+      const hasVisibleTrap = !!trap;
       if (hasVisibleTrap) {
-        tile.classList.add(isLocalPlayer(trap.owner) ? 'has-trap-ally' : 'has-trap-enemy');
+        tile.classList.add('has-trap-ally');
         tile.title = 'マイン（地雷 / 自軍のみ視認可能）';
       }
 

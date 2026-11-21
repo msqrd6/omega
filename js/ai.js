@@ -20,7 +20,7 @@ import {
   isObject,
   isCore
 } from './board.js?v=urban-v1';
-import { executeMove, executeAttack, executeSkill } from './actions.js?v=urban-v1';
+import { executeMove, executeAttack, executeSkill } from './actions.js?v=urban-v13';
 import { setPhaseInstruction } from './ui.js?v=urban-v1';
 
 // RULEBOOK正式名と旧エイリアスの双方に対応する判定ヘルパー
