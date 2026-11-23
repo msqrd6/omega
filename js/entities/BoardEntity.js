@@ -15,7 +15,7 @@ export class BoardEntity {
     maxHp,
     r,
     c,
-    classType = 'UNIT' // 'UNIT' | 'CORE' | 'OBJECT'
+    classType = 'UNIT' // 'UNIT' | 'ANCHOR' | 'OBJECT'
   }) {
     this.id = `${owner}_${typeKey}_${nextEntityUniqueId++}`;
     this.typeKey = typeKey;
@@ -27,8 +27,9 @@ export class BoardEntity {
     this.r = r;
     this.c = c;
     this.classType = classType;
+    this.marks = new Map();
 
-    // バフ（シールド等はコアやオブジェクトにも付与される場合がある）
+    // バフ（シールド等はアンカーやオブジェクトにも付与される場合がある）
     this.buffs = {
       atk_up: null,
       shield: null,
@@ -48,8 +49,8 @@ export class BoardEntity {
     return this.classType === 'UNIT';
   }
 
-  isCore() {
-    return this.classType === 'CORE';
+  isAnchor() {
+    return this.classType === 'ANCHOR';
   }
 
   isObject() {
@@ -74,17 +75,17 @@ export class BoardEntity {
   }
 
   applyBuff(key, val, turns) {
-    if (this.isCore() && key !== 'shield') return; // コアはシールドのみ付与可能
+    if (!this.isUnit() && key !== 'shield') return; // アンカーはシールドのみ付与可能
     if (!this.buffs) this.buffs = {};
     this.buffs[key] = { val, turns };
   }
 
-  applyDebuff(key, turns) {
-    if (!this.isUnit()) return; // デバフはユニットのみ有効（コア・オブジェクトは無効）
+  applyDebuff(key, turns, { allowNonUnit = false, expiresOn = this.owner, skipEnd = false } = {}) {
+    if (!this.isUnit() && !allowNonUnit) return; // デバフはユニットのみ有効（アンカー・オブジェクトは無効）
     if (!this.debuffs) this.debuffs = {};
     const cur = this.debuffs[key];
     const curTurns = cur ? cur.turns : 0;
-    this.debuffs[key] = { turns: Math.max(curTurns, turns) };
+    this.debuffs[key] = { turns: Math.max(curTurns, turns), expiresOn, skipEnd };
   }
 
   clearAllDebuffs() {

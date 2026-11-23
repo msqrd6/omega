@@ -13,8 +13,8 @@ export function inBounds(r, c) {
 // チーム共通ウルト解放に必要な累計与ダメージ量 (通常攻撃のみで蓄積)
 export const ULT_REQUIRED_DAMAGE = 100;
 
-// 行動トークン制の初期値 (移動 1・攻撃 1)
-export const DEFAULT_ACTION_TOKENS = {
+// 行動オーダー制の初期値 (移動 1・攻撃 1)
+export const DEFAULT_ACTION_ORDERS = {
   MOVE: 1,
   ATK: 1
 };
@@ -27,14 +27,14 @@ export const DEPLOYABLE_ROWS = {
 
 // 選択可能なヒーロー一覧 (全12体から5体選択 - 正式キャラクター名)
 export const SELECTABLE_HERO_KEYS = [
-  'KINESIS', 'PHASE', 'NITRO',
-  'VECTOR', 'VULCAN', 'TOXIN',
-  'GLITCH', 'CYPHER', 'HIVE',
-  'IRIS', 'NEXUS', 'AURA'
+  'KINESIS', 'VEIL', 'BLAST',
+  'WARDEN', 'VULCAN', 'SMOG',
+  'GLITCH', 'PRISM', 'HIVE',
+  'LILY', 'NEXUS', 'HALO'
 ];
 
-export const DEFAULT_ROSTER = ['KINESIS', 'NITRO', 'VECTOR', 'GLITCH', 'IRIS'];
-export const DEFAULT_AI_ROSTER = ['PHASE', 'TOXIN', 'VECTOR', 'GLITCH', 'IRIS'];
+export const DEFAULT_ROSTER = ['KINESIS', 'BLAST', 'WARDEN', 'GLITCH', 'LILY'];
+export const DEFAULT_AI_ROSTER = ['VEIL', 'SMOG', 'WARDEN', 'GLITCH', 'LILY'];
 
 // 周囲8マス共通オフセット
 export const SURROUND_8_OFFSETS = [
@@ -96,6 +96,11 @@ export const STATUS_EFFECT_DEFS = {
   }
 };
 
+export const BOARD_MARK_DEFS = {
+  link: { name: 'リンク', icon: 'st_link', targetsAllies: true, color: '#38bdf8', color2: '#b7f5ff' },
+  trace: { name: 'トレース', icon: 'disrupt', targetsAllies: false, color: '#a855f7', color2: '#f2b8ff' }
+};
+
 // 全エンティティのマスター定義
 const BASE_DEFINITIONS = {
   // ==========================================
@@ -115,7 +120,7 @@ const BASE_DEFINITIONS = {
     passive: {
       name: "ライトニング・ステップ",
       icon: "⚡",
-      desc: "毎自軍ターン開始時、キネシス専用の【追加移動トークン (+1 MOVE)】を獲得（チームの移動枠を消費せず移動可能）。"
+      desc: "毎自軍ターン開始時、キネシス専用の【追加移動オーダー (+1 MOVE)】を獲得（チームの移動枠を消費せず移動可能）。"
     },
     skills: {
       A: {
@@ -129,15 +134,15 @@ const BASE_DEFINITIONS = {
       ULT: {
         name: "ライトニング・ラッシュ",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "自身にキネシス専用の【追加攻撃トークン (+1 ATTACK)】を即座に 1枚 付与する！",
-        type: "EXTRA_ATTACK_TOKEN",
+        desc: "自身にキネシス専用の【追加攻撃オーダー (+1 ATTACK)】を即座に 1枚 付与する！",
+        type: "EX_ATK_ORDER",
         range: 0
       }
     }
   },
 
-  PHASE: {
-    name: "フェイズ",
+  VEIL: {
+    name: "ヴェイル",
     role: "ASSAULT",
     roleName: "アサルト",
     roleClass: "role-assault",
@@ -156,7 +161,7 @@ const BASE_DEFINITIONS = {
       A: {
         name: "テレポート",
         maxStock: 2,
-        desc: "自軍ディメンション・ゾーン（空きマス）へ即座にテレポート移動する（移動トークン消費なし）。",
+        desc: "自軍ディメンション・ゾーン（空きマス）へ即座にテレポート移動する（移動オーダー消費なし）。",
         type: "TELEPORT_TO_PHANTOM_ZONE",
         range: 99
       },
@@ -170,27 +175,27 @@ const BASE_DEFINITIONS = {
     }
   },
 
-  NITRO: {
-    name: "ニトロ",
+  BLAST: {
+    name: "ブラスト",
     role: "ASSAULT",
     roleName: "アサルト",
     roleClass: "role-assault",
     icon: "💣",
     maxHp: 110,
     atk: 20,
-    desc: "前線へ切り込み、不可視の地雷と自身の肉体を爆破兵器に変える狂気の突撃爆破兵。高いHPを持ち、攻撃してきた敵へ即座に反撃爆破を浴びせ、自爆で一帯を焦土に変える。",
+    desc: "前線へ切り込み、不可視の地雷と自身の肉体を爆破兵器に変える狂気の突撃爆破兵。高いHPを持ち、攻撃してきた敵へ即座に反撃爆破を浴びせ、敵陣を範囲爆破で制圧する。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
       name: "カウンター・デトネーション",
       icon: "💣",
-      desc: "自身が敵ユニットに攻撃された場合、攻撃してきた敵ユニットに即座に 10 ダメージの爆破反撃を行う！"
+      desc: "自身が敵ユニットに攻撃された時、攻撃してきた敵ユニットに即座に 10 ダメージ の爆破反撃を行う。"
     },
     skills: {
       A: {
         name: "マイン・プラント",
         maxStock: 2,
-        desc: "前方6マスの指定空きマスに「マイン（トラップ / 20 DMG）」を仕掛ける（敵には不可視、ニトロ破壊後も存続）。",
+        desc: "半径2マス以内の駒と自軍マインがないマスにブラスト・マインを設置する。敵の侵入で20ダメージ。ゾーン上にも設置できる。",
         type: "PLACE_MINE_TRAP",
         range: 2,
         damage: 20
@@ -198,7 +203,7 @@ const BASE_DEFINITIONS = {
       ULT: {
         name: "マキシマム・エクスプロージョン",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "自身を中心とする半径2マス以内のすべての敵味方ユニット・敵味方オブジェクト・敵味方コアに 20 ダメージの超大爆破（自身も20被弾）。",
+        desc: "自身に 10 ダメージ。自身を中心とする半径2マス以内のすべての敵ユニット・敵オブジェクト・敵アンカーに 20 ダメージを与え、さらに範囲内の敵ユニットに【スキル阻害 (1T)】を付与する。",
         type: "MAXIMUM_EXPLOSION",
         damage: 20,
         range: 2
@@ -208,19 +213,19 @@ const BASE_DEFINITIONS = {
 
   BIT: {
     name: "ビット",
-    role: "ASSAULT",
-    roleName: "アサルト",
-    roleClass: "role-assault",
+    role: "DISRUPTOR",
+    roleName: "ディスラプター",
+    roleClass: "role-disruptor",
     icon: "🛰️",
-    maxHp: 20,
+    maxHp: 15,
     atk: 5,
-    desc: "ハイヴから射出される自律戦闘子機。毎自軍ターン開始時に専用の攻撃トークンを獲得し、共通トークンを消費せずに自律攻撃を行う。",
+    desc: "ハイヴから射出される自律戦闘子機。毎自軍ターン開始時に専用の攻撃オーダーを獲得し、共通オーダーを消費せずに自律攻撃を行う。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
-      name: "自律アサルト・ドライブ",
+      name: "自律ドライブ",
       icon: "🛰️",
-      desc: "毎自軍ターン開始時、自軍の共通行動トークンとは別に「ビット専用攻撃トークン+1」を獲得する（共通トークンを消費せずに、各ビットが自律的に攻撃を行える）。"
+      desc: "毎自軍ターン開始時、自軍の共通行動オーダーとは別に「ビット専用攻撃オーダー+1」を獲得する（共通オーダーを消費せずに、各ビットが自律的に攻撃を行える）。"
     },
     skills: {
       A: {
@@ -237,13 +242,13 @@ const BASE_DEFINITIONS = {
   // ==========================================
   // 2. センチネル (SENTINEL)
   // ==========================================
-  VECTOR: {
-    name: "ベクター",
+  WARDEN: {
+    name: "ウォーデン",
     role: "SENTINEL",
     roleName: "センチネル",
     roleClass: "role-sentinel",
     icon: "🏰",
-    maxHp: 100,
+    maxHp: 110,
     atk: 15,
     desc: "盤面にエネルギー防壁を展開するエリアエンジニア。防壁を遮蔽物として利用し、安全地帯から敵を狙撃する陣地戦のスペシャリスト。",
     moveOffsets: SURROUND_8_OFFSETS,
@@ -251,22 +256,24 @@ const BASE_DEFINITIONS = {
     passive: {
       name: "バンカー・スナイパー",
       icon: "🏰",
-      desc: "味方オブジェクト（防壁・タレット）または味方コアに隣接時、自身に攻撃力増強 (+10) を常時付与（ATK 15 ➔ 25）。"
+      desc: "味方オブジェクトまたは味方アンカーの周囲8マスに隣接している時、自身に【攻撃力増強 (+5)】を常時付与する（ATK 15 ➔ 20）。"
     },
     skills: {
       A: {
         name: "フォース・バリケード",
         maxStock: 3,
-        desc: "半径2マス以内の指定空きマスに「バリケード（オブジェクト / HP 30）」を設置する（ベクター破壊後も存続）。",
+        desc: "半径2マス以内の空きマスに『バリケード（オブジェクト / HP 30）』を設置する。",
         type: "PLACE_BARRICADE",
         range: 2,
         barricadeHp: 30
       },
       ULT: {
-        name: "バリケード・バッファー",
+        name: "イージス・バリア",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "『フォース・バリケード』のストックを全回復（最大3回まで再装填）する！",
-        type: "RECHARGE_BARRICADE_STOCK",
+        desc: "すべての味方ユニット・味方オブジェクト・味方アンカーに【シールド増強 (+15 / 2T)】を付与する。",
+        type: "AEGIS_BARRIER",
+        shieldVal: 15,
+        shieldTurns: 2,
         range: 0
       }
     }
@@ -307,8 +314,8 @@ const BASE_DEFINITIONS = {
     }
   },
 
-  TOXIN: {
-    name: "トキシン",
+  SMOG: {
+    name: "スモッグ",
     role: "SENTINEL",
     roleName: "センチネル",
     roleClass: "role-sentinel",
@@ -321,21 +328,21 @@ const BASE_DEFINITIONS = {
     passive: {
       name: "トキシック・インフェクション",
       icon: "☣️",
-      desc: "自身は毒ハザード無効。「トキシック・ゾーン」内の敵ユニットへの通常攻撃が +10 DMG (15➔25) に大幅強化。"
+      desc: "「『トキシック・ゾーン』上にいる敵ユニットを通常攻撃する時」または「自身が『トキシック・ゾーン』上にいる時」、自身に【攻撃力増強 (+10)】を付与する（ATK 15 ➔ 25）。"
     },
     skills: {
       A: {
-        name: "トキシック・カーテン",
-        maxStock: 1,
-        desc: "自身から左右いずれかの直線方向へ3マスのトキシック・ゾーンを展開（トキシン撃破時に消滅）。",
-        type: "POISON_CURTAIN",
-        length: 3,
-        range: 1
+        name: "トキシック・マイン",
+        maxStock: 3,
+        desc: "半径2マス以内の駒と自軍マインがないマスに設置する。敵の侵入で10ダメージ。作動時にそのマスにゾーンがなく、自身が生存中ならトキシック・ゾーンを展開する。",
+        type: "TOXIC_MINE",
+        damage: 10,
+        range: 2
       },
       ULT: {
         name: "バイオハザード",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "自身の足元および周囲8マス（計9マス）にトキシック・ゾーンを一斉展開！既にあるハザードはトキシック・ゾーンに上書きされる。",
+        desc: "自身の足元および周囲8マス（計9マス）に『トキシック・ゾーン（ハザード）』を上書き展開し、さらに展開時に範囲内の敵ユニット・敵オブジェクトへ即座に 10 ダメージを与える。",
         type: "POISON_BIOHAZARD",
         range: 0
       }
@@ -353,63 +360,63 @@ const BASE_DEFINITIONS = {
     icon: "🌀",
     maxHp: 90,
     atk: 15,
-    desc: "空間座標を歪めて味方アサルトのもとへ跳躍し、着地時の時空衝撃波で敵を一気に弱体化させる異能のトリックスター。",
+    desc: "空間座標を歪めて交戦中の味方のもとへ跳躍し、着地時の時空衝撃波で敵を一気に弱体化させる異能のトリックスター。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
       name: "ディメンション・チャージ",
       icon: "🌀",
-      desc: "ワープ移動時、ワープ先のマスから半径1マス以内の敵ユニットに【弱体化 (このターン中 / 被ダメ1.5倍)】を付与。"
+      desc: "自身がスキルまたはウルトでワープ移動した時、着地先から半径1マス以内の敵ユニット全員に【弱体化 (1.5倍 / このターン中)】を付与する。"
     },
     skills: {
       A: {
         name: "グラビティ・ワープ",
         maxStock: 2,
-        desc: "盤面上の自軍アサルトの周囲8マスの空きマスへ即座にワープ移動する（移動トークン消費なし）。",
-        type: "ASSAULT_ADJACENT_WARP",
+        desc: "敵ユニット・敵オブジェクト・敵アンカーに隣接している味方ユニットの周囲8マスの空きマスへ即座にワープ移動する（移動オーダー消費なし）。",
+        type: "ENGAGED_ALLY_WARP",
         range: 99
       },
       ULT: {
-        name: "緊急回避",
+        name: "ディメンション・ジャミング",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "盤面上の任意の空きマスを選択して完全脱出ワープを行う！",
+        desc: "盤面上の任意の空きマスへワープ移動し、着地先の周囲8マス（半径1マス）の敵ユニットに【攻撃阻害 (1T)】を付与する（パッシブの【弱体化】も同時発動）。",
         type: "FREE_TELEPORT",
         range: 99
       }
     }
   },
 
-  CYPHER: {
-    name: "サイファー",
+  PRISM: {
+    name: "プリズム",
     role: "DISRUPTOR",
     roleName: "ディスラプター",
     roleClass: "role-disruptor",
     icon: "🔇",
     maxHp: 95,
     atk: 20,
-    desc: "戦場の電子グリッドを横一直線に滑走する電子戦スペシャリスト。左右への高速スライド移動で瞬時に射線を合わせ、直線ビームによる味方強化・敵武装解除、そして敵全軍を停止させるブラックアウトで戦況を完全支配する。",
+    desc: "斜めの貫通ビームで対象を捕捉し、マークした敵のスキルや移動を阻害する。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
-      name: "ホライゾン・シフト",
+      name: "ダイアゴナル・トレース",
       icon: "🔇",
-      desc: "周囲8マス移動に加え、左右の横一直線方向へ障害物に衝突する直前まで無制限にスライド移動可能。"
+      desc: "毎自軍ターン開始時、自身の斜め4方向（∞・完全貫通）にビームを放ち、射線上の敵ユニット・敵オブジェクト・敵アンカーに【トレース】を付与する（このターン中）。"
     },
     skills: {
       A: {
         name: "シグナル・ジャミング",
         maxStock: 2,
-        desc: "自身の前方一直線（上一直線）上のうち初弾ユニットに干渉。味方ユニットなら【攻撃力増強 (+15 / このターン中)】、敵ユニットなら【攻撃阻害 (1T)】を付与！",
-        type: "LINE_FIRST_HIT",
-        atkBonus: 15,
-        disarmTurns: 1,
-        range: 99
+        desc: "【トレース】が付与されている敵ユニット・敵オブジェクト全員に【スキル阻害 (1T)】および 10 ダメージ を与える。",
+        type: "TRACE_JAMMING",
+        damage: 10,
+        range: 0
       },
       ULT: {
         name: "フルスペクトラム・ブラックアウト",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "すべての敵ユニットに【行動阻害 (1T)】および【攻撃阻害 (1T)】を一斉付与！",
-        type: "GLOBAL_BLACKOUT",
+        desc: "【トレース】が付与されている敵ユニット・敵オブジェクト・敵アンカー全員に【行動阻害 (1T)】および 20 ダメージ を与える。",
+        type: "TRACE_BLACKOUT",
+        damage: 20,
         range: 0
       }
     }
@@ -423,28 +430,28 @@ const BASE_DEFINITIONS = {
     icon: "🛸",
     maxHp: 90,
     atk: 15,
-    desc: "アサルトの直近へ自律戦闘子機「ビット」を連続射出する戦術キャリアー。破壊されても敵を弱体化・スキル沈黙に追い込み、ウルトによるビット一斉強化で前線を圧倒する。",
+    desc: "アサルトの直近へ自律戦闘子機「ビット」を連続射出する戦術キャリアー。ビットを破壊した敵の移動を阻害し、ウルトによるビット一斉強化で前線を圧倒する。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
       name: "ニューロ・カウンター",
       icon: "🛸",
-      desc: "自身が召喚したビットを破壊した敵ユニットに【弱体化 (2T)】および【スキル阻害 (2T)】を付与する。"
+      desc: "自身が召喚した『ビット』を破壊した敵ユニットに【行動阻害 (1T)】を付与する（※相手ターン中に破壊した場合、破壊した次の相手ターンを丸ごと移動不能にする）。"
     },
     skills: {
       A: {
         name: "ビット・デプロイ",
-        maxStock: 3,
-        desc: "盤面上の自軍アサルト（キネシス、ニトロ、フェイズ、ビット）の周囲8マスの空きマスにビット（ユニット）を1体召喚する。",
+        maxStock: 2,
+        desc: "盤面上の自軍アサルトの周囲8マスの空きマスに召喚ユニット『ビット』を1体召喚する。",
         type: "SPAWN_BIT",
         range: 99
       },
       ULT: {
         name: "スウォーム・オーバードライブ",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "自身が召喚したすべてのビットに【シールド増強 (+30 / 2T)】および【攻撃力増強 (+10 / 2T)】を一斉付与する！",
-        type: "BUFF_ALL_BITS",
-        range: 0
+        desc: "盤面上の任意の空きマスに『ビット』を1体展開し、自軍のすべての『ビット』に【シールド増強 (+15 / 1T)】および【攻撃力増強 (+10 / このターン中)】を一斉付与する。",
+        type: "DEPLOY_AND_BUFF_BITS",
+        range: 99
       }
     }
   },
@@ -452,8 +459,8 @@ const BASE_DEFINITIONS = {
   // ==========================================
   // 4. サポート (SUPPORT)
   // ==========================================
-  IRIS: {
-    name: "アイリス",
+  LILY: {
+    name: "リリー",
     role: "SUPPORT",
     roleName: "サポート",
     roleClass: "role-support",
@@ -466,13 +473,13 @@ const BASE_DEFINITIONS = {
     passive: {
       name: "ナノ・エンハンスメント",
       icon: "💉",
-      desc: "毎自軍ターン終了時、自身の前方一直線（上一直線）にいる最も近い負傷した味方ユニット1体のHPを 5 自動回復。"
+      desc: "毎自軍ターン終了時、自身の前方一直線（上一直線）にいる一番近い負傷した味方ユニット1体のHPを 5 自動回復 する（HP満タンの味方は透過、障害物で遮断）。"
     },
     skills: {
       A: {
         name: "ライフ・リペア",
         maxStock: 2,
-        desc: "半径3マス以内の味方ユニット1体を指定し、HPを 30 大回復する。",
+        desc: "半径3マス以内の味方ユニット1体のHPを 30 回復 する。",
         type: "TARGET_HEAL",
         heal: 30,
         range: 3
@@ -480,10 +487,10 @@ const BASE_DEFINITIONS = {
       ULT: {
         name: "オーバーチャージ・オーラ",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "自軍の全ユニットおよび防衛コアに【シールド増強 (+15 / 2T)】を一斉付与！",
-        type: "GLOBAL_SHIELD",
-        shieldVal: 15,
-        shieldTurns: 2,
+        desc: "すべての味方ユニットのHPを 15 回復し、チームウルトゲージを +30 チャージする（発動後のゲージリセット後に+30される）。",
+        type: "GLOBAL_HEAL_AND_CHARGE",
+        heal: 15,
+        ultCharge: 30,
         range: 0
       }
     }
@@ -497,36 +504,39 @@ const BASE_DEFINITIONS = {
     icon: "💻",
     maxHp: 90,
     atk: 14,
-    desc: "ネットワーク経由で戦況に干渉する電子戦エキスパート。生存しているだけでウルトを毎ターン高速チャージし、遠隔ハッキングで味方の傷とあらゆる状態異常を治療する。",
+    desc: "観測網で味方とリンクし、シールド展開と状態異常の解除で前線を支える。",
     moveOffsets: SURROUND_8_OFFSETS,
     atkOffsets: SURROUND_8_OFFSETS,
     passive: {
-      name: "システム・オーバーライド",
+      name: "グリッド・リンク",
       icon: "💻",
-      desc: "ネクサスが盤面に生存している限り、毎自軍ターン終了時にチームウルトゲージが直接 +10 チャージされる。"
+      desc: "毎自軍ターン開始時、自身の縦横4方向（∞・完全貫通）にビームを放ち、射線上の味方ユニット・味方オブジェクト・味方アンカーに【リンク】を付与する（このターン中 / 自身除く）。"
     },
     skills: {
       A: {
-        name: "リモート・ハック",
-        maxStock: 3,
-        desc: "盤面上の任意の自ユニット1体を選択し、HPを 15 回復、状態異常（すべてのデバフ）を回復・解除する。",
-        type: "TARGET_HEAL_CURE",
-        heal: 15,
-        range: 99
+        name: "イージス・リンク",
+        maxStock: 2,
+        desc: "【リンク】が付与されている味方ユニット・味方アンカー全員に【シールド増強 (+10 / 2T)】を付与する。",
+        type: "AEGIS_LINK",
+        shieldVal: 10,
+        shieldTurns: 2,
+        range: 0
       },
       ULT: {
-        name: "EMP",
+        name: "オーバークロック・リンク",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "盤面上の任意の1マスを選択し、そこから半径2マス以内にあるすべての敵オブジェクト・敵トラップ・敵ハザードを完全消滅、半径2マス以内の味方ユニットのHPを 10 回復する。",
-        type: "EMP_PULSE",
-        heal: 10,
-        range: 99
+        desc: "【リンク】が付与されている味方ユニット・味方オブジェクト・味方アンカー全員に【シールド増強 (+25 / 2T)】を付与し、さらに同対象の味方ユニット全員の全デバフ解除＆【攻撃力増強 (+5 / 2T)】を付与する。",
+        type: "OVERCLOCK_LINK",
+        shieldVal: 25,
+        shieldTurns: 2,
+        atkBonus: 5,
+        range: 0
       }
     }
   },
 
-  AURA: {
-    name: "オーラ",
+  HALO: {
+    name: "ヘイロー",
     role: "SUPPORT",
     roleName: "サポート",
     roleClass: "role-support",
@@ -554,7 +564,7 @@ const BASE_DEFINITIONS = {
       ULT: {
         name: "レスキュー・ワープ",
         requiredDamage: ULT_REQUIRED_DAMAGE,
-        desc: "盤面上の任意の自軍ユニットの周囲8マスの空きマスへ即座にワープ移動（移動トークン消費なし）し、サンクチュアリを発動する（ストック消費なし）。",
+        desc: "盤面上の任意の自軍ユニットの周囲8マスの空きマスへ即座にワープ移動（移動オーダー消費なし）し、サンクチュアリを発動する（ストック消費なし）。",
         type: "RESCUE_WARP",
         range: 99
       }
@@ -562,11 +572,11 @@ const BASE_DEFINITIONS = {
   },
 
   // ==========================================
-  // 5. コア & オブジェクト (CORE / OBJECT)
+  // 5. アンカー & オブジェクト (ANCHOR / OBJECT)
   // ==========================================
-  CORE: {
-    name: "防衛コア",
-    classType: "コア",
+  ANCHOR: {
+    name: "アンカー",
+    classType: "アンカー",
     icon: "💎",
     maxHp: 100,
     atk: 0,
@@ -581,7 +591,7 @@ const BASE_DEFINITIONS = {
     icon: "🧱",
     maxHp: 30,
     atk: 0,
-    desc: "ベクターが設置した防護壁。移動・攻撃は不可。敵味方ともに通行不能。破壊可能（設置者撃破後も存続、自軍ターン中に任意破壊可能）。",
+    desc: "ウォーデンが設置した防護壁。移動・攻撃は不可。敵味方ともに通行不能。破壊可能（設置者撃破後も存続、自軍ターン中に任意破壊可能）。",
     moveOffsets: [],
     atkOffsets: []
   },
@@ -602,12 +612,12 @@ const BASE_DEFINITIONS = {
 export const HERO_TYPES = {
   ...BASE_DEFINITIONS,
   DUELIST: BASE_DEFINITIONS.KINESIS,
-  PHANTOM: BASE_DEFINITIONS.PHASE,
-  BOMBER: BASE_DEFINITIONS.NITRO,
-  SENTINEL: BASE_DEFINITIONS.VECTOR,
-  POISON: BASE_DEFINITIONS.TOXIN,
+  PHANTOM: BASE_DEFINITIONS.VEIL,
+  BOMBER: BASE_DEFINITIONS.BLAST,
+  SENTINEL: BASE_DEFINITIONS.WARDEN,
+  POISON: BASE_DEFINITIONS.SMOG,
   DISRUPTOR: BASE_DEFINITIONS.GLITCH,
-  MEDIC: BASE_DEFINITIONS.IRIS,
+  MEDIC: BASE_DEFINITIONS.LILY,
   HACKER: BASE_DEFINITIONS.NEXUS
 };
 

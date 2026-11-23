@@ -43,7 +43,7 @@ export class TurretEntity extends BoardEntity {
   triggerTurnEndAttack({
     board,
     dealDamage,
-    showDamagePopup,
+
     addLog,
     checkDeath,
     onGameOver,
@@ -78,7 +78,6 @@ export class TurretEntity extends BoardEntity {
 
     hitEnemies.forEach(({ r: er, c: ec, unit: eu }) => {
       const dealt = dealDamage(this, eu, this.atk, { r: er, c: ec }, false);
-      showDamagePopup(er, ec, `🗼迎撃! -${this.atk}`, '#f43f5e');
       if (playBeamFX) {
         playBeamFX({ r: this.r, c: this.c }, { r: er, c: ec }, {
           kind: 'attack',

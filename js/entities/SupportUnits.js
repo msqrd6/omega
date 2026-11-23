@@ -1,18 +1,19 @@
 /* ==============================================================
    SupportUnits.js: サポート (Support) ロール ユニットクラス群
-   (アイリス, ネクサス, オーラ)
+   (リリー, ネクサス, オーラ)
    ============================================================== */
+import { BeamUnit } from './BeamUnit.js?v=urban-v1';
 import { UnitEntity } from './UnitEntity.js?v=urban-v1';
 import { HERO_TYPES, inBounds, ROWS, COLS } from '../config.js?v=urban-v1';
 
 // ==========================================
-// 1. アイリス (Iris / MEDIC)
+// 1. リリー (Iris / MEDIC)
 // ==========================================
-export class IrisUnit extends UnitEntity {
+export class LilyUnit extends UnitEntity {
   constructor(owner, r, c) {
-    const def = HERO_TYPES.IRIS || HERO_TYPES.MEDIC;
+    const def = HERO_TYPES.LILY || HERO_TYPES.MEDIC;
     super({
-      typeKey: 'IRIS',
+      typeKey: 'LILY',
       name: def.name,
       icon: def.icon,
       owner,
@@ -53,7 +54,7 @@ export class IrisUnit extends UnitEntity {
   }
 
   executeSkill(slot, targetPos, context = {}) {
-    const { board, showDamagePopup, addLog } = context;
+    const { board, addLog, addTeamUltDamage, playCombatPopupFX } = context;
 
     if (slot === 'A') {
       const target = board[targetPos.r][targetPos.c];
@@ -61,21 +62,17 @@ export class IrisUnit extends UnitEntity {
         const oldHp = target.hp;
         target.hp = Math.min(target.maxHp, target.hp + 30);
         const healed = target.hp - oldHp;
-        showDamagePopup(targetPos.r, targetPos.c, `+${healed} HP`, '#00ffaa');
+        if (healed > 0) playCombatPopupFX('heal', targetPos, healed, this);
         addLog(`💉 ${this.name} が『ライフ・リペア』発動！${target.name} のHPを ${healed} 回復！`, 'skill');
       }
     } else if (slot === 'ULT') {
-      showDamagePopup(this.r, this.c, `オーバーチャージ!!`, '#00d2ff');
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const u = board[r][c];
-          if (u && u.owner === this.owner && !u.isObject()) {
-            u.applyBuff('shield', 15, 2);
-            showDamagePopup(r, c, `+15🛡️(2T)`, '#00d2ff');
-          }
-        }
+      for (const ally of board.flat()) {
+        if (ally?.owner !== this.owner || !ally.isUnit()) continue;
+        const healed = Math.min(15, ally.maxHp - ally.hp);
+        ally.hp += healed;
       }
-      addLog(`🌟 ${this.name} がウルト『オーバーチャージ・オーラ』発動！自軍全ユニットおよび防衛コアに【シールド増強(+15/2T)】を一斉展開！`, 'skill');
+      addTeamUltDamage(this.owner, 30);
+      addLog('チームウルトゲージ +30', 'skill');
     }
   }
 
@@ -83,7 +80,7 @@ export class IrisUnit extends UnitEntity {
   onTurnEnd(context = {}) {
     const {
       board,
-      showDamagePopup,
+
       addLog,
       playCombatPopupFX,
       playPassivePopupFX,
@@ -99,7 +96,7 @@ export class IrisUnit extends UnitEntity {
       if (!inBounds(nr, nc)) break;
       const piece = board[nr][nc];
       if (piece) {
-        if (piece.owner !== this.owner || piece.isCore() || piece.isObject()) {
+        if (piece.owner !== this.owner || piece.isAnchor() || piece.isObject()) {
           break;
         }
         if (piece.isUnit() && piece.owner === this.owner && piece.hp < piece.maxHp) {
@@ -114,7 +111,6 @@ export class IrisUnit extends UnitEntity {
       const oldHp = closestAlly.unit.hp;
       closestAlly.unit.hp = Math.min(closestAlly.unit.maxHp, closestAlly.unit.hp + 5);
       const healed = closestAlly.unit.hp - oldHp;
-      showDamagePopup(closestAlly.r, closestAlly.c, `💉ナノ回復 +${healed}`, '#00ffaa');
       if (healed > 0) {
         if (playPassivePopupFX) {
           playPassivePopupFX({ r: this.r, c: this.c }, {
@@ -138,7 +134,7 @@ export class IrisUnit extends UnitEntity {
           });
         }
       }
-      addLog(`💉✨ アイリスのパッシブ『ナノ・エンハンスメント』発動！上一直線上の味方 ${closestAlly.unit.name} を ${healed} HP自動回復！(現在HP: ${closestAlly.unit.hp}/${closestAlly.unit.maxHp})`, 'skill');
+      addLog(`💉✨ リリーのパッシブ『ナノ・エンハンスメント』発動！上一直線上の味方 ${closestAlly.unit.name} を ${healed} HP自動回復！(現在HP: ${closestAlly.unit.hp}/${closestAlly.unit.maxHp})`, 'skill');
     }
   }
 }
@@ -146,7 +142,7 @@ export class IrisUnit extends UnitEntity {
 // ==========================================
 // 2. ネクサス (Nexus / HACKER)
 // ==========================================
-export class NexusUnit extends UnitEntity {
+export class NexusUnit extends BeamUnit {
   constructor(owner, r, c) {
     const def = HERO_TYPES.NEXUS || HERO_TYPES.HACKER;
     super({
@@ -168,146 +164,48 @@ export class NexusUnit extends UnitEntity {
     });
   }
 
-  getSkillTargets(slot, context = {}) {
-    const { board } = context;
-    if (slot === 'A') {
-      const targets = [];
-      for (let tr = 0; tr < ROWS; tr++) {
-        for (let tc = 0; tc < COLS; tc++) {
-          const t = board[tr][tc];
-          if (t && t.owner === this.owner && t.isUnit()) {
-            targets.push({ r: tr, c: tc });
-          }
-        }
-      }
-      return targets;
-    } else if (slot === 'ULT') {
-      const targets = [];
-      for (let tr = 0; tr < ROWS; tr++) {
-        for (let tc = 0; tc < COLS; tc++) {
-          targets.push({ r: tr, c: tc });
-        }
-      }
-      return targets;
-    }
-    return [];
+  mark = 'link';
+  directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+  getMarkedTargets(board, slot) {
+    return this.getMarkedPieces(board).filter(piece =>
+      piece.owner === this.owner && (slot === 'ULT' || !piece.isObject()));
   }
 
-  executeSkill(slot, targetPos, context = {}) {
-    const { board, traps, phantomZones, poisonZones, showDamagePopup, addLog } = context;
-    const enemyOwner = (this.owner === 'P1') ? 'P2' : 'P1';
-
-    if (slot === 'A') {
-      const target = board[targetPos.r][targetPos.c];
-      if (target && target.owner === this.owner && target.isUnit()) {
-        const oldHp = target.hp;
-        target.hp = Math.min(target.maxHp, target.hp + 15);
-        const healed = target.hp - oldHp;
-        target.clearAllDebuffs();
-        showDamagePopup(targetPos.r, targetPos.c, `+${healed} HP & 状態異常回復!`, '#10b981');
-        addLog(`💻💚 ${this.name} が『リモート・ハック』発動！味方 ${target.name} のHPを ${healed} 回復し、すべての異常状態（デバフ）を完全回復！`, 'skill');
+  executeSkill(slot, targetPos, { board, playBeamFX, playPassivePopupFX, playMarkPulseFX }) {
+    const ult = slot === 'ULT';
+    const shield = ult ? 25 : 10;
+    const casterPos = { r: this.r, c: this.c };
+    for (const ally of this.getMarkedTargets(board, slot)) {
+      const allyPos = { r: ally.r, c: ally.c };
+      ally.applyBuff('shield', shield, 2);
+      if (ult && ally.isUnit()) {
+        ally.clearAllDebuffs();
+        ally.applyBuff('atk_up', 5, 2);
       }
-    } else if (slot === 'ULT') {
-      showDamagePopup(targetPos.r, targetPos.c, `⚡EMP PULSE!!⚡`, '#38bdf8');
-      let destroyedCount = 0;
-
-      // 1. 半径2マスの敵オブジェクト破壊
-      for (let dr = -2; dr <= 2; dr++) {
-        for (let dc = -2; dc <= 2; dc++) {
-          const nr = targetPos.r + dr, nc = targetPos.c + dc;
-          if (inBounds(nr, nc)) {
-            const u = board[nr][nc];
-            if (u && u.owner === enemyOwner && u.isObject()) {
-              showDamagePopup(nr, nc, `💥EMP破壊!`, '#38bdf8');
-              board[nr][nc] = null;
-              destroyedCount++;
-            }
-          }
-        }
-      }
-
-      // 2. 半径2マスの敵トラップ消去
-      for (let i = traps.length - 1; i >= 0; i--) {
-        const tp = traps[i];
-        if (tp.owner === enemyOwner && Math.abs(tp.r - targetPos.r) <= 2 && Math.abs(tp.c - targetPos.c) <= 2) {
-          showDamagePopup(tp.r, tp.c, `🪤トラップ無効化!`, '#38bdf8');
-          traps.splice(i, 1);
-          destroyedCount++;
-        }
-      }
-
-      // 3. 半径2マスの敵ハザード消去
-      for (let i = phantomZones.length - 1; i >= 0; i--) {
-        const z = phantomZones[i];
-        if (z.owner === enemyOwner && Math.abs(z.r - targetPos.r) <= 2 && Math.abs(z.c - targetPos.c) <= 2) {
-          showDamagePopup(z.r, z.c, `👻ハザード消滅!`, '#38bdf8');
-          phantomZones.splice(i, 1);
-          destroyedCount++;
-        }
-      }
-      for (let i = poisonZones.length - 1; i >= 0; i--) {
-        const z = poisonZones[i];
-        if (z.owner === enemyOwner && Math.abs(z.r - targetPos.r) <= 2 && Math.abs(z.c - targetPos.c) <= 2) {
-          showDamagePopup(z.r, z.c, `🧪ハザード消滅!`, '#38bdf8');
-          poisonZones.splice(i, 1);
-          destroyedCount++;
-        }
-      }
-
-      // 4. 半径2マス以内の味方ユニットのHPを10回復
-      let healedAlliesCount = 0;
-      for (let dr = -2; dr <= 2; dr++) {
-        for (let dc = -2; dc <= 2; dc++) {
-          const nr = targetPos.r + dr, nc = targetPos.c + dc;
-          if (inBounds(nr, nc)) {
-            const u = board[nr][nc];
-            if (u && u.owner === this.owner && u.isUnit()) {
-              const oldHp = u.hp;
-              u.hp = Math.min(u.maxHp, u.hp + 10);
-              const healed = u.hp - oldHp;
-              showDamagePopup(nr, nc, `+${healed} HP!`, '#10b981');
-              healedAlliesCount++;
-            }
-          }
-        }
-      }
-
-      addLog(`💻⚡💥 ${this.name} がアルティメット『EMP』発動！指定地点から半径2マスの敵設置物・トラップ・ハザード ${destroyedCount} 件を完全消滅させ、味方 ${healedAlliesCount} 体のHPを 10 回復！`, 'skill');
-    }
-  }
-
-  // パッシブ『システム・オーバーライド』: 毎ターン終了時、ウルトゲージを直接 +10 チャージ
-  onTurnEnd(context = {}) {
-    const { addTeamUltDamage, getTeamUltGauge, addLog, playPassivePopupFX, playUltChargeFX } = context;
-    if (addTeamUltDamage) {
-      const before = getTeamUltGauge ? getTeamUltGauge(this.owner) : 0;
-      addTeamUltDamage(this.owner, 10);
-      const after = getTeamUltGauge ? getTeamUltGauge(this.owner) : before + 10;
-      const gained = Math.max(0, after - before);
-      if (playPassivePopupFX) {
-        playPassivePopupFX({ r: this.r, c: this.c }, {
-          label: gained > 0 ? `ULT +${gained}%` : 'ULT MAX',
+      if (ult) {
+        playMarkPulseFX?.(allyPos, '#38bdf8', 860);
+        playBeamFX?.(casterPos, allyPos, { kind: 'heal', color: '#38bdf8', color2: '#38f6b4', delayMs: 860 });
+      } else {
+        playMarkPulseFX?.(allyPos, '#38bdf8');
+        playBeamFX?.(casterPos, allyPos, { kind: 'heal', color: '#38bdf8', color2: '#b7f5ff' });
+        playPassivePopupFX?.(allyPos, {
+          label: `+${shield} SHIELD`,
           kind: 'ult',
           color: '#38bdf8',
-          color2: '#38f6b4'
+          color2: '#b7f5ff',
+          delayMs: 80
         });
       }
-      if (playUltChargeFX && gained > 0) {
-        playUltChargeFX(this.owner, gained);
-      }
-      addLog(`💻⚡ ネクサスのパッシブ『システム・オーバーライド』発動！チームウルトゲージが直接 +10 チャージされた！`, 'skill');
     }
   }
 }
 
-// ==========================================
-// 3. オーラ (Aura / AURA)
-// ==========================================
-export class AuraUnit extends UnitEntity {
+export class HaloUnit extends UnitEntity {
   constructor(owner, r, c) {
-    const def = HERO_TYPES.AURA;
+    const def = HERO_TYPES.HALO;
     super({
-      typeKey: 'AURA',
+      typeKey: 'HALO',
       name: def.name,
       icon: def.icon,
       owner,
@@ -355,7 +253,7 @@ export class AuraUnit extends UnitEntity {
   }
 
   executeSkill(slot, targetPos, context = {}) {
-    const { board, showDamagePopup, addLog } = context;
+    const { board, addLog, playCombatPopupFX } = context;
 
     const healAlliesAround = (centerPos) => {
       let count = 0;
@@ -368,8 +266,8 @@ export class AuraUnit extends UnitEntity {
               const oldHp = u.hp;
               u.hp = Math.min(u.maxHp, u.hp + 20);
               const healed = u.hp - oldHp;
-              if (healed > 0) {
-                showDamagePopup(nr, nc, `+${healed} HP!`, '#10b981');
+              if (healed > 0 && slot === 'A') {
+                playCombatPopupFX('heal', { r: nr, c: nc }, healed, this);
               }
               count++;
             }
@@ -383,10 +281,7 @@ export class AuraUnit extends UnitEntity {
       const healedCount = healAlliesAround(this);
       addLog(`💫✨ ${this.name} が通常スキル『サンクチュアリ』発動！周囲1マス範囲の味方 ${healedCount} 体のHPを 20 回復！`, 'skill');
     } else if (slot === 'ULT') {
-      board[targetPos.r][targetPos.c] = this;
-      board[this.r][this.c] = null;
-      this.setPosition(targetPos.r, targetPos.c);
-      showDamagePopup(targetPos.r, targetPos.c, `💫救援ワープ!`, '#e066ff');
+      if (!context.warpUnit(this, targetPos)) return;
 
       const healedCount = healAlliesAround(targetPos);
       addLog(`💫🌟 ${this.name} がアルティメット『レスキュー・ワープ』発動！味方の隣へ即時救援ワープし、着地点で『サンクチュアリ』を展開！周囲の味方 ${healedCount} 体のHPを 20 回復（ストック消費なし）！`, 'skill');
@@ -397,7 +292,7 @@ export class AuraUnit extends UnitEntity {
   onTurnEnd(context = {}) {
     const {
       board,
-      showDamagePopup,
+
       addLog,
       playCombatPopupFX,
       playPassivePopupFX,
@@ -425,7 +320,6 @@ export class AuraUnit extends UnitEntity {
       const oldHp = lowestAlly.unit.hp;
       lowestAlly.unit.hp = Math.min(lowestAlly.unit.maxHp, lowestAlly.unit.hp + 5);
       const healed = lowestAlly.unit.hp - oldHp;
-      showDamagePopup(lowestAlly.r, lowestAlly.c, `💫オーラ回復 +${healed}`, '#e066ff');
       if (healed > 0) {
         const isSelf = (lowestAlly.r === this.r && lowestAlly.c === this.c);
         if (playPassivePopupFX) {
@@ -450,7 +344,7 @@ export class AuraUnit extends UnitEntity {
           });
         }
       }
-      addLog(`💫✨ オーラのパッシブ『バイタル・オーラ』発動！周囲で最も負傷している ${lowestAlly.unit.name} を ${healed} HP自動回復！(現在HP: ${lowestAlly.unit.hp}/${lowestAlly.unit.maxHp})`, 'skill');
+      addLog(`💫✨ ヘイローのパッシブ『バイタル・オーラ』発動！周囲で最も負傷している ${lowestAlly.unit.name} を ${healed} HP自動回復！(現在HP: ${lowestAlly.unit.hp}/${lowestAlly.unit.maxHp})`, 'skill');
     }
   }
 }

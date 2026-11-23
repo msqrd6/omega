@@ -1,20 +1,21 @@
 /* ==============================================================
-   CoreEntity.js: 防衛コア (Core) クラス
+   AnchorEntity.js: アンカー (Anchor) クラス
    ============================================================== */
 import { BoardEntity } from './BoardEntity.js?v=urban-v1';
+import { HERO_TYPES } from '../config.js?v=urban-v1';
 
-export class CoreEntity extends BoardEntity {
+export class AnchorEntity extends BoardEntity {
   constructor(owner, r, c) {
     super({
-      typeKey: 'CORE',
-      name: '防衛コア',
+      typeKey: 'ANCHOR',
+      name: HERO_TYPES.ANCHOR.name,
       icon: '💎',
       owner,
       hp: 100,
       maxHp: 100,
       r,
       c,
-      classType: 'CORE'
+      classType: 'ANCHOR'
     });
     this.atk = 0;
   }

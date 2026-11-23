@@ -1,7 +1,8 @@
 /* ==============================================================
    DisruptorUnits.js: ディスラプター (Disruptor) ロール ユニットクラス群
-   (グリッチ, サイファー, ハイヴ)
+   (グリッチ, プリズム, ハイヴ)
    ============================================================== */
+import { BeamUnit } from './BeamUnit.js?v=urban-v1';
 import { UnitEntity } from './UnitEntity.js?v=urban-v1';
 import { HERO_TYPES, inBounds, ROWS, COLS } from '../config.js?v=urban-v1';
 
@@ -37,7 +38,7 @@ export class GlitchUnit extends UnitEntity {
       for (let ar = 0; ar < ROWS; ar++) {
         for (let ac = 0; ac < COLS; ac++) {
           const ally = board[ar][ac];
-          if (ally && ally.owner === this.owner && ally.isUnit() && ally.isAssault() && ally.typeKey !== 'BIT') {
+          if (ally && ally.owner === this.owner && ally.isUnit() && board.flat().some(enemy => enemy && enemy.owner !== this.owner && Math.max(Math.abs(enemy.r - ar), Math.abs(enemy.c - ac)) === 1)) {
             for (let dr = -1; dr <= 1; dr++) {
               for (let dc = -1; dc <= 1; dc++) {
                 if (dr === 0 && dc === 0) continue;
@@ -66,18 +67,14 @@ export class GlitchUnit extends UnitEntity {
   }
 
   executeSkill(slot, targetPos, context = {}) {
-    const { board, showDamagePopup, addLog, playPassivePopupFX } = context;
+    const { board, addLog, playPassivePopupFX } = context;
     const enemyOwner = (this.owner === 'P1') ? 'P2' : 'P1';
 
-    board[targetPos.r][targetPos.c] = this;
-    board[this.r][this.c] = null;
-    this.setPosition(targetPos.r, targetPos.c);
+    if (!context.warpUnit(this, targetPos)) return;
 
     if (slot === 'A') {
-      showDamagePopup(targetPos.r, targetPos.c, `ワープ瞬動!`, '#a855f7');
       addLog(`🌀 ${this.name} が『グラビティ・ワープ』発動！味方アサルトの隣接マスへ空間跳躍！`, 'skill');
     } else if (slot === 'ULT') {
-      showDamagePopup(targetPos.r, targetPos.c, `緊急回避!`, '#c084fc');
       addLog(`✨ ${this.name} がウルト『緊急回避』発動！任意の空きマスへ完全脱出！`, 'skill');
     }
 
@@ -90,8 +87,8 @@ export class GlitchUnit extends UnitEntity {
         if (inBounds(nr, nc)) {
           const u = board[nr][nc];
           if (u && u.owner === enemyOwner && u.isUnit()) {
-            u.applyDebuff('vulnerable', 1);
-            showDamagePopup(nr, nc, `🎯弱体化(このターン)!`, '#ea580c');
+            u.applyDebuff('vulnerable', 1, { expiresOn: this.owner });
+            if (slot === 'ULT') u.applyDebuff('disarm', 1);
             if (playPassivePopupFX) {
               playPassivePopupFX({ r: nr, c: nc }, {
                 label: '弱体化 x1.5!',
@@ -113,13 +110,13 @@ export class GlitchUnit extends UnitEntity {
 }
 
 // ==========================================
-// 2. サイファー (Cypher / CYPHER)
+// 2. プリズム (Cypher / PRISM)
 // ==========================================
-export class CypherUnit extends UnitEntity {
+export class PrismUnit extends BeamUnit {
   constructor(owner, r, c) {
-    const def = HERO_TYPES.CYPHER;
+    const def = HERO_TYPES.PRISM;
     super({
-      typeKey: 'CYPHER',
+      typeKey: 'PRISM',
       name: def.name,
       icon: def.icon,
       owner,
@@ -137,91 +134,40 @@ export class CypherUnit extends UnitEntity {
     });
   }
 
-  // パッシブ『ホライゾン・シフト』: 周囲8マス移動に加え、左右横一直線に無制限スライド移動
-  getValidMoves(context = {}) {
-    const moves = super.getValidMoves(context);
-    if (this.hasDebuff('bind')) return [];
-    const { board, hasActionToken } = context;
-    if (hasActionToken && !hasActionToken(this.owner, 'move', 1, this)) return [];
+  mark = 'trace';
+  directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
 
-    // 左方向
-    for (let nc = this.c - 1; nc >= 0; nc--) {
-      if (board[this.r][nc]) break;
-      if (!moves.some(m => m.r === this.r && m.c === nc)) moves.push({ r: this.r, c: nc });
-    }
-    // 右方向
-    for (let nc = this.c + 1; nc < COLS; nc++) {
-      if (board[this.r][nc]) break;
-      if (!moves.some(m => m.r === this.r && m.c === nc)) moves.push({ r: this.r, c: nc });
-    }
-    return moves;
+  getMarkedTargets(board, slot) {
+    return this.getMarkedPieces(board).filter(piece =>
+      piece.owner !== this.owner && (slot === 'ULT' || !piece.isAnchor()));
   }
 
-  getSkillTargets(slot, context = {}) {
-    const { board } = context;
-    if (slot === 'A') {
-      const targets = [];
-      const forwardDir = (this.owner === 'P1') ? -1 : 1;
-      let step = 1;
-      while (true) {
-        const nr = this.r + forwardDir * step;
-        const nc = this.c;
-        if (!inBounds(nr, nc)) break;
-        const targetUnit = board[nr][nc];
-        if (targetUnit) {
-          if (targetUnit.isUnit()) {
-            targets.push({ r: nr, c: nc });
-          }
-          break;
-        }
-        step++;
+  executeSkill(slot, targetPos, { board, dealDamage, checkDeath, onGameOver, playBeamFX, playCombatPopupFX, playMarkPulseFX }) {
+    const ult = slot === 'ULT';
+    const casterPos = { r: this.r, c: this.c };
+    for (const enemy of this.getMarkedTargets(board, slot)) {
+      const enemyPos = { r: enemy.r, c: enemy.c };
+      enemy.applyDebuff(ult ? 'bind' : 'silence', 1, { allowNonUnit: true });
+      const dealt = dealDamage(this, enemy, ult ? 20 : 10, enemyPos);
+      checkDeath(enemyPos.r, enemyPos.c, this.owner, onGameOver, this);
+      if (ult) {
+        playMarkPulseFX?.(enemyPos, '#ff3ec8', 860);
+        playBeamFX?.(casterPos, enemyPos, { kind: 'debuff', color: '#8d7bff', color2: '#ff3ec8', delayMs: 860 });
+      } else {
+        playMarkPulseFX?.(enemyPos, '#a855f7');
+        playBeamFX?.(casterPos, enemyPos, { kind: 'debuff', color: '#a855f7', color2: '#f2b8ff' });
+        playCombatPopupFX?.('dmg', enemyPos, dealt, casterPos, undefined, {
+          skipLunge: true,
+          delayMs: 80,
+          color: '#a855f7',
+          color2: '#f2b8ff',
+          label: dealt > 0 ? `-${dealt} DMG · 阻害` : '🛡️ SHIELD · 阻害'
+        });
       }
-      return targets;
-    } else if (slot === 'ULT') {
-      return [{ r: this.r, c: this.c }];
-    }
-    return [];
-  }
-
-  executeSkill(slot, targetPos, context = {}) {
-    const { board, showDamagePopup, addLog } = context;
-    const enemyOwner = (this.owner === 'P1') ? 'P2' : 'P1';
-
-    if (slot === 'A') {
-      const target = board[targetPos.r][targetPos.c];
-      if (target && target.isUnit()) {
-        if (target.owner === this.owner) {
-          target.applyBuff('atk_up', 15, 1);
-          showDamagePopup(targetPos.r, targetPos.c, `🔥ATK+15(このターン)!`, '#ff6600');
-          addLog(`🔇⚡ ${this.name} の『シグナル・ジャミング』が味方 ${target.name} に命中！【攻撃力増強 (+15 / このターン中)】を付与！`, 'skill');
-        } else {
-          target.applyDebuff('disarm', 1);
-          showDamagePopup(targetPos.r, targetPos.c, `💢攻撃阻害(1T)!`, '#f59e0b');
-          addLog(`🔇⚡ ${this.name} の『シグナル・ジャミング』が敵 ${target.name} に命中！【攻撃阻害 (1T)】を付与して次ターンの通常攻撃を完全封殺！`, 'skill');
-        }
-      }
-    } else if (slot === 'ULT') {
-      showDamagePopup(this.r, this.c, `全軍ブラックアウト!!`, '#334155');
-      let affectedCount = 0;
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const t = board[r][c];
-          if (t && t.owner === enemyOwner && t.isUnit()) {
-            t.applyDebuff('bind', 1);
-            t.applyDebuff('disarm', 1);
-            showDamagePopup(r, c, `⛓️拘束&💢攻撃停止!`, '#f59e0b');
-            affectedCount++;
-          }
-        }
-      }
-      addLog(`🔇🌌 ${this.name} がウルト『フルスペクトラム・ブラックアウト』発動！敵 ${affectedCount} 体に【行動阻害(1T)】および【攻撃阻害(1T)】を一斉付与！次ターンの行動を完全封殺！`, 'skill');
     }
   }
 }
 
-// ==========================================
-// 3. ハイヴ (Hive / HIVE)
-// ==========================================
 export class HiveUnit extends UnitEntity {
   constructor(owner, r, c) {
     const def = HERO_TYPES.HIVE;
@@ -244,97 +190,22 @@ export class HiveUnit extends UnitEntity {
     });
   }
 
-  getSkillTargets(slot, context = {}) {
-    const { board } = context;
-    if (slot === 'A') {
-      const targets = [];
-      for (let ar = 0; ar < ROWS; ar++) {
-        for (let ac = 0; ac < COLS; ac++) {
-          const ally = board[ar][ac];
-          if (ally && ally.owner === this.owner && ally.isUnit() && ally.isAssault()) {
-            for (let dr = -1; dr <= 1; dr++) {
-              for (let dc = -1; dc <= 1; dc++) {
-                if (dr === 0 && dc === 0) continue;
-                const nr = ar + dr, nc = ac + dc;
-                if (inBounds(nr, nc) && !board[nr][nc]) {
-                  if (!targets.some(t => t.r === nr && t.c === nc)) {
-                    targets.push({ r: nr, c: nc });
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      // 自軍アサルトが盤面に存在しない場合のフォールバック（ハイヴ自身の周囲8マス）
-      if (targets.length === 0) {
-        for (let dr = -1; dr <= 1; dr++) {
-          for (let dc = -1; dc <= 1; dc++) {
-            if (dr === 0 && dc === 0) continue;
-            const nr = this.r + dr, nc = this.c + dc;
-            if (inBounds(nr, nc) && !board[nr][nc]) {
-              targets.push({ r: nr, c: nc });
-            }
-          }
-        }
-      }
-      return targets;
-    } else if (slot === 'ULT') {
-      return [{ r: this.r, c: this.c }];
-    }
-    return [];
+  getSkillTargets(slot, { board }) {
+    const assaults = board.flat().filter(unit => unit?.owner === this.owner && unit.isAssault?.());
+    return board.flatMap((row, r) => row.flatMap((piece, c) =>
+      !piece && (slot === 'ULT' || assaults.some(unit => Math.max(Math.abs(r - unit.r), Math.abs(c - unit.c)) === 1))
+        ? [{ r, c }] : []));
   }
 
-  executeSkill(slot, targetPos, context = {}) {
-    const { spawnUnit, addSpecialActionToken, showDamagePopup, addLog, board } = context;
-
-    if (slot === 'A') {
-      const bit = spawnUnit('BIT', this.owner, targetPos.r, targetPos.c);
-      if (bit) {
-        showDamagePopup(targetPos.r, targetPos.c, `🛰️ビット召喚!`, '#00d2ff');
-        addSpecialActionToken(this.owner, {
-          id: `${this.owner}_atk_bit_${bit.id}`,
-          type: 'attack',
-          name: '攻撃',
-          badgeText: '攻撃',
-          scope: bit.id,
-          unitType: 'BIT',
-          unitName: 'ビット',
-          used: false,
-          desc: 'ビットのパッシブ『自律アサルト・ドライブ』による専用攻撃トークン。'
-        });
-        addLog(`🛸✨ ${this.name} が通常スキル『ビット・デプロイ』発動！指定マスに自律戦闘子機『ビット』を召喚！専用攻撃トークンで即時自律攻撃可能！`, 'skill');
-      }
-    } else if (slot === 'ULT') {
-      let bitCount = 0;
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const u = board[r][c];
-          if (u && u.owner === this.owner && u.typeKey === 'BIT') {
-            u.applyBuff('shield', 30, 2);
-            u.applyBuff('atk_up', 10, 2);
-            showDamagePopup(r, c, `🛡️+30 ⚔️+10!`, '#38bdf8');
-            bitCount++;
-          }
-        }
-      }
-      addLog(`🛸🌟 ${this.name} がアルティメット『スウォーム・オーバードライブ』発動！全ビット (${bitCount}体) に【シールド (+30/2T)】および【攻撃力増強 (+10/2T)】を一斉付与！`, 'skill');
-    }
-  }
-
-  isPassiveActive(context = {}) {
-    const board = context.board;
-    if (!board) return false;
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const u = board[r][c];
-        if (u && u.owner === this.owner && u.typeKey === 'BIT') return true;
+  executeSkill(slot, target, { board, spawnUnit }) {
+    const bit = spawnUnit('BIT', this.owner, target.r, target.c);
+    bit.summonerId = this.id;
+    if (slot === 'ULT') {
+      for (const ally of board.flat()) {
+        if (ally?.owner !== this.owner || ally.typeKey !== 'BIT') continue;
+        ally.applyBuff('shield', 15, 1);
+        ally.applyBuff('atk_up', 10, 1);
       }
     }
-    return false;
-  }
-
-  getPassiveStatusText(context = {}) {
-    return this.isPassiveActive(context) ? '✨ 監視中' : 'ビット未展開';
   }
 }

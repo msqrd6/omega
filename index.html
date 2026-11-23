@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#08090c">
-  <title>TACTICS — CORE BREAK</title>
+  <meta name="theme-color" content="#dfe4ec">
+  <title>TACTICS — ANCHOR BROKEN</title>
+  <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261112_4">
-  <link rel="stylesheet" href="urban-battle.css?v=urban-v16">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=lab-white-2">
+  <link rel="stylesheet" href="urban-battle.css?v=lab-white-5">
   <script>
     if (window.location.protocol === 'file:') {
       window.addEventListener('DOMContentLoaded', () => {
@@ -23,120 +24,55 @@
   </script>
 </head>
 <body>
-  <!-- ==============================================================
-       画面1: 🎮 タイトル画面 (Screen: Title — ZZZ Urban Tactical Style)
-       ============================================================== -->
-  <div id="screen-title" class="game-screen active">
-    <div class="zzz-viewport">
-      <div class="zzz-stage title-stage">
-        <!-- 左側：キャラクタービジュアル＆ブランドロゴ -->
-        <section class="title-showcase" aria-hidden="true">
-          <div class="showcase-slash"></div>
-          <img class="showcase-char char-sub-left" src="tactics_3d/assets/phase-urban-anime-v2.png" alt="">
-          <img class="showcase-char char-sub-right" src="tactics_3d/assets/iris-urban-anime-v2.png" alt="">
-          <img class="showcase-char char-main" src="tactics_3d/assets/kinesis-urban-anime-v2.png" alt="">
-          <div class="showcase-caption">
-            <span class="zzz-tag">5vs5 TACTICAL BOARD OPERATION</span>
-            <h1>TACTICS<span>CORE BREAK</span></h1>
-          </div>
-        </section>
-
-        <!-- 右側：モード選択メニュー -->
-        <section class="title-command-deck" aria-label="メインメニュー">
-          <header class="deck-header">
-            <span class="deck-eyebrow">SELECT OPERATION MODE</span>
-            <h2>MISSION START</h2>
-          </header>
-
-          <div class="title-menu">
-            <button id="btn-title-pve" class="zzz-menu-btn btn-pve" onclick="window.__startPvEMode()">
-              <span class="menu-btn-index">01</span>
-              <div class="menu-btn-copy">
-                <strong>SOLO OPERATION <small>vs AI</small></strong>
-                <span>5体のエージェントを編成し、AI部隊のコアを撃破せよ</span>
+  <main id="battle-stage" data-screen="home" aria-label="MONOLITH // LAPSE">
+    <div id="game-content">
+      <section id="screen-title" class="game-screen active" aria-label="ホーム">
+        <div id="home-screen-view" class="home-screen-view"></div>
+      </section>
+      <section id="screen-pick" class="game-screen" aria-label="ユニット選択">
+        <div id="select-screen-view" class="select-screen-view">
+          <section class="select-panel select-formation-panel" aria-label="部隊編成">
+            <div class="sel-head">
+              <div class="sel-head-left">
+                <button type="button" class="sel-back-btn" onclick="window.__returnToTitle()"><span data-icon="home"></span><span>HOME</span></button>
+                <div class="sel-title-group">
+                  <span id="pick-header-badge" class="sel-eyebrow">SOLO</span>
+                  <h2 id="pick-screen-title" class="sel-title">出撃部隊編成</h2>
+                </div>
+                <span id="draft-counter-badge" class="sel-count-pill">0 / 5</span>
               </div>
-              <span class="menu-btn-arrow">➔</span>
-            </button>
-
-            <button id="btn-title-online" class="zzz-menu-btn btn-online" onclick="window.__startOnlineFromTitle()">
-              <span class="menu-btn-index">02</span>
-              <div class="menu-btn-copy">
-                <strong>NETWORK MATCH <small>P2P ONLINE</small></strong>
-                <span>合言葉・招待URLを共有してプレイヤーと直接通信対戦</span>
+              <div class="sel-head-actions">
+                <div id="pick-role-mix" class="sel-role-mix" aria-label="ロール構成"></div>
+                <button id="pick-auto" type="button" class="sel-act-btn" onclick="window.__onAutoPick()">おまかせ5体</button>
+                <button id="pick-clear" type="button" class="sel-act-btn is-danger" onclick="window.__onClearPick()">全解除</button>
               </div>
-              <span class="menu-btn-arrow">➔</span>
-            </button>
-
-            <button id="btn-title-rules" class="zzz-menu-btn btn-rules" onclick="window.__toggleRulesModal(true)">
-              <span class="menu-btn-index">03</span>
-              <div class="menu-btn-copy">
-                <strong>TACTICAL MANUAL <small>RULES</small></strong>
-                <span>勝利条件・トークン・ハザード・オブジェクトの仕様確認</span>
+            </div>
+            <div id="draft-slots-container" class="sel-slots-grid"></div>
+          </section>
+          <section class="select-panel select-roster-panel" aria-label="ユニット一覧">
+            <div class="sel-head">
+              <div class="sel-title-group">
+                <span class="sel-eyebrow">ROSTER // ALL UNITS</span>
+                <h2 class="sel-title">ユニット一覧</h2>
               </div>
-              <span class="menu-btn-arrow">?</span>
-            </button>
-          </div>
-
-          <footer class="deck-footer">
-            <span>SYSTEM READY // 7×7 GRID TACTICAL ENGINE</span>
-          </footer>
-        </section>
-      </div>
-    </div>
-  </div>
-
-  <!-- ==============================================================
-       画面2: ⚡ キャラクターピック画面 (Screen: Pick — ZZZ Agent Draft)
-       ============================================================== -->
-  <div id="screen-pick" class="game-screen">
-    <div class="zzz-viewport">
-      <div class="zzz-stage pick-stage">
-        <!-- 상단：ヘッダー＆アクション -->
-        <header class="pick-topbar">
-          <div class="pick-title-group">
-            <span id="pick-header-badge" class="zzz-tag">PHASE 01 // SQUAD DRAFT</span>
-            <h2 id="pick-screen-title">AGENT SELECT</h2>
-            <p id="pick-screen-desc">全エージェントから <strong>5体</strong> を選抜して出撃せよ</p>
-          </div>
-
-          <div class="pick-top-actions">
-            <button class="zzz-sub-btn" onclick="window.__onAutoPick()">RANDOM 5</button>
-            <button class="zzz-sub-btn" onclick="window.__onClearPick()">CLEAR</button>
-            <button class="zzz-sub-btn danger" onclick="window.__returnToTitle()">TITLE</button>
-            <button id="pick-confirm-btn" class="zzz-confirm-btn" disabled onclick="window.__onConfirmPick()">
-              <span>DEPLOY SQUAD ➔</span>
-            </button>
-          </div>
-        </header>
-
-        <!-- 中段：出撃編成スロット (5枠) -->
-        <section class="draft-slots-bar" aria-label="選抜メンバー5枠">
-          <div class="draft-slots-meta">
-            <span>SQUAD SLOTS</span>
-            <strong id="draft-counter-badge">0 / 5</strong>
-          </div>
-          <div id="draft-slots-container" class="draft-slots-container"></div>
-        </section>
-
-        <!-- 下段：全12ヒーロー一覧グリッド -->
-        <section id="pick-cards-grid" class="pick-cards-grid" aria-label="エージェント一覧"></section>
-      </div>
-    </div>
-  </div>
-
-  <!-- ==============================================================
-       画面3: ⚔️ バトル盤面画面 (Screen: Battle — 2D Board Demo 完全準拠)
-       ============================================================== -->
-  <div id="screen-battle" class="game-screen">
-    <main id="battle-stage" data-layout="zzz-hdd" aria-label="TACTICS">
-      <div id="game-content">
+              <div id="pick-role-filters" class="sel-filter-row" role="group" aria-label="ロールフィルター"></div>
+            </div>
+            <div id="pick-cards-grid" class="sel-roster-grid"></div>
+          </section>
+        </div>
+        <button id="pick-confirm-btn" type="button" class="end-turn hold-turn btn-deploy-squad" disabled>
+          <span class="hold-fill" aria-hidden="true"></span>
+          <span class="hold-content"><strong id="deploy-main-text">出撃開始</strong><small id="deploy-sub-text"></small></span>
+          <span class="hold-icon" data-icon="endturn"></span>
+          <span class="hold-invert-layer" aria-hidden="true">
+            <span class="hold-content"><strong>出撃開始</strong><small>長押しで確定</small></span>
+            <span class="hold-icon" data-icon="endturn"></span>
+          </span>
+        </button>
+      </section>
+      <section id="screen-battle" class="game-screen" aria-label="バトル">
         <!-- 左上：ターン表示＆ユーティリティボタン -->
         <header class="top-left-hud">
-          <div id="turn-display-box" class="turn-display">
-            <span id="turn-label-eyebrow">TURN</span>
-            <strong id="turn-count-badge">01</strong>
-            <small id="turn-badge" class="turn-owner-pill">YOUR TURN</small>
-          </div>
           <div class="hud-buttons">
             <button id="btn-back-to-title" class="icon-button" onclick="window.__returnToTitle()" title="タイトルへ戻る" aria-label="タイトルへ戻る">
               <span data-icon="home"></span>
@@ -145,29 +81,27 @@
               <span data-icon="help"></span>
             </button>
           </div>
-          <span id="current-mode-badge" class="mode-pill"></span>
+          <div id="turn-display-box" class="turn-display" role="group" aria-label="ターン 01">
+            <span id="turn-label-eyebrow">TURN</span>
+            <strong id="turn-count-badge">01</strong>
+          </div>
         </header>
 
-        <!-- 中央：トークンバー(または初期配置確定バー) ＋ 敵コア(上) ＋ 7×7盤面 ＋ 味方コア(下) -->
+        <!-- 中央：オーダーバー(または初期配置確定バー) ＋ 敵アンカー(上) ＋ 7×7盤面 ＋ 味方アンカー(下) -->
         <section class="battlefield" aria-label="戦術盤面">
-          <div id="action-status-banner" class="token-bar" aria-label="行動トークン">
-            <span class="token-bar-label tokens-banner-title">TOKENS</span>
+          <div id="action-status-banner" class="token-bar" aria-label="行動オーダー">
+            <span class="token-bar-label tokens-banner-title">SYNC ORDERS</span>
             <div id="action-tokens-container" class="turn-tokens"></div>
           </div>
 
           <div id="deploy-control-bar" class="deploy-control-bar" style="display:none">
             <span class="deploy-bar-label">DEPLOYMENT PHASE</span>
-            <span id="deploy-bar-instruction" class="deploy-bar-instruction">自陣（手前2マス）に味方ユニットとコアを配置してください</span>
+            <span id="deploy-bar-instruction" class="deploy-bar-instruction">自陣（手前2マス）に味方ユニットとアンカーを配置してください</span>
           </div>
 
-          <div id="core-bar-enemy" class="core-bar enemy" aria-label="敵コアステータス">
+          <div id="core-bar-enemy" class="core-bar enemy" aria-label="敵軍のULTゲージ">
             <span class="core-ult-sheen" aria-hidden="true"></span>
-            <span class="core-tag">ENEMY CORE</span>
-            <div class="core-metric">
-              <span class="metric-label">HP</span>
-              <span class="core-gauge"><i id="enemy-core-bar"></i></span>
-              <strong id="enemy-core-hp">100/100</strong>
-            </div>
+            <span class="core-tag">ENEMY ULT</span>
             <div class="core-metric ult-metric">
               <span class="metric-label">ULT</span>
               <span class="core-gauge ult-gauge"><i id="enemy-ult-bar"></i></span>
@@ -182,14 +116,9 @@
             <div id="board-fx-layer" class="board-fx-layer" aria-hidden="true"></div>
           </div>
 
-          <div id="core-bar-ally" class="core-bar ally" aria-label="味方コアステータス">
+          <div id="core-bar-ally" class="core-bar ally" aria-label="自軍のULTゲージ">
             <span class="core-ult-sheen" aria-hidden="true"></span>
-            <span class="core-tag">ALLY CORE</span>
-            <div class="core-metric">
-              <span class="metric-label">HP</span>
-              <span class="core-gauge"><i id="ally-core-bar"></i></span>
-              <strong id="ally-core-hp">100/100</strong>
-            </div>
+            <span class="core-tag">ALLY ULT</span>
             <div class="core-metric ult-metric">
               <span class="metric-label">ULT</span>
               <span class="core-gauge ult-gauge"><i id="ally-ult-bar"></i></span>
@@ -198,6 +127,25 @@
           </div>
         </section>
 
+        <!-- 右下：ターン終了 / 配置完了 長押しボタン -->
+        <button id="btn-end-turn" class="end-turn hold-turn btn-end-turn" aria-label="ターン終了。長押しで確定">
+          <span class="hold-fill"></span>
+          <span class="hold-content">
+            <strong id="hold-main-text">END TURN</strong>
+            <small><span id="hold-sub-text">長押しで確定</span></small>
+          </span>
+          <span id="hold-icon-box" class="hold-icon" data-icon="endturn"></span>
+          <span class="hold-invert-layer" aria-hidden="true">
+            <span class="hold-content">
+              <strong id="hold-main-text-inv">END TURN</strong>
+              <small><span id="hold-sub-text-inv">長押しで確定</span></small>
+            </span>
+            <span id="hold-icon-box-inv" class="hold-icon" data-icon="endturn"></span>
+          </span>
+        </button>
+
+        <p id="phase-instruction" class="visually-hidden" role="status" aria-live="polite"></p>
+      </section>
         <!-- 右側：選択キャラ詳細・戦績ログタブ -->
         <aside id="inspector" class="inspector urban-inspector" aria-label="選択情報">
           <div class="inspector-tabs urban-tabs ar-tabs" role="tablist" aria-label="情報切り替え">
@@ -205,11 +153,12 @@
               <span>INFO</span>
             </button>
             <button id="urban-tab-log" class="inspector-tab urban-tab ar-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="urban-panel-log">
-              <span>BATTLE LOG</span><b id="urban-log-count" class="log-badge ar-badge">0</b>
+              <span>LOG</span><b id="urban-log-count" class="log-badge ar-badge">0</b>
             </button>
           </div>
 
           <div class="ar-panel-body">
+            <div class="holo-surface-fx" aria-hidden="true"><span class="holo-glitch-flash"></span></div>
             <div id="urban-panel-details" class="inspector-panel urban-panel" role="tabpanel" aria-labelledby="urban-tab-details">
               <div id="unit-detail-panel" class="ar-detail-root"></div>
             </div>
@@ -229,26 +178,20 @@
           </div>
         </aside>
 
-        <!-- 右下：ターン終了 / 配置完了 長押しボタン -->
-        <button id="btn-end-turn" class="end-turn hold-turn btn-end-turn" aria-label="ターン終了。長押しで確定">
-          <span class="hold-fill"></span>
-          <span class="hold-content">
-            <strong id="hold-main-text">END TURN</strong>
-            <small><span id="hold-sub-text">長押しで確定</span></small>
-          </span>
-          <span id="hold-icon-box" class="hold-icon" data-icon="endturn"></span>
-          <span class="hold-invert-layer" aria-hidden="true">
-            <span class="hold-content">
-              <strong id="hold-main-text-inv">END TURN</strong>
-              <small><span id="hold-sub-text-inv">長押しで確定</span></small>
-            </span>
-            <span id="hold-icon-box-inv" class="hold-icon" data-icon="endturn"></span>
-          </span>
-        </button>
-
-        <p id="phase-instruction" class="sr-only" role="status" aria-live="polite"></p>
-      </div>
+    </div>
       <div class="stage-ult-flare" aria-hidden="true"></div>
+      <div id="turn-cutin-overlay" class="turn-cutin" hidden aria-hidden="true">
+        <div class="tci-backdrop"></div>
+        <div class="tci-band">
+          <div class="tci-watermark"><span id="tci-wm-text">ALLY PHASE // TURN 03</span></div>
+          <div class="tci-eyebrow-row">
+            <span class="tci-pill" id="tci-pill">TURN 03</span>
+            <span class="tci-code" id="tci-code">PHASE SHIFT // SYNCHRONIZED</span>
+          </div>
+          <h2 class="tci-title" id="tci-title">ALLY TURN</h2>
+          <div class="tci-sub" id="tci-sub">自軍行動フェーズを開始します</div>
+        </div>
+      </div>
       <div id="ult-cutin-overlay" class="ult-cutin" hidden aria-hidden="true">
         <div class="uci-backdrop"></div>
         <div class="uci-speedlines"></div>
@@ -258,14 +201,14 @@
           <div class="uci-halftone"></div>
           <div class="uci-stripes"></div>
           <div class="uci-burst-rays"></div>
-          <div class="uci-art-ghost"><img id="uci-art-ghost-img" src="" alt="" draggable="false"></div>
-          <div class="uci-art-main"><img id="uci-art-img" src="" alt="" draggable="false"></div>
+          <div class="uci-art-ghost"><img id="uci-art-ghost-img" alt="" draggable="false"></div>
+          <div class="uci-art-main"><img id="uci-art-img" alt="" draggable="false"></div>
         </div>
         <div class="uci-edge-flare"></div>
         <div class="uci-sparks" id="uci-sparks"></div>
         <div class="uci-plate">
           <div class="uci-tag-row">
-            <span class="uci-ult-badge" id="uci-ult-badge">DECIBEL MAX // ULTIMATE</span>
+            <span class="uci-ult-badge" id="uci-ult-badge">INTERFERENCE LIMIT // ULTIMATE</span>
             <span class="uci-unit-tag" id="uci-unit-tag"></span>
           </div>
           <div class="uci-skill-title" id="uci-skill-title"></div>
@@ -282,15 +225,16 @@
         <div class="fn-slash-line"></div>
         <div class="fn-banner-stage">
           <div class="fn-band">
-            <div class="fn-watermark"><span id="fn-wm-text">CORE BREAK // VICTORY</span></div>
+            <div class="fn-watermark"><span id="fn-wm-text">ANCHOR BROKEN // VICTORY</span></div>
             <div class="fn-eyebrow-row">
-              <span class="fn-reason-pill" id="fn-reason-pill">CORE BREAK</span>
+              <span class="fn-reason-pill" id="fn-reason-pill">ANCHOR BROKEN</span>
               <span class="fn-sub-tag" id="fn-sub-tag">OPERATION COMPLETE</span>
             </div>
             <h2 class="fn-title" id="fn-title">VICTORY!</h2>
           </div>
           <div class="fn-result-footer">
-            <div class="fn-desc" id="fn-desc">敵コアの完全破壊に成功しました！自軍の勝利！</div>
+            <div class="fn-desc" id="fn-desc">敵アンカーの完全破壊に成功しました！自軍の勝利！</div>
+            <p class="fn-rematch-status" id="fn-rematch-status" role="status" hidden></p>
             <div class="fn-actions">
               <button type="button" class="fn-btn primary" id="fn-btn-again"><span>PLAY AGAIN</span></button>
               <button type="button" class="fn-btn secondary" id="fn-btn-title"><span>TITLE</span></button>
@@ -298,33 +242,32 @@
           </div>
         </div>
       </div>
-    </main>
-  </div>
+  </main>
 
   <!-- 駒・盤面ルール解説モーダル -->
-  <div id="rules-modal" class="modal-overlay">
+  <div id="rules-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="ルール解説">
     <div class="modal-box zzz-modal">
       <header class="zzz-modal-header">
         <span class="zzz-tag">TACTICAL MANUAL</span>
         <h2>RULES &amp; DEFINITIONS</h2>
       </header>
       <div class="zzz-modal-body">
-        <div class="rule-item"><strong>VICTORY // 勝利条件</strong><p>敵の<strong>コアを破壊</strong>する、または敵の<strong>ユニットを全滅</strong>させると即座に勝利。</p></div>
-        <div class="rule-item"><strong>TOKENS // 行動トークン</strong><p>毎ターン「移動」「攻撃」トークンが回復。味方全体で共有し、キネシス等の専用トークンは本人のみ使用可能。</p></div>
-        <div class="rule-item"><strong>ULTIMATE // 必殺技ゲージ</strong><p>通常攻撃で与えたダメージ分だけチームのULTゲージが上昇。100%で必殺技が発動可能。</p></div>
+        <div class="rule-item"><strong>VICTORY // 勝利条件</strong><p>敵の<strong>アンカーを破壊</strong>する、または敵の<strong>ユニットを全滅</strong>させると即座に勝利。</p></div>
+        <div class="rule-item"><strong>ORDERS // 行動オーダー</strong><p>毎ターン共通MOVE・ATKが各1枚。専用のEX MOVE・EX ATKは本人が優先して消費します。</p></div>
+        <div class="rule-item"><strong>ULTIMATE // 必殺技ゲージ</strong><p>共通ATKオーダーによる通常攻撃と直接チャージ効果で蓄積。EX ATKでは蓄積せず、100 DMGでウルトを発動できます。</p></div>
         <div class="rule-item"><strong>OBJECTS // 設置物</strong><p>防壁・タレットは通行不可・攻撃可能。自軍の防壁はインスペクターからいつでも撤去可能。</p></div>
-        <div class="rule-item"><strong>HAZARDS &amp; TRAPS // 地形効果</strong><p>ディメンション・ゾーン（侵入中はずっと弱体化）、トキシック・ゾーン（10DMG）、マイン（敵から不可視・進入時20DMG）。</p></div>
+        <div class="rule-item"><strong>HAZARDS &amp; TRAPS // 地形効果</strong><p>１マスにゾーン１つと各陣営のマイン１つずつを置けます。侵入したユニットに対して敵陣営のマインだけが作動します。トキシック・マインは、作動時にゾーンがなくスモッグが生存中なら毒床を展開します。</p></div>
       </div>
       <button class="zzz-confirm-btn full-width" onclick="window.__toggleRulesModal(false)"><span>CLOSE</span></button>
     </div>
   </div>
 
   <!-- 勝利モーダル -->
-  <div id="victory-modal" class="modal-overlay">
+  <div id="victory-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="対戦結果">
     <div class="modal-box zzz-modal victory-box">
       <span class="zzz-tag">OPERATION COMPLETE</span>
       <div id="winner-title" class="modal-title">VICTORY!</div>
-      <div id="winner-desc" class="modal-desc">敵コア破壊または敵部隊全滅により勝利！</div>
+      <div id="winner-desc" class="modal-desc">敵アンカー破壊または敵部隊全滅により勝利！</div>
       <div class="modal-actions-row">
         <button class="zzz-confirm-btn" onclick="resetGame()"><span>PLAY AGAIN</span></button>
         <button class="zzz-sub-btn danger" onclick="window.__returnToTitle()">TITLE</button>
@@ -333,7 +276,7 @@
   </div>
 
   <!-- 🌐 オンライン対戦 (P2P / PeerJS) モーダル -->
-  <div id="online-modal" class="modal-overlay">
+  <div id="online-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="ネット対戦">
     <div class="modal-box zzz-modal">
       <header class="zzz-modal-header">
         <span class="zzz-tag">P2P DIRECT CONNECT</span>
@@ -377,6 +320,17 @@
       <div class="modal-footer-right">
         <button class="zzz-sub-btn" onclick="window.__closeOnlineModal()">CLOSE</button>
       </div>
+    </div>
+  </div>
+
+  <div id="disconnect-modal" class="modal-overlay" role="alertdialog" aria-modal="true" aria-labelledby="disconnect-title">
+    <div class="modal-box zzz-modal">
+      <header class="zzz-modal-header">
+        <span class="zzz-tag">NETWORK MATCH</span>
+        <h2 id="disconnect-title">通信が切断されました</h2>
+      </header>
+      <p class="online-note">対戦相手との接続が終了しました。ホームから新しい対戦を開始できます。</p>
+      <div class="modal-footer-right"><button type="button" class="zzz-confirm-btn" onclick="window.showTitleScreen()">TITLE</button></div>
     </div>
   </div>
 

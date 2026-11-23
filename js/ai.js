@@ -15,13 +15,13 @@ import {
   isUltReady,
   hasDebuff,
   hasAnyDebuff,
-  hasActionToken,
+  hasActionOrder,
   isUnit,
   isObject,
-  isCore
+  isAnchor
 } from './board.js?v=urban-v1';
 import { executeMove, executeAttack, executeSkill } from './actions.js?v=urban-v13';
-import { setPhaseInstruction } from './ui.js?v=urban-v1';
+import { setPhaseInstruction } from './ui.js?v=urban-v13';
 
 // RULEBOOK正式名と旧エイリアスの双方に対応する判定ヘルパー
 const isType = (u, ...keys) => {
@@ -29,14 +29,14 @@ const isType = (u, ...keys) => {
   const k = u.typeKey.toUpperCase();
   return keys.some(target => {
     const t = target.toUpperCase();
-    if (t === 'IRIS' || t === 'MEDIC') return k === 'IRIS' || k === 'MEDIC';
+    if (t === 'LILY' || t === 'MEDIC') return k === 'LILY' || k === 'MEDIC';
     if (t === 'NEXUS' || t === 'HACKER') return k === 'NEXUS' || k === 'HACKER';
     if (t === 'KINESIS' || t === 'DUELIST') return k === 'KINESIS' || k === 'DUELIST';
-    if (t === 'PHASE' || t === 'PHANTOM') return k === 'PHASE' || k === 'PHANTOM';
-    if (t === 'VECTOR' || t === 'SENTINEL') return k === 'VECTOR' || k === 'SENTINEL';
-    if (t === 'TOXIN' || t === 'POISON') return k === 'TOXIN' || k === 'POISON';
+    if (t === 'VEIL' || t === 'PHANTOM') return k === 'VEIL' || k === 'PHANTOM';
+    if (t === 'WARDEN' || t === 'SENTINEL') return k === 'WARDEN' || k === 'SENTINEL';
+    if (t === 'SMOG' || t === 'POISON') return k === 'SMOG' || k === 'POISON';
     if (t === 'GLITCH' || t === 'DISRUPTOR') return k === 'GLITCH' || k === 'DISRUPTOR';
-    if (t === 'NITRO' || t === 'BOMBER') return k === 'NITRO' || k === 'BOMBER';
+    if (t === 'BLAST' || t === 'BOMBER') return k === 'BLAST' || k === 'BOMBER';
     return k === t;
   });
 };
@@ -58,7 +58,7 @@ function getMyHeroes() {
 
 export async function runAITurn({ onGameOver, onEndTurnCallback, updateViewCallback }) {
   let gameOverTriggered = false;
-  const handleGameOver = (winner, reason = 'core', context = null) => {
+  const handleGameOver = (winner, reason = 'anchor', context = null) => {
     gameOverTriggered = true;
     if (typeof onGameOver === 'function') {
       onGameOver(winner, reason, context);
@@ -76,7 +76,7 @@ export async function runAITurn({ onGameOver, onEndTurnCallback, updateViewCallb
     // =============================================================
     const curHeroesForUlt = getMyHeroes();
     const bestUlt = evaluateBestUlt(curHeroesForUlt);
-    if (bestUlt && bestUlt.score >= 50) {
+    if (bestUlt && bestUlt.score >= 25) {
       const casterId = board[bestUlt.heroPos.r]?.[bestUlt.heroPos.c]?.id;
       executeSkill(bestUlt.heroPos, bestUlt.targetPos, 'ULT', handleGameOver);
       if (gameOverTriggered) return;
@@ -105,7 +105,7 @@ export async function runAITurn({ onGameOver, onEndTurnCallback, updateViewCallb
     // 3. 通常攻撃 (移動前)
     // =============================================================
     for (let atkStep = 0; atkStep < 3; atkStep++) {
-      if (!hasActionToken('P2', 'attack', 1)) break;
+      if (!hasActionOrder('P2', 'attack', 1)) break;
       const curHeroes = getMyHeroes();
       const bestAttack = evaluateBestAttack(curHeroes);
       if (!bestAttack) break;
@@ -116,10 +116,10 @@ export async function runAITurn({ onGameOver, onEndTurnCallback, updateViewCallb
     }
 
     // =============================================================
-    // 4. 移動 (共通移動トークンおよび専用移動トークンを順次消費)
+    // 4. 移動 (共通移動オーダーおよび専用移動オーダーを順次消費)
     // =============================================================
     for (let m = 0; m < 2; m++) {
-      if (!hasActionToken('P2', 'move', 1)) break;
+      if (!hasActionOrder('P2', 'move', 1)) break;
       const curHeroes = getMyHeroes();
       const bestMove = evaluateBestMove(curHeroes);
       if (!bestMove) break;
@@ -130,10 +130,10 @@ export async function runAITurn({ onGameOver, onEndTurnCallback, updateViewCallb
     }
 
     // =============================================================
-    // 5. 移動後の追撃通常攻撃 (まだ攻撃トークンが残っていれば実行)
+    // 5. 移動後の追撃通常攻撃 (まだ攻撃オーダーが残っていれば実行)
     // =============================================================
     for (let atkStep = 0; atkStep < 3; atkStep++) {
-      if (!hasActionToken('P2', 'attack', 1)) break;
+      if (!hasActionOrder('P2', 'attack', 1)) break;
       const curHeroes = getMyHeroes();
       const bestAttack = evaluateBestAttack(curHeroes);
       if (!bestAttack) break;
@@ -220,294 +220,43 @@ function evaluateBestNormalSkill(myHeroes) {
   return best;
 }
 
-// 個別スキルの有用性スコアリング
+// 個別スキルの有用性スアンカーリング
 function scoreSkillAction(h, slot, tPos) {
   const hero = h.unit;
-  let score = 0;
+  const pieces = board.flat().filter(Boolean);
+  const allies = pieces.filter(piece => piece.owner === hero.owner);
+  const enemies = pieces.filter(piece => piece.owner !== hero.owner);
+  const distance = (a, b) => Math.max(Math.abs(a.r - b.r), Math.abs(a.c - b.c));
+  const near = (pieces, center, radius) => pieces.filter(piece => distance(piece, center) <= radius);
+  const heal = (pieces, amount) => pieces.reduce((sum, piece) =>
+    sum + (isUnit(piece) ? Math.min(amount, piece.maxHp - piece.hp) : 0), 0);
+  const damage = (pieces, amount) => pieces.reduce((sum, piece) =>
+    sum + amount + (piece.hp + piece.getShieldVal() <= amount ? (piece.isAnchor() ? 1000 : 35) : 0), 0);
+  const shields = (pieces, amount) => pieces.reduce((sum, piece) =>
+    sum + (near(enemies.filter(isUnit), piece, 2).length ? Math.max(0, amount - piece.getShieldVal()) : 0), 0);
+  const ult = slot === 'ULT';
 
-  // 1. 回復・支援スキル (アイリス A, ネクサス A)
-  if ((isType(hero, 'IRIS') && slot === 'A') || (isType(hero, 'NEXUS') && slot === 'A')) {
-    const ally = board[tPos.r]?.[tPos.c];
-    if (ally) {
-      const allyDebuffed = hasAnyDebuff(ally);
-      const missingHp = ally.maxHp - ally.hp;
-      if (missingHp > 0 || allyDebuffed) {
-        const hpPct = ally.hp / ally.maxHp;
-        score = (1 - hpPct) * 100;
-        if (ally.hp <= 35) score += 60;
-        if (isType(hero, 'NEXUS') && allyDebuffed) score += 45;
-        if (missingHp < 10 && !allyDebuffed) score = 5;
-      } else {
-        score = -999;
-      }
-    } else {
-      score = -999;
+  switch (hero.typeKey) {
+    case 'PRISM': return damage(hero.getMarkedTargets(board, slot), ult ? 20 : 10);
+    case 'NEXUS': {
+      const linked = hero.getMarkedTargets(board, slot);
+      return shields(linked, ult ? 25 : 10) + (ult ? linked.filter(piece => isUnit(piece) && hasAnyDebuff(piece)).length * 20 : 0);
     }
-  }
-
-  // 2. 全体シールド (アイリス ULT)
-  else if (isType(hero, 'IRIS') && slot === 'ULT') {
-    let hurtAllies = 0;
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const u = board[r][c];
-        if (u && u.owner === 'P2' && u.hp < u.maxHp) hurtAllies++;
-      }
+    case 'LILY': return ult ? heal(allies, 15) + 10 : heal([board[tPos.r][tPos.c]], 30);
+    case 'WARDEN': return ult ? shields(allies, 15) : (near(enemies, tPos, 1).length ? 12 : 0);
+    case 'BLAST': return ult ? damage(near(enemies, hero, 2), 20) - (hero.hp <= 10 ? 35 : 10) : (near(enemies, tPos, 1).length ? 15 : 0);
+    case 'SMOG': return ult ? damage(near(enemies.filter(piece => !piece.isAnchor()), hero, 1), 10) : (near(enemies, tPos, 1).length ? 12 : 0);
+    case 'GLITCH': return near(enemies.filter(isUnit), tPos, 1).length * (ult ? 23 : 13);
+    case 'HIVE': return near(enemies, tPos, 1).length * 12 + (ult ? shields(allies.filter(piece => piece.typeKey === 'BIT'), 15) : 0);
+    case 'VULCAN': return ult ? damage(near(enemies.filter(piece => !piece.isAnchor()), tPos, 2), 25) : near(enemies.filter(isUnit), tPos, 1).length * 10;
+    case 'HALO': return heal(near(allies, ult ? tPos : hero, 1), 20);
+    case 'KINESIS': return near(enemies, hero, 1).length ? (ult ? 30 : 13) : 0;
+    case 'VEIL': {
+      if (!ult) return hero.hp <= 40 ? 65 : 0;
+      return hero.maxHp - hero.hp >= 15 && getValidAttacks(hero.r, hero.c).length ? 45 : 0;
     }
-    score = 30 + hurtAllies * 25;
+    default: return 0;
   }
-
-  // 3. EMP (ネクサス ULT)
-  else if (isType(hero, 'NEXUS') && slot === 'ULT') {
-    let targetCount = 0;
-    let healCount = 0;
-    for (let dr = -2; dr <= 2; dr++) {
-      for (let dc = -2; dc <= 2; dc++) {
-        const nr = tPos.r + dr, nc = tPos.c + dc;
-        if (inBounds(nr, nc)) {
-          const u = board[nr][nc];
-          if (u && u.owner === 'P1' && isObject(u)) targetCount++;
-          if (u && u.owner === 'P2' && isUnit(u) && u.hp < u.maxHp) healCount++;
-          if (hasHazardAt(nr, nc)) targetCount++;
-        }
-      }
-    }
-    score = targetCount * 35 + healCount * 25;
-  }
-
-  // 3-2. サンクチュアリ (オーラ A)
-  else if (isType(hero, 'AURA') && slot === 'A') {
-    let hurtCount = 0;
-    let totalMissing = 0;
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        const nr = h.r + dr, nc = h.c + dc;
-        if (inBounds(nr, nc)) {
-          const u = board[nr][nc];
-          if (u && u.owner === hero.owner && isUnit(u) && u.hp < u.maxHp) {
-            hurtCount++;
-            totalMissing += Math.min(20, u.maxHp - u.hp);
-          }
-        }
-      }
-    }
-    if (hurtCount === 0 || totalMissing < 10) {
-      score = -999;
-    } else {
-      score = totalMissing * 3 + hurtCount * 25;
-    }
-  }
-
-  // 3-3. レスキュー・ワープ (オーラ ULT)
-  else if (isType(hero, 'AURA') && slot === 'ULT') {
-    let baseScore = 30;
-    let rescueScore = 0;
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        const nr = tPos.r + dr, nc = tPos.c + dc;
-        if (inBounds(nr, nc)) {
-          const u = board[nr][nc];
-          if (u && u.owner === hero.owner && isUnit(u) && u.hp < u.maxHp) {
-            const healPotential = Math.min(20, u.maxHp - u.hp);
-            rescueScore += (healPotential / 20) * 50;
-          }
-        }
-      }
-    }
-    score = baseScore + rescueScore;
-  }
-
-  // 4. オーバードライブ (キネシス A)
-  else if (isType(hero, 'KINESIS') && slot === 'A') {
-    let hasNearbyPrey = false;
-    for (let dr = -2; dr <= 2; dr++) {
-      for (let dc = -2; dc <= 2; dc++) {
-        const nr = h.r + dr, nc = h.c + dc;
-        if (inBounds(nr, nc)) {
-          const e = board[nr][nc];
-          if (e && e.owner === 'P1' && (e.typeKey === 'CORE' || e.hp <= 30)) {
-            hasNearbyPrey = true;
-          }
-        }
-      }
-    }
-    score = hasNearbyPrey ? 65 : 25;
-  }
-
-  // 5. ライトニング・ラッシュ (キネシス ULT)
-  else if (isType(hero, 'KINESIS') && slot === 'ULT') {
-    let hasTarget = false;
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        const nr = h.r + dr, nc = h.c + dc;
-        if (inBounds(nr, nc)) {
-          const e = board[nr][nc];
-          if (e && e.owner === 'P1') hasTarget = true;
-        }
-      }
-    }
-    score = hasTarget ? 90 : 30;
-  }
-
-  // 6. テレポート (フェイズ A)
-  else if (isType(hero, 'PHASE') && slot === 'A') {
-    score = (hero.hp <= 40) ? 65 : -999;
-  }
-
-  // 7. シャドウ・ドレイン (フェイズ ULT)
-  else if (isType(hero, 'PHASE') && slot === 'ULT') {
-    const needHeal = hero.maxHp - hero.hp;
-    const canAttackThisTurn = hasActionToken('P2', 'attack', 1) && !hasDebuff(hero, 'disarm');
-    const targetsInRange = canAttackThisTurn ? getValidAttacks(h.r, h.c).length : 0;
-    score = (needHeal >= 15 && targetsInRange > 0) ? 85 : 0;
-  }
-
-  // 8. 防壁設置 (ベクター A)
-  else if (isType(hero, 'VECTOR') && slot === 'A') {
-    score = 40;
-  }
-
-  // 9. 防壁バッファー (ベクター ULT)
-  else if (isType(hero, 'VECTOR') && slot === 'ULT') {
-    score = (hero.stockA === 0) ? 65 : 20;
-  }
-
-  // 10. トキシック・カーテン (トキシン A)
-  else if (isType(hero, 'TOXIN') && slot === 'A') {
-    score = 45;
-  }
-
-  // 11. バイオハザード (トキシン ULT)
-  else if (isType(hero, 'TOXIN') && slot === 'ULT') {
-    let enemiesNear = 0;
-    for (let dr = -2; dr <= 2; dr++) {
-      for (let dc = -2; dc <= 2; dc++) {
-        const nr = h.r + dr, nc = h.c + dc;
-        if (inBounds(nr, nc)) {
-          const e = board[nr][nc];
-          if (e && e.owner === 'P1') enemiesNear++;
-        }
-      }
-    }
-    score = (enemiesNear > 0) ? 80 : 40;
-  }
-
-  // 12. タレット設置 (ヴァルカン A)
-  else if (isType(hero, 'VULCAN') && slot === 'A') {
-    score = 60;
-  }
-
-  // 13. フォートレス・プロトコル (ヴァルカン ULT)
-  else if (isType(hero, 'VULCAN') && slot === 'ULT') {
-    let hitCount = 0;
-    for (let dr = -2; dr <= 2; dr++) {
-      for (let dc = -2; dc <= 2; dc++) {
-        const nr = tPos.r + dr, nc = tPos.c + dc;
-        if (inBounds(nr, nc)) {
-          const u = board[nr][nc];
-          if (u && u.owner === 'P1' && !isCore(u) && (isUnit(u) || isObject(u))) hitCount++;
-        }
-      }
-    }
-    score = hitCount > 0 ? 50 + hitCount * 30 : 0;
-  }
-
-  // 14. グラビティ・ワープ (グリッチ A)
-  else if (isType(hero, 'GLITCH') && slot === 'A') {
-    let enemiesAtLanding = 0;
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        if (dr === 0 && dc === 0) continue;
-        const nr = tPos.r + dr, nc = tPos.c + dc;
-        if (inBounds(nr, nc)) {
-          const u = board[nr][nc];
-          if (u && u.owner === 'P1' && isUnit(u)) enemiesAtLanding++;
-        }
-      }
-    }
-    score = enemiesAtLanding > 0 ? 45 + enemiesAtLanding * 25 : 15;
-  }
-
-  // 15. 緊急回避 (グリッチ ULT)
-  else if (isType(hero, 'GLITCH') && slot === 'ULT') {
-    score = (hero.hp < 40) ? 90 : 10;
-  }
-
-  // 16. ビット・デプロイ (ハイヴ A)
-  else if (isType(hero, 'HIVE') && slot === 'A') {
-    let enemiesNear = 0;
-    for (let dr = -2; dr <= 2; dr++) {
-      for (let dc = -2; dc <= 2; dc++) {
-        const nr = tPos.r + dr, nc = tPos.c + dc;
-        if (inBounds(nr, nc)) {
-          const u = board[nr][nc];
-          if (u && u.owner !== hero.owner) enemiesNear++;
-        }
-      }
-    }
-    score = 50 + enemiesNear * 15;
-  }
-
-  // 17. スウォーム・オーバードライブ (ハイヴ ULT)
-  else if (isType(hero, 'HIVE') && slot === 'ULT') {
-    let bitCount = 0;
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const u = board[r][c];
-        if (u && u.owner === hero.owner && u.typeKey === 'BIT') bitCount++;
-      }
-    }
-    score = bitCount * 40;
-  }
-
-  // 18. 自壊 (ビット A)
-  else if (isType(hero, 'BIT') && slot === 'A') {
-    score = -999;
-  }
-
-  // 19. 地雷設置 (ニトロ A)
-  else if (isType(hero, 'NITRO') && slot === 'A') {
-    score = 45;
-  }
-
-  // 20. 大爆破 (ニトロ ULT)
-  else if (isType(hero, 'NITRO') && slot === 'ULT') {
-    let enemies = 0;
-    let allies = 0;
-    for (let dr = -2; dr <= 2; dr++) {
-      for (let dc = -2; dc <= 2; dc++) {
-        const nr = h.r + dr, nc = h.c + dc;
-        if (inBounds(nr, nc)) {
-          const u = board[nr][nc];
-          if (u && u.owner === 'P1') enemies++;
-          if (u && u.owner === 'P2' && u !== hero) allies++;
-        }
-      }
-    }
-    score = enemies * 45 - allies * 30;
-  }
-
-  // 21. シグナル・ジャミング (サイファー A)
-  else if (isType(hero, 'CYPHER') && slot === 'A') {
-    const target = board[tPos.r]?.[tPos.c];
-    if (target) {
-      if (target.owner === 'P1') {
-        if (!hasDebuff(target, 'disarm')) {
-          score = 60;
-          if (isType(target, 'KINESIS') || isType(target, 'PHASE')) score += 25;
-        }
-      } else if (target.owner === 'P2') {
-        score = 50;
-      }
-    }
-  }
-
-  // 22. フルスペクトラム・ブラックアウト (サイファー ULT)
-  else if (isType(hero, 'CYPHER') && slot === 'ULT') {
-    score = 70;
-  }
-
-  return score;
 }
 
 // -------------------------------------------------------------
@@ -519,7 +268,7 @@ function evaluateBestAttack(myHeroes) {
 
   for (const h of myHeroes) {
     if (hasDebuff(h.unit, 'disarm')) continue;
-    if (!hasActionToken(h.unit.owner, 'attack', 1, h.unit)) continue;
+    if (!hasActionOrder(h.unit.owner, 'attack', 1, h.unit)) continue;
 
     const attacks = getValidAttacks(h.r, h.c);
     for (const at of attacks) {
@@ -527,9 +276,9 @@ function evaluateBestAttack(myHeroes) {
       if (!target || target.owner !== 'P1') continue;
 
       let score = 0;
-      const effAtk = getEffectiveAtk(h.unit);
+      const effAtk = getEffectiveAtk(h.unit, target);
 
-      if (target.typeKey === 'CORE') {
+      if (target.typeKey === 'ANCHOR') {
         score += 1000;
         if (target.hp <= effAtk) score += 5000;
       } else if (isUnit(target)) {
@@ -548,7 +297,7 @@ function evaluateBestAttack(myHeroes) {
           } else {
             score += 300;
             if (isType(target, 'KINESIS')) score += 150;
-            if (isType(target, 'IRIS')) score += 120;
+            if (isType(target, 'LILY')) score += 120;
           }
         } else {
           score += 100 + (100 - target.hp);
@@ -578,7 +327,7 @@ function evaluateBestMove(myHeroes) {
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const u = board[r][c];
-      if (u && u.typeKey === 'CORE' && u.owner === 'P1') {
+      if (u && u.typeKey === 'ANCHOR' && u.owner === 'P1') {
         enemyCorePos = { r, c };
         break;
       }
@@ -588,7 +337,7 @@ function evaluateBestMove(myHeroes) {
 
   for (const h of myHeroes) {
     if (hasDebuff(h.unit, 'bind')) continue;
-    if (!hasActionToken(h.unit.owner, 'move', 1, h.unit)) continue;
+    if (!hasActionOrder(h.unit.owner, 'move', 1, h.unit)) continue;
 
     const moves = getValidMoves(h.r, h.c);
     for (const m of moves) {
@@ -607,14 +356,14 @@ function evaluateBestMove(myHeroes) {
         const u = board[cell.r][cell.c];
         if (u && u.owner === 'P1') {
           canAttackEnemy = true;
-          if (u.typeKey === 'CORE') canAttackCore = true;
+          if (u.typeKey === 'ANCHOR') canAttackCore = true;
         }
       }
 
       if (canAttackCore) score += 250;
       else if (canAttackEnemy) score += 90;
 
-      // 3. 敵コアへの接近
+      // 3. 敵アンカーへの接近
       if (enemyCorePos) {
         const oldDist = Math.abs(h.r - enemyCorePos.r) + Math.abs(h.c - enemyCorePos.c);
         const newDist = Math.abs(m.r - enemyCorePos.r) + Math.abs(m.c - enemyCorePos.c);

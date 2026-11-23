@@ -71,8 +71,8 @@ export class UnitEntity extends BoardEntity {
   // 基本移動可能マス計算（周囲8マス空きマス）
   getValidMoves(context = {}) {
     if (this.hasDebuff('bind')) return [];
-    const { board, hasActionToken } = context;
-    if (hasActionToken && !hasActionToken(this.owner, 'move', 1, this)) return [];
+    const { board, hasActionOrder } = context;
+    if (hasActionOrder && !hasActionOrder(this.owner, 'move', 1, this)) return [];
 
     const moves = [];
     for (let dr = -1; dr <= 1; dr++) {
@@ -91,8 +91,8 @@ export class UnitEntity extends BoardEntity {
   getValidAttacks(context = {}) {
     if (this.atk === 0) return [];
     if (this.hasDebuff('disarm')) return [];
-    const { board, hasActionToken } = context;
-    if (hasActionToken && !hasActionToken(this.owner, 'attack', 1, this)) return [];
+    const { board, hasActionOrder } = context;
+    if (hasActionOrder && !hasActionOrder(this.owner, 'attack', 1, this)) return [];
 
     const enemyOwner = (this.owner === 'P1') ? 'P2' : 'P1';
     const attacks = [];
@@ -122,12 +122,12 @@ export class UnitEntity extends BoardEntity {
     // Subclass implementation
   }
 
-  // ターン終了時パッシブフック（アイリス・ネクサス・オーラ等）
+  // ターン終了時パッシブフック（リリー・ネクサス・オーラ等）
   onTurnEnd(context = {}) {
     // Subclass implementation
   }
 
-  // 被弾時パッシブフック（ニトロ等）
+  // 被弾時パッシブフック（ブラスト等）
   onAttacked(attacker, attackerPos, context = {}) {
     // Subclass implementation
   }

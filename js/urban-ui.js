@@ -1,20 +1,20 @@
-import { HERO_TYPES, ROWS, COLS, inBounds } from './config.js?v=urban-v1';
-import { board, phantomZones, poisonZones, traps, getHazardInfoAt, getEffectiveAtk, getShieldVal, hasDebuff, isUnitInEnemyPhantomZone, isUltReady, isUnit, isObject, isCore, isLocalPlayer } from './board.js?v=urban-v1';
+import { BOARD_MARK_DEFS, HERO_TYPES, ROWS, COLS, inBounds } from './config.js?v=urban-v1';
+import { board, phantomZones, poisonZones, traps, getHazardInfoAt, getEffectiveAtk, getShieldVal, hasDebuff, isUnitInEnemyPhantomZone, isUltReady, isUnit, isObject, isAnchor, isLocalPlayer } from './board.js?v=urban-v1';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const aliases = {
   DUELIST: 'kinesis', KINESIS: 'kinesis',
-  PHANTOM: 'phase', PHASE: 'phase',
-  BOMBER: 'nitro', NITRO: 'nitro',
-  SENTINEL: 'vector', VECTOR: 'vector',
-  POISON: 'toxin', TOXIN: 'toxin',
+  PHANTOM: 'phase', VEIL: 'phase',
+  BOMBER: 'nitro', BLAST: 'nitro',
+  SENTINEL: 'vector', WARDEN: 'vector',
+  POISON: 'toxin', SMOG: 'toxin',
   DISRUPTOR: 'glitch', GLITCH: 'glitch',
-  MEDIC: 'iris', IRIS: 'iris',
+  MEDIC: 'iris', LILY: 'iris',
   HACKER: 'nexus', NEXUS: 'nexus',
   TURRET: 'vulcan', VULCAN: 'vulcan',
   BIT: 'hive', HIVE: 'hive',
-  CYPHER: 'cypher', AURA: 'aura',
+  PRISM: 'cypher', HALO: 'aura',
   BARRICADE: 'barricade'
 };
 
@@ -43,6 +43,7 @@ export const paths = {
   st_shield: '<path d="m12 2 8 3v6c0 5-8 11-8 11S4 16 4 11V5Z"/>',
   st_atk: '<path d="M12 19V5M5 12l7-7 7 7"/>',
   st_debuff: '<path d="M12 5v14M19 12l-7 7-7-7"/>',
+  st_link: '<path d="m10 13 4-4m-6 6H5a3 3 0 0 1 0-6h5m6 0h3a3 3 0 0 1 0 6h-5"/>',
   st_zone: '<polygon points="12 3 21 9 12 15 3 9"/><polyline points="3 14 12 20 21 14"/>',
   hz_toxic: '<path d="M12 2.5 21 12l-9 9.5L3 12Z"/><path d="M12 7.5c-1.8 2.5-3.2 4.2-3.2 6a3.2 3.2 0 0 0 6.4 0c0-1.8-1.4-3.5-3.2-6Z"/>',
   hz_dimension: '<path d="M12 2 22 12 12 22 2 12Z"/><path d="M12 6.5 17.5 12 12 17.5 6.5 12Z"/><circle cx="12" cy="12" r="1.5"/>',
@@ -69,7 +70,7 @@ function arDotsHtml(rem, max) {
 
 export function roleKey(unit) {
   if (!unit) return 'ASSAULT';
-  if (unit.typeKey === 'CORE') return 'CORE';
+  if (unit.typeKey === 'ANCHOR') return 'ANCHOR';
   if (!isUnit(unit)) return 'OBJECT';
   const def = HERO_TYPES[unit.typeKey] || {};
   if (def.role === 'ASSAULT' || def.role === 'SENTINEL' || def.role === 'DISRUPTOR' || def.role === 'SUPPORT') {
@@ -85,7 +86,7 @@ export function roleKey(unit) {
 export function roleIcon(unit) {
   if (!unit) return 'assault';
   const rk = roleKey(unit);
-  if (rk === 'CORE') return 'core';
+  if (rk === 'ANCHOR') return 'core';
   if (rk === 'OBJECT') return 'object';
   if (rk === 'SUPPORT') return 'support';
   if (rk === 'SENTINEL') return 'sentinel';
@@ -94,7 +95,7 @@ export function roleIcon(unit) {
 }
 
 export function characterArt(key, owner = 'P1', name = '', extraClass = '') {
-  if (key === 'CORE') {
+  if (key === 'ANCHOR') {
     const coreSlug = isLocalPlayer(owner) ? 'nexus' : 'cypher';
     return `<img class="${extraClass} anime-art" src="tactics_3d/assets/${coreSlug}-urban-anime-v2.png" alt="${esc(name)}" draggable="false">`;
   }
@@ -102,13 +103,34 @@ export function characterArt(key, owner = 'P1', name = '', extraClass = '') {
   return `<img class="${extraClass} anime-art" src="tactics_3d/assets/${slug}-urban-anime-v2.png" alt="${esc(name)}" draggable="false">`;
 }
 
-export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandMode, gamePhase, canControl = false }) {
+export function getBoardMarks(unit) {
+  const keys = new Set(Array.from(unit.marks.values(), mark => mark.key));
+  return Array.from(keys, key => BOARD_MARK_DEFS[key]).filter(Boolean);
+}
+
+const inspectorDockContour = 'M 0,2 L 166,2 Q 172,2 176,8 L 190,32 Q 194,38 200,38 L 292,38 Q 298,38 302,32 L 316,8 Q 320,2 326,2 L 426,2';
+const inspectorDockCap = `
+  <svg class="ar-dock-cap-svg" viewBox="0 0 426 52" preserveAspectRatio="none" aria-hidden="true">
+    <path d="${inspectorDockContour} L 426,52 L 0,52 Z" fill="#ffffff" stroke="none"/>
+    <path d="${inspectorDockContour}" fill="none" stroke="#b4bccb" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+  </svg>
+`;
+
+export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandMode, gamePhase, canControl = false, draftKey }) {
   const panel = document.getElementById('unit-detail-panel');
   const inspector = document.getElementById('inspector');
   if (!panel) return;
 
-  const hero = selectedPos && board[selectedPos.r]?.[selectedPos.c];
+  const draft = HERO_TYPES[draftKey];
+  const hero = draft
+    ? { ...draft, typeKey: draftKey, owner: turn, hp: draft.maxHp, stockA: draft.skills.A.maxStock, marks: new Map() }
+    : selectedPos && board[selectedPos.r]?.[selectedPos.c];
   const pos = selectedPos;
+  const inspectedKey = hero ? (draftKey || hero.id) : '';
+  const skillScroll = panel.dataset.inspectedKey === inspectedKey
+    ? panel.querySelector('.ar-skills')?.scrollTop || 0
+    : 0;
+  panel.dataset.inspectedKey = inspectedKey;
 
   if (!hero) {
     const hazard = selectedHazardPos && getHazardInfoAt(selectedHazardPos.r, selectedHazardPos.c);
@@ -118,11 +140,11 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
       const hzIcon = hzType === 'toxic' ? 'hz_toxic' : hzType === 'dimension' ? 'hz_dimension' : 'hz_mine';
       if (inspector) {
         inspector.dataset.team = hzEnemy ? 'ENEMY' : 'ALLY';
-        inspector.dataset.role = hzType === 'toxic' ? 'SUPPORT' : hzType === 'dimension' ? 'DISRUPTOR' : 'CORE';
+        inspector.dataset.role = hzType === 'toxic' ? 'SUPPORT' : hzType === 'dimension' ? 'DISRUPTOR' : 'ANCHOR';
         inspector.dataset.art = 'anime';
       }
       const teamLabel = hzEnemy ? 'ENEMY' : 'ALLY';
-      const setterLabel = hazard.setter || (hzType === 'toxic' ? 'トキシン' : hzType === 'dimension' ? 'フェイズ' : 'ニトロ');
+      const setterLabel = hazard.setter || (hzType === 'toxic' ? 'スモッグ' : hzType === 'dimension' ? 'ヴェイル' : 'ブラスト');
       const impactLabel = hazard.impact || hazard.name;
       panel.innerHTML = `
         <div class="ar-piece-hero">
@@ -135,10 +157,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
           </div>
           <div class="ar-piece-dock">
             <div class="ar-dock-cap-wrap">
-              <svg class="ar-dock-cap-svg" viewBox="0 0 536 48" preserveAspectRatio="none" aria-hidden="true">
-                <path d="M 0,2 L 144,2 Q 150,2 154,8 L 166,34 Q 170,40 176,40 L 434,40 Q 440,40 444,35 L 453,16 Q 457,10 463,10 L 536,10 L 536,48 L 0,48 Z" fill="#101115" stroke="none"/>
-                <path d="M 0,2 L 144,2 Q 150,2 154,8 L 166,34 Q 170,40 176,40 L 434,40 Q 440,40 444,35 L 453,16 Q 457,10 463,10 L 536,10" fill="none" stroke="#3c3e47" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-              </svg>
+              ${inspectorDockCap}
               <div class="ar-hz-cap-meta">
                 <span class="ar-dk-lbl">TEAM</span>
                 <strong class="ar-hz-team-val ${hzEnemy ? 'is-enemy' : ''}">${teamLabel}</strong>
@@ -174,7 +193,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
   const def = HERO_TYPES[hero.typeKey] || {};
   const rk = roleKey(hero);
   const rIcon = roleIcon(hero);
-  const roleLabel = def.roleName || def.classType || (rk === 'CORE' ? 'コア' : 'オブジェクト');
+  const roleLabel = def.roleName || def.classType || (rk === 'ANCHOR' ? 'アンカー' : 'オブジェクト');
   const shield = getShieldVal(hero);
   const displayHp = hero.hp + shield;
   const friendly = hero.owner === turn;
@@ -186,7 +205,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
   const shieldUnits = (hero.hp < hero.maxHp && shield > 0) ? Math.min(hero.maxHp - hero.hp, shield) : 0;
   const shieldPctExact = Math.max(0, Math.min(100 - hpPctExact, (shieldUnits / Math.max(1, hero.maxHp)) * 100));
 
-  const effectiveAtk = unit ? getEffectiveAtk(hero) : (hero.atk || 0);
+  const effectiveAtk = unit && !draft ? getEffectiveAtk(hero) : (hero.atk || 0);
   const baseAtk = unit ? (def.atk ?? hero.atk ?? 0) : (hero.atk || 0);
   const hasAtk = effectiveAtk > 0;
   const isAtkBuffed = Boolean(hasAtk && (hero.buffs?.atk_up?.turns > 0 || effectiveAtk > baseAtk));
@@ -201,7 +220,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
   const stateTags = [];
   if (shield > 0) {
     const shTurns = hero.buffs?.shield?.turns || 1;
-    stateTags.push(`<span class="ar-tag-b shield">${svgIcon('st_shield', 'ar-st-ic')}<b class="ar-st-val">+${shield}</b><em class="ar-st-turn">${shTurns}T</em></span>`);
+    stateTags.push(`<span class="ar-tag-b shield" title="SHIELD">${svgIcon('st_shield', 'ar-st-ic')}<b class="ar-st-val">+${shield}</b><em class="ar-st-turn">${shTurns}T</em></span>`);
   }
   if (hero.buffs?.atk_up?.turns > 0) {
     stateTags.push(`<span class="ar-tag-b buff">${svgIcon('st_atk', 'ar-st-ic')}<b class="ar-st-val">+${hero.buffs.atk_up.val}</b><em class="ar-st-turn">${hero.buffs.atk_up.turns}T</em></span>`);
@@ -209,7 +228,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
   if (hero.buffs?.shadow_drain?.turns > 0) {
     stateTags.push(`<span class="ar-tag-b buff">${svgIcon('skill', 'ar-st-ic')}<span>ドレイン発動中</span><em class="ar-st-turn">${hero.buffs.shadow_drain.turns}T</em></span>`);
   }
-  const inEnemyDimension = isUnitInEnemyPhantomZone(hero);
+  const inEnemyDimension = !draft && isUnitInEnemyPhantomZone(hero);
   if (inEnemyDimension && !(hero.debuffs?.vulnerable?.turns > 0)) {
     stateTags.push(`<span class="ar-tag-b debuff">${svgIcon('st_debuff', 'ar-st-ic')}<span>弱体化</span><em class="ar-st-turn">滞在中</em></span>`);
   }
@@ -218,9 +237,13 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
     for (const [key, b] of Object.entries(hero.debuffs)) {
       if (b?.turns > 0) {
         const suffix = (key === 'vulnerable' && inEnemyDimension) ? `${b.turns}T / 滞在中` : `${b.turns}T`;
-        stateTags.push(`<span class="ar-tag-b debuff">${svgIcon('st_debuff', 'ar-st-ic')}<span>${esc(debuffNames[key] || key)}</span><em class="ar-st-turn">${suffix}</em></span>`);
+        stateTags.push(`<span class="ar-tag-b debuff" title="${esc(key.toUpperCase())}">${svgIcon('st_debuff', 'ar-st-ic')}<span>${esc(debuffNames[key] || key)}</span><em class="ar-st-turn">${suffix}</em></span>`);
       }
     }
+  }
+
+  for (const mark of getBoardMarks(hero)) {
+    stateTags.push(`<span class="ar-tag-b mark" style="--mark-color:${mark.color}">${svgIcon(mark.icon, 'ar-st-ic')}<span>${mark.name}</span><em class="ar-st-turn">このターン</em></span>`);
   }
 
   const hazard = pos && getHazardInfoAt(pos.r, pos.c);
@@ -233,7 +256,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
     stateTags.push(`<span class="ar-tag-b terrain">${svgIcon('st_zone', 'ar-st-ic')}<span>${esc(zoneLabel)}</span></span>`);
   }
 
-  const statesHtml = stateTags.length
+  const statesHtml = draft ? '' : stateTags.length
     ? stateTags.join('')
     : `<span class="ar-state-empty">状態効果なし</span>`;
 
@@ -256,7 +279,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
           <div class="ar-sheet-eyebrow">SPEC</div>
           <div class="ar-passive-inline">
             <div class="ar-passive-head">
-              <strong>${hero.typeKey === 'CORE' ? '防衛目標仕様' : 'オブジェクト仕様'}</strong>
+              <strong>${hero.typeKey === 'ANCHOR' ? '防衛目標仕様' : 'オブジェクト仕様'}</strong>
             </div>
             <div class="ar-passive-desc">${esc(def.desc)}</div>
           </div>
@@ -264,7 +287,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
       `
       : '';
 
-  const artHtml = hero.typeKey === 'CORE'
+  const artHtml = hero.typeKey === 'ANCHOR'
     ? svgIcon('core', 'emblem', '1.8')
     : hero.typeKey === 'TURRET'
       ? svgIcon('turret', 'emblem', '1.8')
@@ -276,7 +299,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
     if (!skillObj) return '';
     const isArmed = commandMode === slot;
     let reason = '';
-    if (!active) reason = friendly ? '待機中' : '敵ユニット';
+    if (!active) reason = draft ? '性能プレビュー' : friendly ? '待機中' : '敵ユニット';
     else if (silenced) reason = 'スキル阻害';
     else if (isUlt && hero.ultUsed) reason = '使用済';
     else if (isUlt && !isUltReady(hero)) reason = 'ULT不足';
@@ -316,6 +339,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
   panel.innerHTML = `
     <div class="ar-piece-hero">
       <div class="ar-banner">
+        <span class="ar-banner-scan" aria-hidden="true"></span>
         ${artHtml}
         <div class="ar-pills">
           <span class="ar-role-pill">${svgIcon(rIcon)}<span>${esc(roleLabel)}</span></span>
@@ -326,14 +350,11 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
 
       <div class="ar-piece-dock">
         <div class="ar-dock-cap-wrap">
-          <svg class="ar-dock-cap-svg" viewBox="0 0 536 48" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M 0,2 L 144,2 Q 150,2 154,8 L 166,34 Q 170,40 176,40 L 434,40 Q 440,40 444,35 L 453,16 Q 457,10 463,10 L 536,10 L 536,48 L 0,48 Z" fill="#101115" stroke="none"/>
-            <path d="M 0,2 L 144,2 Q 150,2 154,8 L 166,34 Q 170,40 176,40 L 434,40 Q 440,40 444,35 L 453,16 Q 457,10 463,10 L 536,10" fill="none" stroke="#3c3e47" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-          </svg>
+          ${inspectorDockCap}
           <div class="ar-dock-values">
             <div class="ar-dock-stat hp-side">
               <span class="ar-dk-lbl">HP</span>
-              <strong class="ar-dk-hp ${shield > 0 ? 'has-shield' : ''}">${displayHp}<small>/${hero.maxHp}</small></strong>
+              <strong class="ar-dk-hp ${shield > 0 ? 'has-shield' : ''}">${displayHp}<small>/ ${hero.maxHp}</small></strong>
             </div>
             <div class="ar-dock-stat atk-side">
               <span class="ar-dk-lbl">ATK</span>
@@ -359,7 +380,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
     </div>
 
     ${hasSkillsSection ? `
-      <div class="insp-scroll ar-skills" aria-label="スキル・操作">
+      <div class="insp-scroll ar-skills" role="region" tabindex="0" aria-label="スキル・操作">
         ${renderSkillButton('SKILL_A', skills.A, false)}
         ${renderSkillButton('SKILL_ULT', skills.ULT, true)}
         ${canDestroyBarricade ? `
@@ -368,6 +389,8 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
       </div>
     ` : ''}
   `;
+  const skillsPanel = panel.querySelector('.ar-skills');
+  if (skillsPanel) skillsPanel.scrollTop = skillScroll;
 }
 
 export function initUrbanUI() {
@@ -444,8 +467,14 @@ export function initUrbanUI() {
     syncLogSummary();
   }
 
-  const button = document.getElementById('btn-end-turn');
+  bindHoldAction('btn-end-turn', 'screen-battle', () => window.__triggerHoldAction());
+  bindHoldAction('pick-confirm-btn', 'screen-pick', () => window.__onConfirmPick());
+}
+
+function bindHoldAction(buttonId, screenId, onComplete) {
+  const button = document.getElementById(buttonId);
   if (!button) return;
+  const screen = document.getElementById(screenId);
   const fill = button.querySelector('.hold-fill');
   let hold = null;
   const cancel = () => {
@@ -456,10 +485,10 @@ export function initUrbanUI() {
     button.classList.remove('is-held-full');
   };
   const start = () => {
-    if (button.disabled || hold) return;
+    if (button.disabled || hold || !screen?.classList.contains('active')) return;
     hold = { started: performance.now(), frame: 0 };
     const tick = now => {
-      if (!hold || button.disabled || !document.getElementById('screen-battle')?.classList.contains('active')) {
+      if (!hold || button.disabled || !screen.classList.contains('active')) {
         cancel();
         return;
       }
@@ -469,18 +498,13 @@ export function initUrbanUI() {
       button.classList.toggle('is-held-full', progress >= 0.999);
       if (progress >= 1) {
         cancel();
-        if (typeof window.__triggerHoldAction === 'function') {
-          window.__triggerHoldAction();
-        } else {
-          window.manualEndTurn?.();
-        }
+        onComplete();
         return;
       }
       hold.frame = requestAnimationFrame(tick);
     };
     hold.frame = requestAnimationFrame(tick);
   };
-  button.onclick = null;
   button.addEventListener('pointerdown', event => {
     if (event.button !== 0 || button.disabled) return;
     event.preventDefault();
@@ -508,6 +532,62 @@ export function initUrbanUI() {
   window.addEventListener('blur', cancel);
 }
 
+let turnCutinTimer;
+
+export function clearTurnCutin() {
+  clearTimeout(turnCutinTimer);
+  const overlay = document.getElementById('turn-cutin-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('is-active');
+  overlay.hidden = true;
+}
+
+export function createTurnFxQueue() {
+  const effects = [];
+  return {
+    effects,
+    playBeamFX: (from, to, options) => effects.push(() => playBeamFX(from, to, options)),
+    playCombatPopupFX: (...args) => effects.push(() => playCombatPopupFX(...args)),
+    playPassivePopupFX: (pos, options) => effects.push(() => playPassivePopupFX(pos, options)),
+    playMarkFX: (pos, color) => effects.push(() => applyTileAnimClass(pos, 'is-mark-pulse', 720, { '--mark-pulse-color': color }))
+  };
+}
+
+export function playTurnTransition(owner, turnNumber, endingEffects, startingEffects, onReady) {
+  clearTurnCutin();
+  endingEffects.forEach(play => play());
+  const begin = () => {
+    showTurnCutin(owner, turnNumber);
+    turnCutinTimer = setTimeout(() => {
+      clearTurnCutin();
+      startingEffects.forEach(play => play());
+      if (onReady) {
+        turnCutinTimer = setTimeout(onReady, startingEffects.length ? 720 : 0);
+      }
+    }, 1350);
+  };
+  if (endingEffects.length) turnCutinTimer = setTimeout(begin, 940);
+  else begin();
+}
+
+function showTurnCutin(owner, turnNumber) {
+  const overlay = document.getElementById('turn-cutin-overlay');
+  if (!overlay) return;
+  const enemy = !isLocalPlayer(owner);
+  const team = enemy ? 'ENEMY' : 'ALLY';
+  const turn = `TURN ${String(turnNumber).padStart(2, '0')}`;
+  overlay.dataset.team = team;
+  overlay.classList.toggle('is-enemy', enemy);
+  overlay.querySelector('#tci-wm-text').textContent = `${team} PHASE // ${turn}`;
+  overlay.querySelector('#tci-pill').textContent = turn;
+  overlay.querySelector('#tci-code').textContent = enemy ? 'MIRROR WORLD // INTERCEPT' : 'PHASE SHIFT // SYNCHRONIZED';
+  overlay.querySelector('#tci-title').textContent = `${team} TURN`;
+  overlay.querySelector('#tci-sub').textContent = enemy ? '敵世界線の行動フェーズへ移行します' : '自軍行動フェーズを開始します';
+  overlay.hidden = false;
+  void overlay.offsetWidth;
+  overlay.classList.add('is-active');
+}
+
 export function floorShortName(hz) {
   if (!hz) return '';
   if (hz.type === 'dimension' || hz.type === 'phantom') return 'ディメンション';
@@ -522,13 +602,13 @@ export function floorGraphicHtml(hz) {
 
 const canonicalKeys = {
   DUELIST: 'KINESIS',
-  PHANTOM: 'PHASE',
-  BOMBER: 'NITRO',
-  SENTINEL: 'VECTOR',
+  PHANTOM: 'VEIL',
+  BOMBER: 'BLAST',
+  SENTINEL: 'WARDEN',
   TURRET: 'VULCAN',
-  POISON: 'TOXIN',
+  POISON: 'SMOG',
   DISRUPTOR: 'GLITCH',
-  MEDIC: 'IRIS',
+  MEDIC: 'LILY',
   HACKER: 'NEXUS'
 };
 
@@ -537,40 +617,40 @@ export function normalizeHeroKey(typeKey) {
 }
 
 export const ULT_FX_META = {
-  KINESIS: { color: '#d8ff00', color2: '#66fff2', codename: 'KINESIS // OVERDRIVE', sub: 'EXTRA ATTACK TOKEN +1 GRANTED', mode: 'self', pop: '+1 ATTACK', isDmg: false },
-  PHASE:   { color: '#b366ff', color2: '#f2b8ff', codename: 'PHASE // VOID DRAIN', sub: 'SHADOW DRAIN PROTOCOL ACTIVE', mode: 'self', pop: 'SHADOW DRAIN', isDmg: false },
-  NITRO:   { color: '#ff5a26', color2: '#ffd447', codename: 'NITRO // IGNITION', sub: 'RADIUS-2 BLAST // 20 DMG', mode: 'aoe2', pop: '-20 DMG', isDmg: true },
-  VECTOR:  { color: '#00e5ff', color2: '#c8ff80', codename: 'VECTOR // RELOAD', sub: 'FORCE BARRICADE STOCK FULL', mode: 'self', pop: 'STOCK MAX', isDmg: false },
+  KINESIS: { color: '#d8ff00', color2: '#66fff2', codename: 'KINESIS // LIGHTNING RUSH', sub: 'EX ATK ORDER +1', mode: 'self', pop: '+1 EX ATK', isDmg: false },
+  VEIL:   { color: '#b366ff', color2: '#f2b8ff', codename: 'VEIL // VOID DRAIN', sub: 'SHADOW DRAIN PROTOCOL ACTIVE', mode: 'self', pop: 'SHADOW DRAIN', isDmg: false },
+  BLAST:   { color: '#ff5a26', color2: '#ffd447', codename: 'BLAST // IGNITION', sub: 'RADIUS-2 BLAST // 20 DMG', mode: 'aoe2', pop: '-20 DMG', isDmg: true },
+  WARDEN:  { color: '#00e5ff', color2: '#c8ff80', codename: 'WARDEN // AEGIS BARRIER', sub: 'ALL ALLIES SHIELD +15', mode: 'allies', pop: '+15 SHIELD', isDmg: false },
   VULCAN:  { color: '#ff7b24', color2: '#ffd447', codename: 'VULCAN // FORTRESS', sub: 'TURRET RADIUS-2 AIRSTRIKE // 25 DMG', mode: 'turret_aoe2', pop: '-25 DMG', isDmg: true },
-  TOXIN:   { color: '#2ee59d', color2: '#c4ff4d', codename: 'TOXIN // BIOHAZARD', sub: '3x3 TOXIC HAZARD DEPLOYED', mode: 'around', pop: 'TOXIC ZONE', isDmg: false },
-  GLITCH:  { color: '#ff3ec8', color2: '#8d7bff', codename: 'GLITCH // OVERRIDE', sub: 'DIMENSION WARP & VULNERABLE', mode: 'warp_charge', pop: 'WARP CHARGE!', isDmg: true },
-  CYPHER:  { color: '#8d7bff', color2: '#ff3ec8', codename: 'CYPHER // BLACKOUT', sub: 'ALL ENEMIES BIND & DISARM', mode: 'enemies', pop: 'BLACKOUT!', isDmg: true },
-  HIVE:    { color: '#b366ff', color2: '#66fff2', codename: 'HIVE // SWARM DRIVE', sub: 'ALL BITS SHIELD +30 & ATK +10', mode: 'bits', pop: 'SWARM DRIVE', isDmg: false, isShield: true },
-  IRIS:    { color: '#38f6b4', color2: '#ffe169', codename: 'IRIS // AURA SYNC', sub: 'ALL ALLIES SHIELD +15 GRANTED', mode: 'allies', pop: '+15 SHIELD', isDmg: false, isShield: true },
-  NEXUS:   { color: '#38bdf8', color2: '#38f6b4', codename: 'NEXUS // EMP PULSE', sub: 'DISMANTLE HAZARDS & HEAL ALLIES +10', mode: 'aoe2_target', pop: 'EMP PULSE', isDmg: false, isShield: true },
-  AURA:    { color: '#38f6b4', color2: '#e066ff', codename: 'AURA // RESCUE WARP', sub: 'WARP & SANCTUARY HEAL +20 HP', mode: 'around_target', pop: '+20 HP', isDmg: false, isShield: true }
+  SMOG:   { color: '#2ee59d', color2: '#c4ff4d', codename: 'SMOG // BIOHAZARD', sub: '3x3 TOXIC HAZARD DEPLOYED', mode: 'around', pop: 'TOXIC ZONE', isDmg: false },
+  GLITCH:  { color: '#ff3ec8', color2: '#8d7bff', codename: 'GLITCH // OVERRIDE', sub: 'WARP // VULNERABLE & DISARM', mode: 'warp_charge', pop: 'WARP CHARGE!', isDmg: true },
+  PRISM:  { color: '#8d7bff', color2: '#ff3ec8', codename: 'PRISM // BLACKOUT', sub: 'TRACED ENEMIES // BIND & 20 DMG', mode: 'enemies', pop: 'BLACKOUT!', isDmg: true },
+  HIVE:    { color: '#b366ff', color2: '#66fff2', codename: 'HIVE // SWARM DRIVE', sub: 'DEPLOY BIT // SHIELD +15 & ATK +10', mode: 'bits', pop: 'SWARM DRIVE', isDmg: false, isShield: true },
+  LILY:    { color: '#38f6b4', color2: '#ffe169', codename: 'LILY // HALO SYNC', sub: 'ALLIED UNITS HP +15 // ULT +30', mode: 'allies', pop: '+15 HP', isDmg: false },
+  NEXUS:   { color: '#38bdf8', color2: '#38f6b4', codename: 'NEXUS // OVERCLOCK LINK', sub: 'LINKED ALLIES SHIELD +25', mode: 'marked', pop: '+25 SHIELD', isDmg: false, isShield: true },
+  HALO:    { color: '#38f6b4', color2: '#e066ff', codename: 'HALO // RESCUE WARP', sub: 'WARP & SANCTUARY HEAL +20 HP', mode: 'around_target', pop: '+20 HP', isDmg: false, isShield: true }
 };
 
 export const SKILL_FX_META = {
   KINESIS: { color: '#d8ff00', color2: '#b8ff99', pop: 'ATK +5', selfCast: true },
-  PHASE:   { color: '#b366ff', color2: '#ecc4ff', pop: 'TELEPORT', selfCast: false },
-  NITRO:   { color: '#ff7b24', color2: '#ffe07d', pop: 'MINE SET', selfCast: false, hideTargetFromEnemy: true },
+  VEIL:   { color: '#b366ff', color2: '#ecc4ff', pop: 'TELEPORT', selfCast: false },
+  BLAST:   { color: '#ff7b24', color2: '#ffe07d', pop: 'MINE SET', selfCast: false, hideTargetFromEnemy: true },
   BIT:     { color: '#ff7b24', color2: '#ffe07d', pop: 'SELF DESTRUCT', selfCast: true },
-  VECTOR:  { color: '#00e5ff', color2: '#b8f8ff', pop: 'BARRICADE', selfCast: false },
+  WARDEN:  { color: '#00e5ff', color2: '#b8f8ff', pop: 'BARRICADE', selfCast: false },
   VULCAN:  { color: '#00d8ff', color2: '#b8f8ff', pop: 'TURRET SET', selfCast: false },
-  TOXIN:   { color: '#2ee59d', color2: '#b9ffe0', pop: 'TOXIC x3', selfCast: false },
+  SMOG:   { color: '#2ee59d', color2: '#b9ffe0', pop: 'TOXIC MINE', selfCast: false, hideTargetFromEnemy: true },
   GLITCH:  { color: '#ff3ec8', color2: '#c9b8ff', pop: 'WARP!', selfCast: false },
-  CYPHER:  { color: '#b366ff', color2: '#ffd447', pop: 'JAMMING!', selfCast: false },
+  PRISM:  { color: '#b366ff', color2: '#ffd447', pop: 'JAMMING!', selfCast: true },
   HIVE:    { color: '#00d2ff', color2: '#e0b8ff', pop: 'BIT DEPLOY', selfCast: false },
-  IRIS:    { color: '#2ee59d', color2: '#b9ffe4', pop: '+30 HP', isHeal: true, healAmount: 30 },
-  NEXUS:   { color: '#2ee59d', color2: '#b8f8ff', pop: '+15 HP', isHeal: true, healAmount: 15 },
-  AURA:    { color: '#2ee59d', color2: '#e0b8ff', pop: '+20 HP', isHeal: true, selfCast: true, aoeHeal: true, healAmount: 20 }
+  LILY:    { color: '#2ee59d', color2: '#b9ffe4', isHeal: true },
+  NEXUS:   { color: '#38bdf8', color2: '#b7f5ff', pop: 'LINK AEGIS!', selfCast: true },
+  HALO:    { color: '#2ee59d', color2: '#e0b8ff', isHeal: true }
 };
 
 export function isHealSkillHero(unit) {
   if (!unit) return false;
   const k = normalizeHeroKey(unit.typeKey);
-  return k === 'IRIS' || k === 'NEXUS' || k === 'AURA';
+  return k === 'LILY' || k === 'HALO';
 }
 
 export function getSkillPreviewTargets(casterPos, unit, hoveredTarget = null) {
@@ -585,7 +665,7 @@ export function getSkillPreviewTargets(casterPos, unit, hoveredTarget = null) {
     out.push({ r, c, hitPiece, kind });
   };
 
-  if (k === 'AURA') {
+  if (k === 'HALO') {
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
         const nr = casterPos.r + dr, nc = casterPos.c + dc;
@@ -594,26 +674,8 @@ export function getSkillPreviewTargets(casterPos, unit, hoveredTarget = null) {
         pushUnique(nr, nc, Boolean(cell && cell.owner === unit.owner && isUnit(cell)), 'heal');
       }
     }
-  } else if (k === 'TOXIN') {
-    if (hoveredTarget && hoveredTarget.r === casterPos.r && Math.abs(hoveredTarget.c - casterPos.c) === 1) {
-      const dir = hoveredTarget.c > casterPos.c ? 1 : -1;
-      let placed = 0;
-      let step = 1;
-      while (placed < 3) {
-        const nc = casterPos.c + dir * step;
-        if (!inBounds(casterPos.r, nc)) break;
-        const hasVisibleHazard =
-          phantomZones.some(z => z.r === casterPos.r && z.c === nc) ||
-          poisonZones.some(z => z.r === casterPos.r && z.c === nc) ||
-          traps.some(tp => tp.r === casterPos.r && tp.c === nc && isLocalPlayer(tp.owner));
-        if (!hasVisibleHazard) {
-          const cell = board[casterPos.r]?.[nc];
-          pushUnique(casterPos.r, nc, Boolean(cell && cell.owner !== unit.owner && isUnit(cell)), 'toxic');
-          placed++;
-        }
-        step++;
-      }
-    }
+  } else if (k === 'KINESIS' || k === 'BIT') {
+    pushUnique(casterPos.r, casterPos.c, true, k === 'BIT' ? 'debuff' : 'beam');
   } else if (k === 'GLITCH') {
     if (hoveredTarget) {
       for (let dr = -1; dr <= 1; dr++) {
@@ -625,22 +687,16 @@ export function getSkillPreviewTargets(casterPos, unit, hoveredTarget = null) {
         }
       }
     }
-  } else if (k === 'CYPHER') {
-    const forwardDir = (unit.owner === 'P1') ? -1 : 1;
-    let step = 1;
-    while (true) {
-      const nr = casterPos.r + forwardDir * step;
-      const nc = casterPos.c;
-      if (!inBounds(nr, nc)) break;
-      const cell = board[nr]?.[nc];
-      if (cell) {
-        if (isUnit(cell)) {
-          pushUnique(nr, nc, true, cell.owner === unit.owner ? 'heal' : 'debuff');
-        }
-        break;
-      }
-      pushUnique(nr, nc, false, 'beam');
-      step++;
+  } else if (k === 'SMOG' && hoveredTarget) {
+    pushUnique(hoveredTarget.r, hoveredTarget.c, false, 'toxic');
+  } else if ((k === 'LILY' || k === 'BLAST' || k === 'VEIL' || k === 'WARDEN' || k === 'VULCAN' || k === 'HIVE') && hoveredTarget) {
+    const cell = board[hoveredTarget.r]?.[hoveredTarget.c];
+    const kind = k === 'LILY' ? 'heal' : (k === 'BLAST' ? 'debuff' : 'beam');
+    pushUnique(hoveredTarget.r, hoveredTarget.c, Boolean(cell && isUnit(cell)), kind);
+  } else if (unit.getMarkedTargets) {
+    const kind = k === 'PRISM' ? 'debuff' : 'beam';
+    for (const piece of unit.getMarkedTargets(board, 'A')) {
+      pushUnique(piece.r, piece.c, true, kind);
     }
   }
 
@@ -659,7 +715,9 @@ export function getUltPreviewTargets(casterPos, unit, clickedTarget = null, isHo
     out.push({ r, c, hitPiece });
   };
 
-  if (meta.mode === 'turret_aoe2') {
+  if (unit.getMarkedTargets) {
+    for (const piece of unit.getMarkedTargets(board, 'ULT')) pushUnique(piece.r, piece.c, true);
+  } else if (meta.mode === 'turret_aoe2') {
     const turrets = [];
     if (clickedTarget && inBounds(clickedTarget.r, clickedTarget.c)) {
       const cell = board[clickedTarget.r]?.[clickedTarget.c];
@@ -682,7 +740,7 @@ export function getUltPreviewTargets(casterPos, unit, clickedTarget = null, isHo
         for (let c = 0; c < COLS; c++) {
           if (Math.max(Math.abs(r - tp.r), Math.abs(c - tp.c)) <= 2) {
             const cell = board[r]?.[c];
-            pushUnique(r, c, Boolean(cell && cell.owner !== unit.owner && !isCore(cell) && (isUnit(cell) || isObject(cell))));
+            pushUnique(r, c, Boolean(cell && cell.owner !== unit.owner && !isAnchor(cell) && (isUnit(cell) || isObject(cell))));
           }
         }
       }
@@ -710,7 +768,8 @@ export function getUltPreviewTargets(casterPos, unit, clickedTarget = null, isHo
             const hasAllyUnit = Boolean(cell && cell.owner === unit.owner && isUnit(cell) && (r !== casterPos.r || c !== casterPos.c));
             hit = isLanding || hasAllyUnit;
           } else if (meta.mode === 'warp_charge') {
-            hit = Boolean(cell && cell.owner !== unit.owner && isUnit(cell));
+            const isLanding = (r === center.r && c === center.c);
+            hit = isLanding || Boolean(cell && cell.owner !== unit.owner && isUnit(cell));
           }
           pushUnique(r, c, hit);
         }
@@ -724,10 +783,10 @@ export function getUltPreviewTargets(casterPos, unit, clickedTarget = null, isHo
         const dist = Math.max(dr, dc);
         const cell = board[r]?.[c];
         if (meta.mode === 'aoe2' && dist <= 2) {
-          pushUnique(r, c, Boolean(cell));
+          pushUnique(r, c, Boolean(cell && (cell === unit || cell.owner !== unit.owner)));
         } else if (meta.mode === 'around' && dist <= 1) {
-          pushUnique(r, c, Boolean(cell && cell.owner !== unit.owner && isUnit(cell)));
-        } else if (meta.mode === 'allies' && cell && cell.owner === unit.owner && !isObject(cell)) {
+          pushUnique(r, c, Boolean(cell && cell.owner !== unit.owner && !isAnchor(cell)));
+        } else if (meta.mode === 'allies' && cell && cell.owner === unit.owner && (normalizeHeroKey(unit.typeKey) === 'WARDEN' || isUnit(cell))) {
           pushUnique(r, c, true);
         } else if (meta.mode === 'bits' && cell && cell.owner === unit.owner && cell.typeKey === 'BIT') {
           pushUnique(r, c, true);
@@ -737,6 +796,7 @@ export function getUltPreviewTargets(casterPos, unit, clickedTarget = null, isHo
       }
     }
   }
+  if (meta.mode === 'bits' && clickedTarget) pushUnique(clickedTarget.r, clickedTarget.c, true);
   if (meta.mode === 'self' || (!isHoverTargeting && out.length === 0)) {
     pushUnique(casterPos.r, casterPos.c, false);
   }
@@ -1015,7 +1075,6 @@ export function playBeamFX(fromPos, toPos, options = {}) {
     svg.innerHTML = `
       <line class="fx-beam-glow" pathLength="100" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />
       <line class="fx-beam-core" pathLength="100" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />
-      <line class="fx-beam-packet" pathLength="100" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />
       <circle class="fx-beam-node" cx="${x1}" cy="${y1}" r="9" />
       <circle class="fx-beam-node" cx="${x2}" cy="${y2}" r="11" />
     `;
@@ -1098,6 +1157,14 @@ export function playPassivePopupFX(casterPos, options = {}) {
 }
 
 /**
+ * 盤面上のマーカー（リンク / トレース）付与・発動パルス演出を再生する
+ */
+export function playMarkPulseFX(pos, color, delayMs = 0) {
+  if (!pos) return;
+  scheduleFxTimeout(() => applyTileAnimClass(pos, 'is-mark-pulse', 720, { '--mark-pulse-color': color }), delayMs);
+}
+
+/**
  * チームウルトゲージへの直接チャージ演出を再生する
  */
 export function playUltChargeFX(owner, amount = 10, delayMs = 0) {
@@ -1129,25 +1196,7 @@ export function playSkillPopupFX(casterPos, targetPos, casterUnit, boardFlipped)
     }
   });
 
-  if (meta.isHeal) {
-    const amount = meta.healAmount || 30;
-    if (meta.aoeHeal) {
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          const r = casterPos.r + dr;
-          const c = casterPos.c + dc;
-          const ally = board[r]?.[c];
-          if (ally && ally.owner === casterUnit.owner && isUnit(ally)) {
-            playCombatPopupFX('heal', { r, c }, amount, casterPos, boardFlipped);
-          }
-        }
-      }
-      return;
-    }
-    const healPos = targetPos || casterPos;
-    playCombatPopupFX('heal', healPos, amount, casterPos, boardFlipped);
-    return;
-  }
+  if (meta.isHeal) return;
 
   const hideTarget = Boolean(meta.hideTargetFromEnemy && !isLocalPlayer(casterUnit.owner));
   const fxPos = (meta.selfCast || hideTarget || !targetPos) ? casterPos : targetPos;
@@ -1258,10 +1307,10 @@ export function playUltCutinFX(casterPos, casterUnit, clickedTarget, boardFlippe
 
 function buildFinisherGhostPiece(unit) {
   const isEnemy = !isLocalPlayer(unit.owner);
-  const isStructure = unit.typeKey === 'CORE' || unit.typeKey === 'TURRET' || unit.typeKey === 'BARRICADE';
+  const isStructure = unit.typeKey === 'ANCHOR' || unit.typeKey === 'TURRET' || unit.typeKey === 'BARRICADE';
   const rk = roleKey(unit);
   const rIcon = roleIcon(unit);
-  const faceHtml = unit.typeKey === 'CORE'
+  const faceHtml = unit.typeKey === 'ANCHOR'
     ? icon('core')
     : unit.typeKey === 'TURRET'
       ? icon('turret')
@@ -1269,7 +1318,7 @@ function buildFinisherGhostPiece(unit) {
   const hasAtk = Number(unit.atk) > 0;
 
   const piece = document.createElement('div');
-  piece.className = `piece ${isEnemy ? 'enemy' : 'ally'} ${isStructure ? 'structure' : ''} ${String(unit.typeKey || '').toLowerCase()}${unit.typeKey === 'CORE' ? ' core' : ''}`;
+  piece.className = `piece ${isEnemy ? 'enemy' : 'ally'} ${isStructure ? 'structure' : ''} ${String(unit.typeKey || '').toLowerCase()}${unit.typeKey === 'ANCHOR' ? ' core' : ''}`;
   piece.dataset.role = rk;
   piece.innerHTML = `
     <span class="piece-face">${faceHtml}</span>
@@ -1292,7 +1341,7 @@ function buildFinisherGhostPiece(unit) {
 
 export function playFinisherFX({
   winner,
-  reason = 'core',
+  reason = 'anchor',
   myRole = null,
   gameMode = 'pve',
   context = null,
@@ -1320,25 +1369,25 @@ export function playFinisherFX({
       ? `${winner} VICTORY!`
       : (isViewerWin ? 'VICTORY!' : 'DEFEAT...');
     const desc = isLocalMode
-      ? (isWipeout ? `${winner} が敵ユニットの全滅に成功しました！` : `${winner} が敵コアの完全破壊に成功しました！`)
+      ? (isWipeout ? `${winner} が敵ユニットの全滅に成功しました！` : `${winner} が敵アンカーの完全破壊に成功しました！`)
       : isViewerWin
-        ? (isWipeout ? '敵ユニットの全滅に成功しました！自軍の勝利！' : '敵コアの完全破壊に成功しました！自軍の勝利！')
-        : (isWipeout ? '自軍ユニットが全滅しました...敗北...' : '自軍コアが破壊されました...敗北...');
+        ? (isWipeout ? '敵ユニットの全滅に成功しました！自軍の勝利！' : '敵アンカーの完全破壊に成功しました！自軍の勝利！')
+        : (isWipeout ? '自軍ユニットが全滅しました...敗北...' : '自軍アンカーが破壊されました...敗北...');
 
-    const c1 = isViewerWin ? '#d8ff00' : '#ff4625';
-    const c2 = isViewerWin ? '#ffffff' : '#ffb4a6';
+    const c1 = isViewerWin ? '#facc15' : '#a855f7';
+    const c2 = isViewerWin ? '#fef08a' : '#e9d5ff';
     const pill = isDefeat
       ? (isWipeout ? 'ANNIHILATED' : 'CRITICAL LOSS')
-      : (isWipeout ? 'WIPEOUT' : 'CORE BREAK');
+      : (isWipeout ? 'WIPEOUT' : 'ANCHOR BROKEN');
     const subTag = isDefeat
-      ? (isWipeout ? 'ALL UNITS LOST' : 'CORE INTEGRITY ZERO')
+      ? (isWipeout ? 'ALL UNITS LOST' : 'ANCHOR INTEGRITY ZERO')
       : (isWipeout ? 'ALL HOSTILES ELIMINATED' : 'OPERATION COMPLETE');
     const wm = isDefeat
       ? 'SYSTEM DOWN // DEFEAT'
-      : (isWipeout ? 'WIPEOUT // VICTORY' : 'CORE BREAK // VICTORY');
+      : (isWipeout ? 'WIPEOUT // VICTORY' : 'ANCHOR BROKEN // VICTORY');
     const popLabel = context?.dmg > 0
       ? `-${context.dmg} DMG`
-      : (isDefeat ? 'CORE LOST' : (isWipeout ? 'WIPEOUT!' : 'CORE BREAK'));
+      : (isDefeat ? 'ANCHOR BROKEN' : (isWipeout ? 'WIPEOUT!' : 'ANCHOR BROKEN'));
 
     const rawTarget = context?.targetPos || { r: isLocalPlayer(losingOwner) ? 6 : 0, c: 3 };
     const rawAttacker = context?.attackerPos || null;
@@ -1357,7 +1406,7 @@ export function playFinisherFX({
 
     const againBtn = document.getElementById('fn-btn-again');
     const titleBtn = document.getElementById('fn-btn-title');
-    if (againBtn) againBtn.onclick = () => { clearFinisherFxState(); if (onPlayAgain) onPlayAgain(); };
+    if (againBtn) againBtn.onclick = () => onPlayAgain?.();
     if (titleBtn) titleBtn.onclick = () => { clearFinisherFxState(); if (onTitle) onTitle(); };
 
     const targetTile = document.querySelector(`#board .tile[data-r="${rawTarget.r}"][data-c="${rawTarget.c}"]`);
@@ -1392,9 +1441,9 @@ export function playFinisherFX({
     }
 
     const kUnit = context?.killedUnit || board[rawTarget.r]?.[rawTarget.c] || {
-      typeKey: isWipeout ? 'KINESIS' : 'CORE',
+      typeKey: isWipeout ? 'KINESIS' : 'ANCHOR',
       owner: losingOwner,
-      name: isWipeout ? 'ユニット' : '防衛コア',
+      name: isWipeout ? 'ユニット' : HERO_TYPES.ANCHOR.name,
       hp: 0,
       maxHp: 100,
       atk: 0

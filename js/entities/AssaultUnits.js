@@ -1,6 +1,6 @@
 /* ==============================================================
    AssaultUnits.js: アサルト (Assault) ロール ユニットクラス群
-   (キネシス, フェイズ, ニトロ, ビット)
+   (キネシス, ヴェイル, ブラスト, ビット)
    ============================================================== */
 import { UnitEntity } from './UnitEntity.js?v=urban-v1';
 import { HERO_TYPES, inBounds } from '../config.js?v=urban-v1';
@@ -38,31 +38,29 @@ export class KinesisUnit extends UnitEntity {
   }
 
   executeSkill(slot, targetPos, context = {}) {
-    const { showDamagePopup, addLog, addSpecialActionToken } = context;
+    const { addLog, addSpecialActionOrder } = context;
 
     if (slot === 'A') {
       this.applyBuff('atk_up', 5, 1);
-      showDamagePopup(this.r, this.c, `ATK+5 (このターン)!`, '#ff6600');
       addLog(`⚡ ${this.name} が『オーバードライブ』発動！【攻撃力増強 (+5 / このターン中)】を展開（ATK 25 ➔ 30）！`, 'skill');
     } else if (slot === 'ULT') {
-      addSpecialActionToken(this.owner, {
+      addSpecialActionOrder(this.owner, {
         id: `${this.owner}_attack_kinesis_${Date.now()}`,
         type: 'attack',
         name: '攻撃',
-        badgeText: '攻撃',
+        badgeText: 'EX ATK',
         scope: 'KINESIS',
         unitType: 'KINESIS',
         unitName: 'キネシス',
         used: false,
-        desc: 'キネシスのウルト『ライトニング・ラッシュ』による専用攻撃トークン。キネシスのみが追加で1回通常攻撃できます。'
+        desc: 'キネシスのウルト『ライトニング・ラッシュ』による専用攻撃オーダー。キネシスのみが追加で1回通常攻撃できます。'
       });
-      showDamagePopup(this.r, this.c, `⚡⚔️専用攻撃+1!`, '#00d2ff');
-      addLog(`⚡⚔️ ${this.name} がウルト『ライトニング・ラッシュ』発動！キネシス専用の【追加攻撃トークン (+1 ATTACK)】を獲得！このターン通常攻撃を追加で1回行える！`, 'skill');
+      addLog(`⚡⚔️ ${this.name} がウルト『ライトニング・ラッシュ』発動！キネシス専用の【追加攻撃オーダー (+1 ATTACK)】を獲得！このターン通常攻撃を追加で1回行える！`, 'skill');
     }
   }
 
   isPassiveActive(context = {}) {
-    const tokens = context.playerTokens ? context.playerTokens[this.owner] : [];
+    const tokens = context.playerOrders ? context.playerOrders[this.owner] : [];
     return (tokens || []).some(t => t.type === 'move' && (t.scope === 'KINESIS' || t.scope === 'DUELIST') && !t.used);
   }
 
@@ -72,13 +70,13 @@ export class KinesisUnit extends UnitEntity {
 }
 
 // ==========================================
-// 2. フェイズ (Phase / PHANTOM)
+// 2. ヴェイル (Phase / PHANTOM)
 // ==========================================
-export class PhaseUnit extends UnitEntity {
+export class VeilUnit extends UnitEntity {
   constructor(owner, r, c) {
-    const def = HERO_TYPES.PHASE || HERO_TYPES.PHANTOM;
+    const def = HERO_TYPES.VEIL || HERO_TYPES.PHANTOM;
     super({
-      typeKey: 'PHASE',
+      typeKey: 'VEIL',
       name: def.name,
       icon: def.icon,
       owner,
@@ -114,30 +112,26 @@ export class PhaseUnit extends UnitEntity {
   }
 
   executeSkill(slot, targetPos, context = {}) {
-    const { board, showDamagePopup, addLog } = context;
+    const { addLog } = context;
 
     if (slot === 'A') {
-      board[targetPos.r][targetPos.c] = this;
-      board[this.r][this.c] = null;
-      this.setPosition(targetPos.r, targetPos.c);
-      showDamagePopup(targetPos.r, targetPos.c, `👻影転移!`, '#a855f7');
+      if (!context.warpUnit(this, targetPos)) return;
       addLog(`👻 ${this.name} が『テレポート』発動！自軍ディメンション・ゾーン (${targetPos.r}, ${targetPos.c}) へ瞬時に帰還！`, 'skill');
     } else if (slot === 'ULT') {
       this.applyBuff('shadow_drain', 1, 1);
-      showDamagePopup(this.r, this.c, `🩸ドレイン発動!(このターン)`, '#b366ff');
       addLog(`👤🩸 ${this.name} がウルト『シャドウ・ドレイン』発動！このターン中、自身が敵に与えたダメージ分だけHPを吸収・回復する状態になった！`, 'skill');
     }
   }
 }
 
 // ==========================================
-// 3. ニトロ (Nitro / BOMBER)
+// 3. ブラスト (Nitro / BOMBER)
 // ==========================================
-export class NitroUnit extends UnitEntity {
+export class BlastUnit extends UnitEntity {
   constructor(owner, r, c) {
-    const def = HERO_TYPES.NITRO || HERO_TYPES.BOMBER;
+    const def = HERO_TYPES.BLAST || HERO_TYPES.BOMBER;
     super({
-      typeKey: 'NITRO',
+      typeKey: 'BLAST',
       name: def.name,
       icon: def.icon,
       owner,
@@ -156,17 +150,13 @@ export class NitroUnit extends UnitEntity {
   }
 
   getSkillTargets(slot, context = {}) {
-    const { board, hasHazardOrTrapAt } = context;
+    const { board, hasFriendlyTrapAt } = context;
     if (slot === 'A') {
       const targets = [];
-      const forwardDir = (this.owner === 'P1') ? -1 : 1;
-      for (let step = 1; step <= 2; step++) {
-        const nr = this.r + forwardDir * step;
-        for (let dc = -1; dc <= 1; dc++) {
-          const nc = this.c + dc;
-          if (inBounds(nr, nc) && !board[nr][nc] && !hasHazardOrTrapAt(nr, nc)) {
-            targets.push({ r: nr, c: nc });
-          }
+      for (let dr = -2; dr <= 2; dr++) {
+        for (let dc = -2; dc <= 2; dc++) {
+          const r = this.r + dr, c = this.c + dc;
+          if (inBounds(r, c) && !board[r][c] && !hasFriendlyTrapAt(r, c)) targets.push({ r, c });
         }
       }
       return targets;
@@ -177,99 +167,35 @@ export class NitroUnit extends UnitEntity {
   }
 
   executeSkill(slot, targetPos, context = {}) {
-    const { board, traps, hasHazardOrTrapAt, isLocalPlayer, showDamagePopup, addLog, dealDamage, checkDeath, onGameOver } = context;
+    const { board, traps, isLocalPlayer, addLog, dealDamage, checkDeath, onGameOver } = context;
 
     if (slot === 'A') {
-      if (!hasHazardOrTrapAt(targetPos.r, targetPos.c)) {
-        traps.push({
-          r: targetPos.r,
-          c: targetPos.c,
-          owner: this.owner,
-          damage: 20,
-          type: 'MINE',
-          sourceHeroId: this.id
-        });
-        if (isLocalPlayer(this.owner)) {
-          showDamagePopup(targetPos.r, targetPos.c, `💣マイン設置!`, '#f97316');
-          addLog(`💣 ${this.name} が『マイン・プラント』発動！指定マスにマイン（20 DMGトラップ）を仕掛けた（自軍のみ視認可能・ニトロ破壊後も存続）！`, 'skill');
-        } else {
-          showDamagePopup(this.r, this.c, `💣マイン設置!`, '#f97316');
-          addLog(`💣 敵の ${this.name} が『マイン・プラント』発動！いずれかのマスにマインを仕掛けた...！`, 'skill');
-        }
+      traps.push({
+        r: targetPos.r,
+        c: targetPos.c,
+        owner: this.owner,
+        damage: 20,
+        type: 'MINE',
+        sourceHeroId: this.id
+      });
+      if (isLocalPlayer(this.owner)) {
+        addLog(`💣 ${this.name} が『マイン・プラント』発動！指定マスにマイン（20 DMGトラップ）を仕掛けた（自軍のみ視認可能・ブラスト破壊後も存続）！`, 'skill');
+      } else {
+        addLog(`💣 敵の ${this.name} が『マイン・プラント』発動！いずれかのマスにマインを仕掛けた...！`, 'skill');
       }
     } else if (slot === 'ULT') {
-      const ultDmg = 20;
-      showDamagePopup(this.r, this.c, `マキシマム・エクスプロージョン!!`, '#ff0055');
-      addLog(`💥💣🔥 ${this.name} がウルト『マキシマム・エクスプロージョン』発動！自身を含む半径2マス全域へ ${ultDmg} ダメージの大爆破！`, 'skill');
-
-      const affectedPositions = [];
-      for (let dr = -2; dr <= 2; dr++) {
-        for (let dc = -2; dc <= 2; dc++) {
-          const nr = this.r + dr, nc = this.c + dc;
-          if (inBounds(nr, nc)) {
-            const u = board[nr][nc];
-            if (u) affectedPositions.push({ r: nr, c: nc, unit: u });
-          }
-        }
+      dealDamage(null, this, 10, { r: this.r, c: this.c });
+      for (const target of board.flat()) {
+        if (!target || target.owner === this.owner || Math.max(Math.abs(target.r - this.r), Math.abs(target.c - this.c)) > 2) continue;
+        if (target.isUnit()) target.applyDebuff('silence', 1);
+        dealDamage(this, target, 20, target);
+        checkDeath(target.r, target.c, this.owner, onGameOver, this);
       }
-
-      affectedPositions.forEach(({ r: ar, c: ac, unit: targetUnit }) => {
-        showDamagePopup(ar, ac, `-${ultDmg}💥`, '#ff0055');
-        dealDamage(this, targetUnit, ultDmg, { r: ar, c: ac }, false);
-        checkDeath(ar, ac, this.owner, onGameOver);
-      });
+      checkDeath(this.r, this.c, this.owner === 'P1' ? 'P2' : 'P1', onGameOver);
     }
-  }
-
-  // パッシブ『カウンター・デトネーション』: 攻撃してきた敵に10ダメージの爆破反撃
-  onAttacked(attacker, attackerPos, context = {}) {
-    if (!attacker || !attacker.isUnit() || attacker.owner === this.owner) return;
-    if (!attackerPos) return;
-    const {
-      showDamagePopup,
-      addLog,
-      dealDamage,
-      checkDeath,
-      onGameOver,
-      playCombatPopupFX,
-      playPassivePopupFX,
-      playBeamFX
-    } = context;
-
-    addLog(`💣💥 ニトロのパッシブ『カウンター・デトネーション』発動！攻撃してきた敵 ${attacker.name} に 10 ダメージの爆破反撃！`, 'skill');
-    showDamagePopup(attackerPos.r, attackerPos.c, `💥カウンター 10!`, '#ff0055');
-    if (playPassivePopupFX) {
-      playPassivePopupFX({ r: this.r, c: this.c }, {
-        label: '反撃爆破!',
-        kind: 'attack',
-        color: '#ff5a26',
-        color2: '#ffd447',
-        delayMs: 180
-      });
-    }
-    if (playBeamFX) {
-      playBeamFX({ r: this.r, c: this.c }, attackerPos, {
-        kind: 'attack',
-        color: '#ff5a26',
-        color2: '#ffd447',
-        delayMs: 200
-      });
-    }
-    const dealt = dealDamage(this, attacker, 10, attackerPos, false);
-    if (playCombatPopupFX) {
-      playCombatPopupFX('dmg', attackerPos, dealt, { r: this.r, c: this.c }, undefined, {
-        skipLunge: true,
-        delayMs: 240,
-        label: dealt > 0 ? `💥 -${dealt} DMG` : null
-      });
-    }
-    checkDeath(attackerPos.r, attackerPos.c, this.owner, onGameOver);
   }
 }
 
-// ==========================================
-// 4. ビット (Bit / BIT)
-// ==========================================
 export class BitUnit extends UnitEntity {
   constructor(owner, r, c) {
     const def = HERO_TYPES.BIT;
@@ -300,9 +226,8 @@ export class BitUnit extends UnitEntity {
   }
 
   executeSkill(slot, targetPos, context = {}) {
-    const { showDamagePopup, addLog, checkDeath, onGameOver } = context;
+    const { addLog, checkDeath, onGameOver } = context;
     if (slot === 'A') {
-      showDamagePopup(this.r, this.c, `💥自壊!`, '#94a3b8');
       addLog(`🛰️💥 ${this.name} がスキル『自壊』を発動し、自身を破壊した！`, 'skill');
       this.hp = 0;
       checkDeath(this.r, this.c, this.owner, onGameOver);
@@ -310,7 +235,7 @@ export class BitUnit extends UnitEntity {
   }
 
   isPassiveActive(context = {}) {
-    const tokens = context.playerTokens ? context.playerTokens[this.owner] : [];
+    const tokens = context.playerOrders ? context.playerOrders[this.owner] : [];
     return (tokens || []).some(t => t.type === 'attack' && t.scope === this.id && !t.used);
   }
 

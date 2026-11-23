@@ -2,17 +2,17 @@
    EntityFactory.js: 盤面エンティティ生成ファクトリー
    (5大クラス体系の全クラスインスタンス化と名称エイリアス解決)
    ============================================================== */
-import { CoreEntity } from './CoreEntity.js?v=urban-v1';
+import { AnchorEntity } from './AnchorEntity.js?v=urban-v1';
 import { BarricadeEntity, TurretEntity } from './Structures.js?v=urban-v1';
-import { KinesisUnit, PhaseUnit, NitroUnit, BitUnit } from './AssaultUnits.js?v=urban-v1';
-import { VectorUnit, VulcanUnit, ToxinUnit } from './SentinelUnits.js?v=urban-v1';
-import { GlitchUnit, CypherUnit, HiveUnit } from './DisruptorUnits.js?v=urban-v1';
-import { IrisUnit, NexusUnit, AuraUnit } from './SupportUnits.js?v=urban-v1';
+import { KinesisUnit, VeilUnit, BlastUnit, BitUnit } from './AssaultUnits.js?v=urban-v1';
+import { WardenUnit, VulcanUnit, SmogUnit } from './SentinelUnits.js?v=urban-v1';
+import { GlitchUnit, PrismUnit, HiveUnit } from './DisruptorUnits.js?v=urban-v1';
+import { LilyUnit, NexusUnit, HaloUnit } from './SupportUnits.js?v=urban-v1';
 
 // RULEBOOK正式名および後方互換エイリアスのクラス登録マップ
 export const ENTITY_CLASS_MAP = {
-  // 1. コア
-  CORE: CoreEntity,
+  // 1. アンカー
+  ANCHOR: AnchorEntity,
 
   // 2. オブジェクト
   BARRICADE: BarricadeEntity,
@@ -21,31 +21,31 @@ export const ENTITY_CLASS_MAP = {
   // 3. アサルト
   KINESIS: KinesisUnit,
   DUELIST: KinesisUnit, // 旧エイリアス
-  PHASE: PhaseUnit,
-  PHANTOM: PhaseUnit,   // 旧エイリアス
-  NITRO: NitroUnit,
-  BOMBER: NitroUnit,    // 旧エイリアス
+  VEIL: VeilUnit,
+  PHANTOM: VeilUnit,   // 旧エイリアス
+  BLAST: BlastUnit,
+  BOMBER: BlastUnit,    // 旧エイリアス
   BIT: BitUnit,
 
   // 4. センチネル
-  VECTOR: VectorUnit,
-  SENTINEL: VectorUnit, // 旧エイリアス
+  WARDEN: WardenUnit,
+  SENTINEL: WardenUnit, // 旧エイリアス
   VULCAN: VulcanUnit,
-  TOXIN: ToxinUnit,
-  POISON: ToxinUnit,    // 旧エイリアス
+  SMOG: SmogUnit,
+  POISON: SmogUnit,    // 旧エイリアス
 
   // 5. ディスラプター
   GLITCH: GlitchUnit,
   DISRUPTOR: GlitchUnit,// 旧エイリアス
-  CYPHER: CypherUnit,
+  PRISM: PrismUnit,
   HIVE: HiveUnit,
 
   // 6. サポート
-  IRIS: IrisUnit,
-  MEDIC: IrisUnit,      // 旧エイリアス
+  LILY: LilyUnit,
+  MEDIC: LilyUnit,      // 旧エイリアス
   NEXUS: NexusUnit,
   HACKER: NexusUnit,    // 旧エイリアス
-  AURA: AuraUnit
+  HALO: HaloUnit
 };
 
 // エンティティ生成ファクトリー関数

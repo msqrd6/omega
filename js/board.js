@@ -9,7 +9,7 @@ import {
   ULT_REQUIRED_DAMAGE,
   DEPLOYABLE_ROWS,
   DEFAULT_ROSTER,
-  DEFAULT_ACTION_TOKENS
+  DEFAULT_ACTION_ORDERS
 } from './config.js?v=urban-v1';
 import { createEntity } from './entities/EntityFactory.js?v=urban-v1';
 
@@ -33,42 +33,42 @@ export function isLocalPlayer(owner) {
 // チーム共通ウルトゲージ（通常攻撃累計与ダメージ 0〜100）
 export let teamUltGauge = { P1: 0, P2: 0 };
 
-// 物体化トークンリスト（チームごとの所持行動トークン群）
-export let playerTokens = {
+// 物体化オーダーリスト（チームごとの所持行動オーダー群）
+export let playerOrders = {
   P1: [],
   P2: []
 };
 
-// チームごとのターン内行動トークン集計
-export let actionTokens = {
-  P1: { move: DEFAULT_ACTION_TOKENS.MOVE, attack: DEFAULT_ACTION_TOKENS.ATK },
-  P2: { move: DEFAULT_ACTION_TOKENS.MOVE, attack: DEFAULT_ACTION_TOKENS.ATK }
+// チームごとのターン内行動オーダー集計
+export let actionOrders = {
+  P1: { move: DEFAULT_ACTION_ORDERS.MOVE, attack: DEFAULT_ACTION_ORDERS.ATK },
+  P2: { move: DEFAULT_ACTION_ORDERS.MOVE, attack: DEFAULT_ACTION_ORDERS.ATK }
 };
 
 let nextUnitUniqueId = 1;
 
 // ==========================================
-// 行動トークン管理
+// 行動オーダー管理
 // ==========================================
-export function getPlayerTokens(owner) {
-  return playerTokens[owner] || [];
+export function getPlayerOrders(owner) {
+  return playerOrders[owner] || [];
 }
 
-export function syncActionTokensCount(owner) {
-  if (!owner || !playerTokens[owner]) return;
-  const list = playerTokens[owner];
+export function syncActionOrdersCount(owner) {
+  if (!owner || !playerOrders[owner]) return;
+  const list = playerOrders[owner];
   const moves = list.filter(t => t.type === 'move' && !t.used).length;
   const atks = list.filter(t => t.type === 'attack' && !t.used).length;
-  actionTokens[owner] = { move: moves, attack: atks };
+  actionOrders[owner] = { move: moves, attack: atks };
 }
 
-export function getActionTokens(owner) {
-  syncActionTokensCount(owner);
-  return actionTokens[owner] || { move: 0, attack: 0 };
+export function getActionOrders(owner) {
+  syncActionOrdersCount(owner);
+  return actionOrders[owner] || { move: 0, attack: 0 };
 }
 
-// トークン対象スコープ判定ヘルパー
-function matchesTokenScope(tokenScope, unit) {
+// オーダー対象スコープ判定ヘルパー
+function matchesOrderScope(tokenScope, unit) {
   if (tokenScope === 'all') return true;
   if (!unit) return false;
   if (tokenScope === unit.id || tokenScope === unit.typeKey) return true;
@@ -80,17 +80,17 @@ function matchesTokenScope(tokenScope, unit) {
   return false;
 }
 
-// 行動トークンを所持しているか判定（unit を渡すとそのユニットが使用可能なトークンに限定して判定）
-export function hasActionToken(owner, type, amount = 1, unit = null) {
-  if (!owner || !playerTokens[owner]) return false;
+// 行動オーダーを所持しているか判定（unit を渡すとそのユニットが使用可能なオーダーに限定して判定）
+export function hasActionOrder(owner, type, amount = 1, unit = null) {
+  if (!owner || !playerOrders[owner]) return false;
   const key = type.toLowerCase();
-  const list = playerTokens[owner];
+  const list = playerOrders[owner];
 
   if (unit) {
     const validCount = list.filter(t =>
       t.type === key &&
       !t.used &&
-      matchesTokenScope(t.scope, unit)
+      matchesOrderScope(t.scope, unit)
     ).length;
     return validCount >= amount;
   } else {
@@ -99,61 +99,35 @@ export function hasActionToken(owner, type, amount = 1, unit = null) {
   }
 }
 
-// 行動トークンを消費（unit を渡すと専用トークンがあれば優先消費）
-export function consumeActionToken(owner, type, amount = 1, unit = null) {
-  if (!owner || !playerTokens[owner]) return false;
-  const key = type.toLowerCase();
-  const list = playerTokens[owner];
-  let consumed = 0;
-
-  // 1. ユニット指定がある場合、まずそのユニット専用の未消費トークンを優先消費
-  if (unit) {
-    const specialTokens = list.filter(t =>
-      t.type === key &&
-      !t.used &&
-      t.scope !== 'all' &&
-      matchesTokenScope(t.scope, unit)
-    );
-    for (const t of specialTokens) {
-      if (consumed < amount) {
-        t.used = true;
-        consumed++;
-      }
-    }
-  }
-
-  // 2. まだ不足していれば共通トークン（scope === 'all'）を消費
-  if (consumed < amount) {
-    const commonTokens = list.filter(t => t.type === key && !t.used && t.scope === 'all');
-    for (const t of commonTokens) {
-      if (consumed < amount) {
-        t.used = true;
-        consumed++;
-      }
-    }
-  }
-
-  syncActionTokensCount(owner);
-  return consumed >= amount;
+// 行動オーダーを消費（unit を渡すと専用オーダーがあれば優先消費）
+export function consumeActionOrder(owner, type, amount = 1, unit = null) {
+  const list = playerOrders[owner] || [];
+  const available = list.filter(order =>
+    order.type === type.toLowerCase() && !order.used && (unit ? matchesOrderScope(order.scope, unit) : order.scope === 'all'));
+  const selected = [...available.filter(order => order.scope !== 'all'),
+    ...available.filter(order => order.scope === 'all')].slice(0, amount);
+  if (selected.length < amount) return null;
+  selected.forEach(order => { order.used = true; });
+  syncActionOrdersCount(owner);
+  return selected;
 }
 
-// 専用行動トークンの動的追加（キネシスのウルト・ビット召喚時など）
-export function addSpecialActionToken(owner, tokenDef) {
-  if (!owner || !playerTokens[owner]) return;
-  playerTokens[owner].push(tokenDef);
-  syncActionTokensCount(owner);
+export function addSpecialActionOrder(owner, tokenDef) {
+  if (!owner || !playerOrders[owner]) return;
+  playerOrders[owner].push(tokenDef);
+  syncActionOrdersCount(owner);
 }
 
-// ターン開始時：物体化トークンを生成・補充（パッシブによる専用トークンも生成）
-export function resetActionTokens(owner) {
+// ターン開始時：物体化オーダーを生成・補充（パッシブによる専用オーダーも生成）
+export function resetActionOrders(owner, { playPassivePopupFX } = {}) {
   if (!owner) return;
 
   const tokens = [
     {
       id: `${owner}_move_common`,
       type: 'move',
-      name: '移動',
-      badgeText: '移動',
+      name: 'MOVE',
+      badgeText: 'MOVE',
       scope: 'all',
       unitType: null,
       unitName: null,
@@ -163,8 +137,8 @@ export function resetActionTokens(owner) {
     {
       id: `${owner}_attack_common`,
       type: 'attack',
-      name: '攻撃',
-      badgeText: '攻撃',
+      name: 'ATK',
+      badgeText: 'ATK',
       scope: 'all',
       unitType: null,
       unitName: null,
@@ -173,48 +147,50 @@ export function resetActionTokens(owner) {
     }
   ];
 
-  // 盤面の味方ユニットを走査し、専用トークンを付与
+  // 盤面の味方ユニットを走査し、専用オーダーを付与
   let kinesisTokenAdded = false;
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const u = board[r][c];
       if (!u || u.owner !== owner) continue;
 
-      // キネシス生存時：キネシス専用移動トークン+1
+      // キネシス生存時：キネシス専用移動オーダー+1
       if ((u.typeKey === 'KINESIS' || u.typeKey === 'DUELIST') && !kinesisTokenAdded) {
         kinesisTokenAdded = true;
+        playPassivePopupFX?.({ r, c }, { label: 'EX MOVE +1' });
         tokens.push({
           id: `${owner}_move_kinesis`,
           type: 'move',
           name: '移動',
-          badgeText: '移動',
+          badgeText: 'EX MOVE',
           scope: 'KINESIS',
           unitType: 'KINESIS',
           unitName: 'キネシス',
           used: false,
-          desc: 'キネシスのパッシブ『ライトニング・ステップ』による専用移動トークン。共通移動とは独立してキネシスのみが移動できます。'
+          desc: 'キネシスのパッシブ『ライトニング・ステップ』による専用移動オーダー。共通移動とは独立してキネシスのみが移動できます。'
         });
       }
 
-      // ビット生存時：各ビット専用攻撃トークン+1
+      // ビット生存時：各ビット専用攻撃オーダー+1
       if (u.typeKey === 'BIT') {
+        playPassivePopupFX?.({ r, c }, { label: 'EX ATK +1' });
         tokens.push({
           id: `${owner}_atk_bit_${u.id}`,
           type: 'attack',
           name: '攻撃',
-          badgeText: '攻撃',
+          badgeText: 'EX ATK',
           scope: u.id,
           unitType: 'BIT',
           unitName: 'ビット',
           used: false,
-          desc: 'ビットのパッシブ『自律アサルト・ドライブ』による専用攻撃トークン。共通攻撃とは独立してこのビットのみが通常攻撃できます。'
+          desc: 'ビットのパッシブ『自律ドライブ』による専用攻撃オーダー。共通攻撃とは独立してこのビットのみが通常攻撃できます。'
         });
       }
     }
   }
 
-  playerTokens[owner] = tokens;
-  syncActionTokensCount(owner);
+  playerOrders[owner] = tokens;
+  syncActionOrdersCount(owner);
 }
 
 // ==========================================
@@ -261,12 +237,12 @@ export function hasHazardAt(r, c) {
   );
 }
 
-export function hasTrapAt(r, c) {
-  return traps.some(tp => tp.r === r && tp.c === c);
+export function hasTrapAt(r, c, owner) {
+  return traps.some(tp => tp.r === r && tp.c === c && (owner === undefined || tp.owner === owner));
 }
 
-export function hasHazardOrTrapAt(r, c) {
-  return hasHazardAt(r, c) || hasTrapAt(r, c);
+export function hasHazardOrTrapAt(r, c, owner) {
+  return hasHazardAt(r, c) || hasTrapAt(r, c, owner);
 }
 
 export function getHazardInfoAt(r, c) {
@@ -277,9 +253,9 @@ export function getHazardInfoAt(r, c) {
       name: 'ディメンション・ゾーン',
       icon: '👻',
       owner: fz.owner,
-      setter: 'フェイズ',
+      setter: 'ヴェイル',
       impact: '滞在中は常に弱体化 (被ダメ1.5倍)',
-      desc: 'フェイズが展開したハザード。侵入している敵ユニット（コア除く）は滞在しているあいだ常に【弱体化 (被ダメ1.5倍)】状態になる！フェイズ撃破時に同時消滅。',
+      desc: 'ヴェイルが展開したハザード。侵入している敵ユニット（アンカー除く）は滞在しているあいだ常に【弱体化 (被ダメ1.5倍)】状態になる！ヴェイル撃破時に同時消滅。',
       category: 'ハザード（展開者生存時永続 / 撃破時同時消滅）'
     };
   }
@@ -290,23 +266,26 @@ export function getHazardInfoAt(r, c) {
       name: 'トキシック・ゾーン',
       icon: '🧪',
       owner: pzn.owner,
-      setter: 'トキシン',
+      setter: 'スモッグ',
       impact: 'ターン開始時 10 DMG',
-      desc: '猛毒が立ち込める危険エリア。滞在している敵ユニット（コア除く）は自軍ターン開始時に 10 ダメージを受ける！トキシン撃破時に同時消滅。',
+      desc: '猛毒が立ち込める危険エリア。滞在している敵ユニット（アンカー除く）は自軍ターン開始時に 10 ダメージを受ける！スモッグ撃破時に同時消滅。',
       category: 'ハザード（展開者生存時永続 / 撃破時同時消滅）'
     };
   }
   const tp = traps.find(t => t.r === r && t.c === c && isLocalPlayer(t.owner));
   if (tp) {
-    const dmg = tp.damage || 25;
+    const dmg = tp.damage;
+    const toxic = tp.type === 'TOXIC_MINE';
     return {
       type: 'mine',
-      name: 'マイン',
+      name: toxic ? 'トキシック・マイン' : 'ブラスト・マイン',
       icon: '💣',
       owner: tp.owner,
-      setter: 'ニトロ',
+      setter: toxic ? 'スモッグ' : 'ブラスト',
       impact: `踏破で ${dmg} DMG 爆発`,
-      desc: `ニトロが設置したステルス地雷。敵が踏むと即座に ${dmg} ダメージを与えて消滅する（自軍のみ視認可能）。`,
+      desc: toxic
+        ? '敵ユニットの侵入で10ダメージ。スモッグが生存していて、作動したマスにゾーンがなければトキシック・ゾーンを展開する。'
+        : '敵ユニットの侵入で20ダメージを与えて消滅する。',
       category: 'トラップ（敵からは不可視 / 踏破で爆発消滅）'
     };
   }
@@ -360,12 +339,12 @@ export function applyDefaultPlacement(owner, roster = DEFAULT_ROSTER) {
   ];
 
   if (owner === 'P1') {
-    spawnHero('CORE', 'P1', 6, 3);
+    spawnHero('ANCHOR', 'P1', 6, 3);
     for (let i = 0; i < Math.min(roster.length, slotsP1.length); i++) {
       spawnHero(roster[i], 'P1', slotsP1[i].r, slotsP1[i].c);
     }
   } else if (owner === 'P2') {
-    spawnHero('CORE', 'P2', 0, 3);
+    spawnHero('ANCHOR', 'P2', 0, 3);
     for (let i = 0; i < Math.min(roster.length, slotsP2.length); i++) {
       spawnHero(roster[i], 'P2', slotsP2[i].r, slotsP2[i].c);
     }
@@ -375,17 +354,19 @@ export function applyDefaultPlacement(owner, roster = DEFAULT_ROSTER) {
 export function initBoard() {
   clearBoard();
   teamUltGauge = { P1: 0, P2: 0 };
-  resetActionTokens('P1');
-  resetActionTokens('P2');
+  resetActionOrders('P1');
+  resetActionOrders('P2');
   return board;
 }
 
-export function resetTurnPassives(owner) {
+export function resetTurnPassives(owner, context) {
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const u = board[r][c];
       if (!u) continue;
+      if (u.owner !== owner) continue;
       u.turnDamageDealt = 0;
+      u.onTurnStart?.(board, context);
     }
   }
 }
@@ -407,13 +388,13 @@ export const spawnUnit = spawnHero;
 export function isUnit(unit) {
   if (!unit) return false;
   if (typeof unit.isUnit === 'function') return unit.isUnit();
-  return unit.typeKey !== 'CORE' && unit.typeKey !== 'BARRICADE' && unit.typeKey !== 'TURRET';
+  return unit.typeKey !== 'ANCHOR' && unit.typeKey !== 'BARRICADE' && unit.typeKey !== 'TURRET';
 }
 
-export function isCore(unit) {
+export function isAnchor(unit) {
   if (!unit) return false;
-  if (typeof unit.isCore === 'function') return unit.isCore();
-  return unit.typeKey === 'CORE';
+  if (typeof unit.isAnchor === 'function') return unit.isAnchor();
+  return unit.typeKey === 'ANCHOR';
 }
 
 export function isObject(unit) {
@@ -437,7 +418,7 @@ export function applyBuff(unit, key, val, turns) {
     unit.applyBuff(key, val, turns);
     return;
   }
-  if (unit.typeKey === 'CORE' && key !== 'shield') return;
+  if (unit.typeKey === 'ANCHOR' && key !== 'shield') return;
   if (!unit.buffs) unit.buffs = {};
   unit.buffs[key] = { val, turns };
 }
@@ -511,9 +492,9 @@ export function clearAllDebuffs(unit) {
   };
 }
 
-// ベクターのパッシブ『バンカー・スナイパー』判定 (味方オブジェクトまたは味方コア隣接時に真)
-export function isVectorBunkerActive(unit) {
-  if (!unit || (unit.typeKey !== 'VECTOR' && unit.typeKey !== 'SENTINEL')) return false;
+// ウォーデンのパッシブ『バンカー・スナイパー』判定 (味方オブジェクトまたは味方アンカー隣接時に真)
+export function isWardenBunkerActive(unit) {
+  if (!unit || (unit.typeKey !== 'WARDEN' && unit.typeKey !== 'SENTINEL')) return false;
   let ur = -1, uc = -1;
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -529,7 +510,7 @@ export function isVectorBunkerActive(unit) {
       const nr = ur + dr, nc = uc + dc;
       if (inBounds(nr, nc)) {
         const neighbor = board[nr][nc];
-        if (neighbor && neighbor.owner === unit.owner && (isCore(neighbor) || isObject(neighbor))) {
+        if (neighbor && neighbor.owner === unit.owner && (isAnchor(neighbor) || isObject(neighbor))) {
           return true;
         }
       }
@@ -545,17 +526,17 @@ export function isVulcanStockActive(unit) {
 }
 
 // 実効攻撃力計算（基本ATK ＋ 攻撃力増強バフ ＋ パッシブ攻撃力増強）
-export function getEffectiveAtk(unit) {
+export function getEffectiveAtk(unit, target) {
   if (!unit) return 0;
   if (typeof unit.getEffectiveAtk === 'function') {
-    return unit.getEffectiveAtk({ board });
+    return unit.getEffectiveAtk({ board, poisonZones, target });
   }
   let total = unit.atk;
   if (hasBuff(unit, 'atk_up')) {
     total += unit.buffs.atk_up.val;
   }
-  if (isVectorBunkerActive(unit)) {
-    total += 10;
+  if (isWardenBunkerActive(unit)) {
+    total += 5;
   }
   if (isVulcanStockActive(unit)) {
     total += 10;
@@ -569,11 +550,11 @@ export function getShieldVal(unit) {
   return hasBuff(unit, 'shield') ? unit.buffs.shield.val : 0;
 }
 
-export function findCore(owner) {
+export function findAnchor(owner) {
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const u = board[r][c];
-      if (u && u.typeKey === 'CORE' && u.owner === owner) return u;
+      if (u && u.typeKey === 'ANCHOR' && u.owner === owner) return u;
     }
   }
   return null;
@@ -599,11 +580,11 @@ export function getValidMoves(r, c) {
   if (typeof unit.getValidMoves === 'function') {
     unit.r = r;
     unit.c = c;
-    return unit.getValidMoves({ board, hasActionToken });
+    return unit.getValidMoves({ board, hasActionOrder });
   }
 
   if (hasDebuff(unit, 'bind')) return [];
-  if (!hasActionToken(unit.owner, 'move', 1, unit)) return [];
+  if (!hasActionOrder(unit.owner, 'move', 1, unit)) return [];
 
   const moves = [];
   for (let dr = -1; dr <= 1; dr++) {
@@ -613,18 +594,6 @@ export function getValidMoves(r, c) {
       if (inBounds(nr, nc) && !board[nr][nc]) {
         moves.push({ r: nr, c: nc });
       }
-    }
-  }
-
-  // サイファー固有パッシブ『ホライゾン・シフト』
-  if (unit.typeKey === 'CYPHER') {
-    for (let nc = c - 1; nc >= 0; nc--) {
-      if (board[r][nc]) break;
-      if (!moves.some(m => m.r === r && m.c === nc)) moves.push({ r, c: nc });
-    }
-    for (let nc = c + 1; nc < COLS; nc++) {
-      if (board[r][nc]) break;
-      if (!moves.some(m => m.r === r && m.c === nc)) moves.push({ r, c: nc });
     }
   }
 
@@ -649,12 +618,12 @@ export function getValidAttacks(r, c) {
   if (typeof unit.getValidAttacks === 'function') {
     unit.r = r;
     unit.c = c;
-    return unit.getValidAttacks({ board, hasActionToken });
+    return unit.getValidAttacks({ board, hasActionOrder });
   }
 
   if (unit.atk === 0) return [];
   if (hasDebuff(unit, 'disarm')) return [];
-  if (!hasActionToken(unit.owner, 'attack', 1, unit)) return [];
+  if (!hasActionOrder(unit.owner, 'attack', 1, unit)) return [];
 
   const enemyOwner = (unit.owner === 'P1') ? 'P2' : 'P1';
   const rangeCells = getAttackRangeCells(r, c);
@@ -663,30 +632,6 @@ export function getValidAttacks(r, c) {
     const target = board[cell.r][cell.c];
     return target && target.owner === enemyOwner;
   });
-}
-
-// 指定条件を満たす味方ユニットの周囲8マスの空きマスを収集する共通ヘルパー
-function getEmptyCellsAroundMatchingUnits(filterFn) {
-  const result = [];
-  for (let ar = 0; ar < ROWS; ar++) {
-    for (let ac = 0; ac < COLS; ac++) {
-      const u = board[ar][ac];
-      if (u && filterFn(u, ar, ac)) {
-        for (let dr = -1; dr <= 1; dr++) {
-          for (let dc = -1; dc <= 1; dc++) {
-            if (dr === 0 && dc === 0) continue;
-            const nr = ar + dr, nc = ac + dc;
-            if (inBounds(nr, nc) && !board[nr][nc]) {
-              if (!result.some(t => t.r === nr && t.c === nc)) {
-                result.push({ r: nr, c: nc });
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return result;
 }
 
 export function getValidSkillTargets(r, c, slot) {
@@ -709,214 +654,13 @@ export function getValidSkillTargets(r, c, slot) {
       phantomZones,
       poisonZones,
       traps,
-      hasHazardOrTrapAt
+      hasFriendlyTrapAt: (r, c) => hasTrapAt(r, c, unit.owner),
+      hasHazardOrTrapAt: (r, c) => hasHazardOrTrapAt(r, c, unit.owner)
     });
     if (targets && Array.isArray(targets)) {
       return targets;
     }
   }
 
-  const allies = unit.owner;
-  const targets = [];
-
-  switch (unit.typeKey) {
-    case 'DUELIST': {
-      targets.push({ r, c });
-      break;
-    }
-
-    case 'PHANTOM': {
-      if (slot === 'A') {
-        const myZones = phantomZones.filter(pz => pz.owner === unit.owner);
-        for (const pz of myZones) {
-          if (inBounds(pz.r, pz.c) && !board[pz.r][pz.c]) {
-            targets.push({ r: pz.r, c: pz.c });
-          }
-        }
-      } else if (slot === 'ULT') {
-        targets.push({ r, c });
-      }
-      break;
-    }
-
-    case 'BOMBER': {
-      if (slot === 'A') {
-        const forwardDir = (unit.owner === 'P1') ? -1 : 1;
-        for (let step = 1; step <= 2; step++) {
-          const nr = r + forwardDir * step;
-          for (let dc = -1; dc <= 1; dc++) {
-            const nc = c + dc;
-            if (inBounds(nr, nc) && !board[nr][nc] && !hasHazardOrTrapAt(nr, nc)) {
-              targets.push({ r: nr, c: nc });
-            }
-          }
-        }
-      } else if (slot === 'ULT') {
-        targets.push({ r, c });
-      }
-      break;
-    }
-
-    case 'SENTINEL': {
-      if (slot === 'A') {
-        for (let dr = -2; dr <= 2; dr++) {
-          for (let dc = -2; dc <= 2; dc++) {
-            if (dr === 0 && dc === 0) continue;
-            const nr = r + dr, nc = c + dc;
-            if (inBounds(nr, nc) && !board[nr][nc]) {
-              targets.push({ r: nr, c: nc });
-            }
-          }
-        }
-      } else if (slot === 'ULT') {
-        targets.push({ r, c });
-      }
-      break;
-    }
-
-    case 'VULCAN': {
-      if (slot === 'A') {
-        for (let dr = -2; dr <= 2; dr++) {
-          for (let dc = -2; dc <= 2; dc++) {
-            if (dr === 0 && dc === 0) continue;
-            const nr = r + dr, nc = c + dc;
-            if (inBounds(nr, nc) && !board[nr][nc] && !hasHazardOrTrapAt(nr, nc)) {
-              targets.push({ r: nr, c: nc });
-            }
-          }
-        }
-      } else if (slot === 'ULT') {
-        for (let tr = 0; tr < ROWS; tr++) {
-          for (let tc = 0; tc < COLS; tc++) {
-            const u = board[tr][tc];
-            if (u && u.typeKey === 'TURRET' && u.owner === unit.owner) {
-              targets.push({ r: tr, c: tc });
-            }
-          }
-        }
-      }
-      break;
-    }
-
-    case 'POISON': {
-      if (slot === 'A') {
-        if (inBounds(r, c + 1)) targets.push({ r, c: c + 1 });
-        if (inBounds(r, c - 1)) targets.push({ r, c: c - 1 });
-      } else if (slot === 'ULT') {
-        targets.push({ r, c });
-      }
-      break;
-    }
-
-    case 'DISRUPTOR': {
-      if (slot === 'A') {
-        const cells = getEmptyCellsAroundMatchingUnits(u => u.owner === allies && isAssault(u) && u.typeKey !== 'BIT');
-        targets.push(...cells);
-      } else if (slot === 'ULT') {
-        for (let tr = 0; tr < ROWS; tr++) {
-          for (let tc = 0; tc < COLS; tc++) {
-            if (!board[tr][tc]) targets.push({ r: tr, c: tc });
-          }
-        }
-      }
-      break;
-    }
-
-    case 'CYPHER': {
-      if (slot === 'A') {
-        const forwardDir = (unit.owner === 'P1') ? -1 : 1;
-        let step = 1;
-        while (true) {
-          const nr = r + forwardDir * step;
-          const nc = c;
-          if (!inBounds(nr, nc)) break;
-          const targetUnit = board[nr][nc];
-          if (targetUnit) {
-            if (isUnit(targetUnit)) {
-              targets.push({ r: nr, c: nc });
-            }
-            break;
-          }
-          step++;
-        }
-      } else if (slot === 'ULT') {
-        targets.push({ r, c });
-      }
-      break;
-    }
-
-    case 'HIVE': {
-      if (slot === 'A') {
-        const cells = getEmptyCellsAroundMatchingUnits(u => u.owner === allies && isAssault(u));
-        if (cells.length > 0) {
-          targets.push(...cells);
-        } else {
-          // 盤面に自軍アサルト不在時のフォールバック（ハイヴ自身の周囲8マス）
-          const selfCells = getEmptyCellsAroundMatchingUnits((u, ar, ac) => ar === r && ac === c);
-          targets.push(...selfCells);
-        }
-      } else if (slot === 'ULT') {
-        targets.push({ r, c });
-      }
-      break;
-    }
-
-    case 'BIT': {
-      if (slot === 'A') {
-        targets.push({ r, c });
-      }
-      break;
-    }
-
-    case 'MEDIC': {
-      if (slot === 'A') {
-        for (let dr = -3; dr <= 3; dr++) {
-          for (let dc = -3; dc <= 3; dc++) {
-            const nr = r + dr, nc = c + dc;
-            if (inBounds(nr, nc)) {
-              const t = board[nr][nc];
-              if (t && t.owner === allies && isUnit(t)) {
-                targets.push({ r: nr, c: nc });
-              }
-            }
-          }
-        }
-      } else if (slot === 'ULT') {
-        targets.push({ r, c });
-      }
-      break;
-    }
-
-    case 'HACKER': {
-      if (slot === 'A') {
-        for (let tr = 0; tr < ROWS; tr++) {
-          for (let tc = 0; tc < COLS; tc++) {
-            const t = board[tr][tc];
-            if (t && t.owner === allies && isUnit(t)) {
-              targets.push({ r: tr, c: tc });
-            }
-          }
-        }
-      } else if (slot === 'ULT') {
-        for (let tr = 0; tr < ROWS; tr++) {
-          for (let tc = 0; tc < COLS; tc++) {
-            targets.push({ r: tr, c: tc });
-          }
-        }
-      }
-      break;
-    }
-
-    case 'AURA': {
-      if (slot === 'A') {
-        targets.push({ r, c });
-      } else if (slot === 'ULT') {
-        const cells = getEmptyCellsAroundMatchingUnits((u, ar, ac) => u.owner === allies && (ar !== r || ac !== c) && isUnit(u));
-        targets.push(...cells);
-      }
-      break;
-    }
-  }
-
-  return targets;
+  return [];
 }
