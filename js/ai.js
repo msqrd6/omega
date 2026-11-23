@@ -2,7 +2,7 @@
    ai.js: CPU (AI) 思考ルーチン - スマート連携・キル優先・ハザード回避対応
    (UI/DOM直接参照を排除し、エラーハンドリングを完全装備)
    ============================================================== */
-import { ROWS, COLS } from './config.js?v=urban-v1';
+import { ROWS, COLS } from './config.js?v=lab-white-1';
 import {
   board,
   inBounds,
@@ -19,9 +19,9 @@ import {
   isUnit,
   isObject,
   isAnchor
-} from './board.js?v=urban-v1';
-import { executeMove, executeAttack, executeSkill } from './actions.js?v=urban-v13';
-import { setPhaseInstruction } from './ui.js?v=urban-v13';
+} from './board.js?v=lab-white-1';
+import { executeMove, executeAttack, executeSkill } from './actions.js?v=lab-white-1';
+import { setPhaseInstruction } from './ui.js?v=lab-white-1';
 
 // RULEBOOK正式名と旧エイリアスの双方に対応する判定ヘルパー
 const isType = (u, ...keys) => {

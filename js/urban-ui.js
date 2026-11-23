@@ -1,5 +1,5 @@
-import { BOARD_MARK_DEFS, HERO_TYPES, ROWS, COLS, inBounds } from './config.js?v=urban-v1';
-import { board, phantomZones, poisonZones, traps, getHazardInfoAt, getEffectiveAtk, getShieldVal, hasDebuff, isUnitInEnemyPhantomZone, isUltReady, isUnit, isObject, isAnchor, isLocalPlayer } from './board.js?v=urban-v1';
+import { BOARD_MARK_DEFS, HERO_TYPES, ROWS, COLS, inBounds } from './config.js?v=lab-white-1';
+import { board, phantomZones, poisonZones, traps, getHazardInfoAt, getEffectiveAtk, getShieldVal, hasDebuff, isUnitInEnemyPhantomZone, isUltReady, isUnit, isObject, isAnchor, isLocalPlayer } from './board.js?v=lab-white-1';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 

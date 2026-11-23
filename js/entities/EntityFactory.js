@@ -2,12 +2,12 @@
    EntityFactory.js: 盤面エンティティ生成ファクトリー
    (5大クラス体系の全クラスインスタンス化と名称エイリアス解決)
    ============================================================== */
-import { AnchorEntity } from './AnchorEntity.js?v=urban-v1';
-import { BarricadeEntity, TurretEntity } from './Structures.js?v=urban-v1';
-import { KinesisUnit, VeilUnit, BlastUnit, BitUnit } from './AssaultUnits.js?v=urban-v1';
-import { WardenUnit, VulcanUnit, SmogUnit } from './SentinelUnits.js?v=urban-v1';
-import { GlitchUnit, PrismUnit, HiveUnit } from './DisruptorUnits.js?v=urban-v1';
-import { LilyUnit, NexusUnit, HaloUnit } from './SupportUnits.js?v=urban-v1';
+import { AnchorEntity } from './AnchorEntity.js?v=lab-white-1';
+import { BarricadeEntity, TurretEntity } from './Structures.js?v=lab-white-1';
+import { KinesisUnit, VeilUnit, BlastUnit, BitUnit } from './AssaultUnits.js?v=lab-white-1';
+import { WardenUnit, VulcanUnit, SmogUnit } from './SentinelUnits.js?v=lab-white-1';
+import { GlitchUnit, PrismUnit, HiveUnit } from './DisruptorUnits.js?v=lab-white-1';
+import { LilyUnit, NexusUnit, HaloUnit } from './SupportUnits.js?v=lab-white-1';
 
 // RULEBOOK正式名および後方互換エイリアスのクラス登録マップ
 export const ENTITY_CLASS_MAP = {

@@ -2,9 +2,9 @@
    SupportUnits.js: サポート (Support) ロール ユニットクラス群
    (リリー, ネクサス, オーラ)
    ============================================================== */
-import { BeamUnit } from './BeamUnit.js?v=urban-v1';
-import { UnitEntity } from './UnitEntity.js?v=urban-v1';
-import { HERO_TYPES, inBounds, ROWS, COLS } from '../config.js?v=urban-v1';
+import { BeamUnit } from './BeamUnit.js?v=lab-white-1';
+import { UnitEntity } from './UnitEntity.js?v=lab-white-1';
+import { HERO_TYPES, inBounds, ROWS, COLS } from '../config.js?v=lab-white-1';
 
 // ==========================================
 // 1. リリー (Iris / MEDIC)

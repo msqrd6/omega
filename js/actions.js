@@ -1,7 +1,7 @@
 /* ==============================================================
    actions.js: ゲーム内アクション実行（移動・攻撃・スキル・撃破・ターン前後処理）
    ============================================================== */
-import { HERO_TYPES, ROWS, COLS, ULT_REQUIRED_DAMAGE } from './config.js?v=urban-v1';
+import { HERO_TYPES, ROWS, COLS, ULT_REQUIRED_DAMAGE } from './config.js?v=lab-white-1';
 import {
   board,
   inBounds,
@@ -30,8 +30,8 @@ import {
   getValidSkillTargets,
   getValidMoves,
   getValidAttacks
-} from './board.js?v=urban-v1';
-import { addLog } from './ui.js?v=urban-v13';
+} from './board.js?v=lab-white-1';
+import { addLog } from './ui.js?v=lab-white-1';
 import {
   playCombatPopupFX,
   playSkillPopupFX,
@@ -39,7 +39,7 @@ import {
   playPassivePopupFX,
   playBeamFX,
   playMarkPulseFX
-} from './urban-ui.js?v=urban-v13';
+} from './urban-ui.js?v=lab-white-1';
 
 let lastLethalHit = null;
 let activeOrderOwner = 'P1';

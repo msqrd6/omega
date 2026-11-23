@@ -2,8 +2,8 @@
    UnitEntity.js: プレイアブル駒・召喚子機の共通基底ユニットクラス
    (Unit Class: 移動・攻撃・スキル・パッシブフックのインターフェース)
    ============================================================== */
-import { BoardEntity } from './BoardEntity.js?v=urban-v1';
-import { inBounds, ULT_REQUIRED_DAMAGE } from '../config.js?v=urban-v1';
+import { BoardEntity } from './BoardEntity.js?v=lab-white-1';
+import { inBounds, ULT_REQUIRED_DAMAGE } from '../config.js?v=lab-white-1';
 
 export class UnitEntity extends BoardEntity {
   constructor({

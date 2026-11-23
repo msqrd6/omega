@@ -9,7 +9,7 @@ import {
   ULT_REQUIRED_DAMAGE,
   SELECTABLE_HERO_KEYS,
   DEFAULT_ROSTER
-} from './config.js?v=urban-v1';
+} from './config.js?v=lab-white-1';
 import {
   board,
   traps,
@@ -31,9 +31,9 @@ import {
   getPlayerOrders,
   isLocalPlayer,
   isUnit
-} from './board.js?v=urban-v1';
+} from './board.js?v=lab-white-1';
 
-import { characterArt, renderUrbanHero, icon, roleIcon, roleKey, floorGraphicHtml, getSkillPreviewTargets, getUltPreviewTargets, isHealSkillHero, getBoardMarks } from './urban-ui.js?v=urban-v13';
+import { characterArt, renderUrbanHero, icon, roleIcon, roleKey, floorGraphicHtml, getSkillPreviewTargets, getUltPreviewTargets, isHealSkillHero, getBoardMarks } from './urban-ui.js?v=lab-white-1';
 
 export let tileElements = [];
 export let isBoardFlipped = false;

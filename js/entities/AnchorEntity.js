@@ -1,8 +1,8 @@
 /* ==============================================================
    AnchorEntity.js: アンカー (Anchor) クラス
    ============================================================== */
-import { BoardEntity } from './BoardEntity.js?v=urban-v1';
-import { HERO_TYPES } from '../config.js?v=urban-v1';
+import { BoardEntity } from './BoardEntity.js?v=lab-white-1';
+import { HERO_TYPES } from '../config.js?v=lab-white-1';
 
 export class AnchorEntity extends BoardEntity {
   constructor(owner, r, c) {

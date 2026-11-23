@@ -9,7 +9,7 @@ import {
   DEFAULT_ROSTER,
   DEFAULT_AI_ROSTER,
   HERO_TYPES
-} from './config.js?v=urban-v1';
+} from './config.js?v=lab-white-1';
 import {
   board,
   initBoard,
@@ -28,7 +28,7 @@ import {
   isUnit,
   isLocalPlayer,
   setLocalPlayerRole
-} from './board.js?v=urban-v1';
+} from './board.js?v=lab-white-1';
 import {
   executeMove,
   executeAttack,
@@ -38,7 +38,7 @@ import {
   processTurretAttacks,
   processTurnStartHazards,
   processTurnEndPassives
-} from './actions.js?v=urban-v13';
+} from './actions.js?v=lab-white-1';
 import {
   tileElements,
   createBoardDOMOnce,
@@ -58,10 +58,10 @@ import {
   addLog,
   setBoardPerspective,
   setPhaseInstruction
-} from './ui.js?v=urban-v13';
-import { runAITurn } from './ai.js?v=urban-v13';
-import { network } from './network.js?v=urban-v1';
-import { initUrbanUI, clearUltFxState, clearTurnCutin, createTurnFxQueue, playTurnTransition, playFinisherFX } from './urban-ui.js?v=urban-v13';
+} from './ui.js?v=lab-white-1';
+import { runAITurn } from './ai.js?v=lab-white-1';
+import { network } from './network.js?v=lab-white-1';
+import { initUrbanUI, clearUltFxState, clearTurnCutin, createTurnFxQueue, playTurnTransition, playFinisherFX } from './urban-ui.js?v=lab-white-1';
 
 // ゲーム進行ステート
 // 'TITLE' -> 'PICK_P1' -> 'DEPLOY_P1' -> 'DEPLOY_P2' -> 'BATTLE'

@@ -10,8 +10,8 @@ import {
   DEPLOYABLE_ROWS,
   DEFAULT_ROSTER,
   DEFAULT_ACTION_ORDERS
-} from './config.js?v=urban-v1';
-import { createEntity } from './entities/EntityFactory.js?v=urban-v1';
+} from './config.js?v=lab-white-1';
+import { createEntity } from './entities/EntityFactory.js?v=lab-white-1';
 
 // 盤面・トラップ・ハザード状態
 export let board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));

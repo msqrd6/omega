@@ -1,5 +1,5 @@
-import { UnitEntity } from './UnitEntity.js?v=urban-v1';
-import { BOARD_MARK_DEFS, inBounds } from '../config.js?v=urban-v1';
+import { UnitEntity } from './UnitEntity.js?v=lab-white-1';
+import { BOARD_MARK_DEFS, inBounds } from '../config.js?v=lab-white-1';
 
 export class BeamUnit extends UnitEntity {
   onTurnStart(board, { playBeamFX, playPassivePopupFX, playMarkFX } = {}) {

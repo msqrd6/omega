@@ -2,8 +2,8 @@
    AssaultUnits.js: アサルト (Assault) ロール ユニットクラス群
    (キネシス, ヴェイル, ブラスト, ビット)
    ============================================================== */
-import { UnitEntity } from './UnitEntity.js?v=urban-v1';
-import { HERO_TYPES, inBounds } from '../config.js?v=urban-v1';
+import { UnitEntity } from './UnitEntity.js?v=lab-white-1';
+import { HERO_TYPES, inBounds } from '../config.js?v=lab-white-1';
 
 // ==========================================
 // 1. キネシス (Kinesis / DUELIST)

@@ -2,8 +2,8 @@
    SentinelUnits.js: センチネル (Sentinel) ロール ユニットクラス群
    (ウォーデン, ヴァルカン, スモッグ)
    ============================================================== */
-import { UnitEntity } from './UnitEntity.js?v=urban-v1';
-import { HERO_TYPES, inBounds, ROWS, COLS } from '../config.js?v=urban-v1';
+import { UnitEntity } from './UnitEntity.js?v=lab-white-1';
+import { HERO_TYPES, inBounds, ROWS, COLS } from '../config.js?v=lab-white-1';
 
 // ==========================================
 // 1. ウォーデン (Vector / SENTINEL)
