@@ -244,13 +244,20 @@ function scoreSkillAction(h, slot, tPos) {
     }
     case 'LILY': return ult ? heal(allies, 15) + 10 : heal([board[tPos.r][tPos.c]], 30);
     case 'WARDEN': return ult ? shields(allies, 15) : (near(enemies, tPos, 1).length ? 12 : 0);
-    case 'BLAST': return ult ? damage(near(enemies, hero, 2), 20) - (hero.hp <= 10 ? 35 : 10) : (near(enemies, tPos, 1).length ? 15 : 0);
+    case 'BLAST': {
+      if (!ult) return near(enemies, tPos, 1).length ? 15 : 0;
+      const { damage: blastDamage, selfDamage, range } = hero.skills.ULT;
+      return damage(near(enemies, hero, range), blastDamage) - (hero.hp <= selfDamage ? 35 : selfDamage);
+    }
     case 'SMOG': return ult ? damage(near(enemies.filter(piece => !piece.isAnchor()), hero, 1), 10) : (near(enemies, tPos, 1).length ? 12 : 0);
     case 'GLITCH': return near(enemies.filter(isUnit), tPos, 1).length * (ult ? 23 : 13);
-    case 'HIVE': return near(enemies, tPos, 1).length * 12 + (ult ? shields(allies.filter(piece => piece.typeKey === 'BIT'), 15) : 0);
+    case 'HIVE': return near(enemies, tPos, 1).length * 12 + (ult ? shields(allies.filter(piece => piece.typeKey === 'BIT'), hero.skills.ULT.shieldVal) : 0);
     case 'VULCAN': return ult ? damage(near(enemies.filter(piece => !piece.isAnchor()), tPos, 2), 25) : near(enemies.filter(isUnit), tPos, 1).length * 10;
     case 'HALO': return heal(near(allies, ult ? tPos : hero, 1), 20);
-    case 'KINESIS': return near(enemies, hero, 1).length ? (ult ? 30 : 13) : 0;
+    case 'KINESIS': {
+      if (ult) return near(enemies, hero, 1).length ? 30 : 0;
+      return hero.getValidMoves({ board }).some(pos => near(enemies, pos, 1).length) ? 13 : 0;
+    }
     case 'VEIL': {
       if (!ult) return hero.hp <= 40 ? 65 : 0;
       return hero.maxHp - hero.hp >= 15 && getValidAttacks(hero.r, hero.c).length ? 45 : 0;

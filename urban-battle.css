@@ -6220,9 +6220,6 @@
 #battle-stage .ar-card.disabled .ar-tag-tab {
   opacity: 0.65;
 }
-#battle-stage .ar-card.disabled .ar-dot {
-  opacity: 0.52;
-}
 #battle-stage .ar-card.disabled .ar-card-top strong {
   color: #525d72;
 }
@@ -7131,7 +7128,7 @@
 }
 #battle-stage .ar-dot.used {
   background: transparent !important;
-  border-color: rgba(255, 255, 255, 0.32) !important;
+  border-color: #a1a1aa !important;
   box-shadow: none !important;
 }
 #battle-stage .ar-card.interactive:not(:disabled):not(.disabled):not(.armed):hover {
@@ -7386,11 +7383,11 @@
 #battle-stage #inspector[data-team="ENEMY"] .ar-card .ar-tag-tab span {
   color: #ffffff !important;
 }
-#battle-stage .ar-dot {
+#battle-stage .ar-dot:not(.used) {
   background: #facc15 !important;
   box-shadow: 0 0 6px rgba(250, 204, 21, 0.75) !important;
 }
-#battle-stage #inspector[data-team="ENEMY"] .ar-dot {
+#battle-stage #inspector[data-team="ENEMY"] .ar-dot:not(.used) {
   background: #c084fc !important;
   box-shadow: 0 0 6px rgba(192, 132, 252, 0.75) !important;
 }

@@ -66,13 +66,16 @@ export class LilyUnit extends UnitEntity {
         addLog(`💉 ${this.name} が『ライフ・リペア』発動！${target.name} のHPを ${healed} 回復！`, 'skill');
       }
     } else if (slot === 'ULT') {
+      const { heal, ultCharge } = this.skills.ULT;
+      let totalHealed = 0;
       for (const ally of board.flat()) {
         if (ally?.owner !== this.owner || !ally.isUnit()) continue;
-        const healed = Math.min(15, ally.maxHp - ally.hp);
+        const healed = Math.min(heal, ally.maxHp - ally.hp);
         ally.hp += healed;
+        totalHealed += healed;
       }
-      addTeamUltDamage(this.owner, 30);
-      addLog('チームウルトゲージ +30', 'skill');
+      addTeamUltDamage(this.owner, ultCharge);
+      addLog(`💉 味方ユニットのHPを合計 ${totalHealed} 回復。チームウルトゲージ +${ultCharge}`, 'skill');
     }
   }
 

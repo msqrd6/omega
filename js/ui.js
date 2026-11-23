@@ -1066,10 +1066,6 @@ export function renderHeroControlPanel({
       const ctx = { board, playerOrders: { [hero.owner]: pTokens }, ROWS, COLS };
       isPassiveActive = hero.isPassiveActive(ctx);
       badgeText = (typeof hero.getPassiveStatusText === 'function') ? hero.getPassiveStatusText(ctx) : (isPassiveActive ? '発動中' : '未発動');
-    } else if (hero.typeKey === 'KINESIS' || hero.typeKey === 'DUELIST') {
-      const tokens = getPlayerOrders(hero.owner);
-      isPassiveActive = tokens.some(t => t.type === 'move' && (t.scope === 'KINESIS' || t.scope === 'DUELIST') && !t.used);
-      badgeText = isPassiveActive ? '✨ 移動可能' : '消費済';
     } else if (hero.typeKey === 'WARDEN' || hero.typeKey === 'SENTINEL') {
       isPassiveActive = isWardenBunkerActive(hero);
       badgeText = isPassiveActive ? '✨ 発動中 (ATK+5)' : '条件未達成';
@@ -1188,30 +1184,6 @@ export function renderHeroControlPanel({
       </div>
     </div>
   `;
-}
-
-// ハザード効果トーストポップアップ
-export function showHazardToast(r, c, hazard) {
-  const tile = tileElements[r]?.[c];
-  if (!tile) return;
-
-  const oldToast = tile.querySelector('.hazard-popup');
-  if (oldToast) oldToast.remove();
-
-  const toast = document.createElement('div');
-  toast.className = 'hazard-popup';
-  toast.innerHTML = `
-    <div class="hp-header">
-      <span class="hp-icon">${hazard.icon}</span>
-      <span class="hp-name">${hazard.name}</span>
-    </div>
-    <div class="hp-desc">${hazard.desc}</div>
-  `;
-  tile.appendChild(toast);
-
-  setTimeout(() => {
-    if (toast.parentNode) toast.remove();
-  }, 2800);
 }
 
 // ログ出力

@@ -2,7 +2,15 @@ import { UnitEntity } from './UnitEntity.js?v=lab-white-1';
 import { BOARD_MARK_DEFS, inBounds } from '../config.js?v=lab-white-1';
 
 export class BeamUnit extends UnitEntity {
-  onTurnStart(board, { playBeamFX, playPassivePopupFX, playMarkFX } = {}) {
+  onTurnStart(board, context) {
+    this.fireMarkingBeam(board, context);
+  }
+
+  onMove(board, context) {
+    this.fireMarkingBeam(board, context);
+  }
+
+  fireMarkingBeam(board, { playBeamFX, playPassivePopupFX, playMarkFX } = {}) {
     const origin = { r: this.r, c: this.c };
     const { name, color, color2, targetsAllies } = BOARD_MARK_DEFS[this.mark];
     let marked = false;

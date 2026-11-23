@@ -201,16 +201,15 @@ export function checkDeath(r, c, attackerOwner, onGameOver, killerUnit = null) {
       handleTurretDestruction(target.owner);
     }
 
+    if (isUnit(target)) {
+      for (const order of getPlayerOrders(target.owner)) {
+        if (order.scope === target.id) order.used = true;
+      }
+      syncActionOrdersCount(target.owner);
+    }
+
     // 2. ハイヴの固有パッシブ『ニューロ・カウンター』
     if (target.typeKey === 'BIT') {
-      const pTokens = getPlayerOrders(target.owner);
-      if (pTokens) {
-        pTokens.forEach(t => {
-          if (t.scope === target.id) t.used = true;
-        });
-        syncActionOrdersCount(target.owner);
-      }
-
       const hive = board.flat().find(piece => piece?.typeKey === 'HIVE' && piece.id === target.summonerId);
       if (hive && killerUnit?.isUnit() && killerUnit.owner !== target.owner && killerUnit.hp > 0) {
         killerUnit.applyDebuff('bind', 1, { skipEnd: activeOrderOwner === killerUnit.owner });
@@ -245,6 +244,11 @@ export function checkDeath(r, c, attackerOwner, onGameOver, killerUnit = null) {
     const wasUnit = isUnit(target);
     const deadOwner = target.owner;
     board[r][c] = null;
+    if (killerPos && killerUnit?.hp > 0) {
+      killerUnit.onKill?.(target, {
+        currentTurn: activeOrderOwner, addSpecialActionOrder, getPlayerOrders, addLog, playPassivePopupFX
+      });
+    }
 
     // 4. 敵ユニット全滅判定
     if (wasUnit && typeof onGameOver === 'function') {
@@ -280,7 +284,9 @@ function moveUnitTo(unit, destination, onGameOver) {
   board[destination.r][destination.c] = unit;
   unit.setPosition(destination.r, destination.c);
   triggerEntryTrap(unit, onGameOver);
-  return unit.hp > 0;
+  if (unit.hp <= 0) return false;
+  unit.onMove?.(board, { playBeamFX, playPassivePopupFX, playMarkFX: playMarkPulseFX });
+  return true;
 }
 
 export function executeMove(from, to, onGameOver) {
@@ -289,12 +295,11 @@ export function executeMove(from, to, onGameOver) {
   if (!unit || !getValidMoves(from.r, from.c).some(pos => pos.r === to.r && pos.c === to.c)) return null;
   activeOrderOwner = unit.owner;
 
-  const tokens = getPlayerOrders(unit.owner);
-  const hadSpecial = tokens.some(t => t.type === 'move' && !t.used && (t.scope === unit.typeKey || t.scope === unit.id));
-  consumeActionOrder(unit.owner, 'move', 1, unit);
+  const [order] = consumeActionOrder(unit.owner, 'move', 1, unit) || [];
+  if (!order) return null;
 
-  if (hadSpecial) {
-    addLog(`⚡ ${unit.name} が専用移動オーダー（ライトニング・ステップ）を消費して移動！チーム共通枠を温存！`, unit.owner.toLowerCase());
+  if (order.scope !== 'all') {
+    addLog(`⚡ ${unit.name} が専用移動オーダー（EX MOVE）を消費して移動！チーム共通枠を温存！`, unit.owner.toLowerCase());
   } else {
     addLog(`${isLocalPlayer(unit.owner) ? '自軍' : '敵軍'}の ${unit.name} が移動しました (移動オーダー消費)`, unit.owner.toLowerCase());
   }
@@ -457,6 +462,7 @@ export function executeSkill(heroPos, targetPos, slot, onGameOver) {
       checkDeath,
       addLog,
       addSpecialActionOrder,
+      getPlayerOrders,
       spawnHero,
       spawnUnit: spawnHero,
       addTeamUltDamage,

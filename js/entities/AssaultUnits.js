@@ -41,17 +41,16 @@ export class KinesisUnit extends UnitEntity {
     const { addLog, addSpecialActionOrder } = context;
 
     if (slot === 'A') {
-      this.applyBuff('atk_up', 5, 1);
-      addLog(`⚡ ${this.name} が『オーバードライブ』発動！【攻撃力増強 (+5 / このターン中)】を展開（ATK 25 ➔ 30）！`, 'skill');
+      this.grantMoveOrder(this.skills.A.name, context);
     } else if (slot === 'ULT') {
       addSpecialActionOrder(this.owner, {
-        id: `${this.owner}_attack_kinesis_${Date.now()}`,
+        id: `${this.id}_ex_atk`,
         type: 'attack',
         name: '攻撃',
         badgeText: 'EX ATK',
-        scope: 'KINESIS',
-        unitType: 'KINESIS',
-        unitName: 'キネシス',
+        scope: this.id,
+        unitType: this.typeKey,
+        unitName: this.name,
         used: false,
         desc: 'キネシスのウルト『ライトニング・ラッシュ』による専用攻撃オーダー。キネシスのみが追加で1回通常攻撃できます。'
       });
@@ -59,13 +58,34 @@ export class KinesisUnit extends UnitEntity {
     }
   }
 
+  onKill(target, context) {
+    if (context.currentTurn !== this.owner || target.owner === this.owner || !target.isUnit()) return;
+    this.grantMoveOrder(this.passive.name, context);
+    context.playPassivePopupFX?.(this, { label: 'EX MOVE +1' });
+    context.addLog(`⚡ ${this.name} の『${this.passive.name}』発動！専用移動オーダー (+1 EX MOVE) を獲得！`, 'skill');
+  }
+
+  grantMoveOrder(source, { addSpecialActionOrder, getPlayerOrders }) {
+    addSpecialActionOrder(this.owner, {
+      id: `${this.id}_ex_move_${getPlayerOrders(this.owner).length}`,
+      type: 'move',
+      name: '移動',
+      badgeText: 'EX MOVE',
+      scope: this.id,
+      unitType: this.typeKey,
+      unitName: this.name,
+      used: false,
+      desc: `『${source}』によるキネシス専用の移動オーダー。`
+    });
+  }
+
   isPassiveActive(context = {}) {
     const tokens = context.playerOrders ? context.playerOrders[this.owner] : [];
-    return (tokens || []).some(t => t.type === 'move' && (t.scope === 'KINESIS' || t.scope === 'DUELIST') && !t.used);
+    return (tokens || []).some(t => t.type === 'move' && t.scope === this.id && !t.used);
   }
 
   getPassiveStatusText(context = {}) {
-    return this.isPassiveActive(context) ? '✨ 移動可能' : '消費済';
+    return this.isPassiveActive(context) ? 'EX MOVE 保有中' : 'EX MOVE なし';
   }
 }
 
@@ -184,11 +204,11 @@ export class BlastUnit extends UnitEntity {
         addLog(`💣 敵の ${this.name} が『マイン・プラント』発動！いずれかのマスにマインを仕掛けた...！`, 'skill');
       }
     } else if (slot === 'ULT') {
-      dealDamage(null, this, 10, { r: this.r, c: this.c });
+      const { selfDamage, damage, range } = this.skills.ULT;
+      dealDamage(null, this, selfDamage, { r: this.r, c: this.c });
       for (const target of board.flat()) {
-        if (!target || target.owner === this.owner || Math.max(Math.abs(target.r - this.r), Math.abs(target.c - this.c)) > 2) continue;
-        if (target.isUnit()) target.applyDebuff('silence', 1);
-        dealDamage(this, target, 20, target);
+        if (!target || target.owner === this.owner || Math.max(Math.abs(target.r - this.r), Math.abs(target.c - this.c)) > range) continue;
+        dealDamage(this, target, damage, target);
         checkDeath(target.r, target.c, this.owner, onGameOver, this);
       }
       checkDeath(this.r, this.c, this.owner === 'P1' ? 'P2' : 'P1', onGameOver);

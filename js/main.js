@@ -54,7 +54,6 @@ import {
   initHomeView,
   resetDraftView,
   showGameOverModal,
-  showHazardToast,
   addLog,
   setBoardPerspective,
   setPhaseInstruction
@@ -377,7 +376,6 @@ function onTileClick(r, c) {
     setPhaseInstruction(`${hazard.icon} 【${hazard.name}】(${hazard.category}): ${hazard.desc}`);
     addLog(`📌 [${r},${c}] のハザード確認: ${hazard.icon} ${hazard.name} (${hazard.owner ? (isLocalPlayer(hazard.owner) ? '自軍' : '敵軍') : '中立'}) - ${hazard.desc}`, 'system');
     renderAll();
-    showHazardToast(r, c, hazard);
   } else {
     clearSelection();
   }
@@ -503,7 +501,6 @@ window.__onInspectHazardAt = (r, c) => {
     setPhaseInstruction(`${hazard.icon} 【${hazard.name}】(${hazard.category}): ${hazard.desc}`);
     addLog(`📌 [${r},${c}] のハザード確認: ${hazard.icon} ${hazard.name} (${hazard.owner ? (isLocalPlayer(hazard.owner) ? '自軍' : '敵軍') : '中立'}) - ${hazard.desc}`, 'system');
     renderAll();
-    showHazardToast(r, c, hazard);
   }
 };
 

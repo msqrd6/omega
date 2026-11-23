@@ -201,10 +201,11 @@ export class HiveUnit extends UnitEntity {
     const bit = spawnUnit('BIT', this.owner, target.r, target.c);
     bit.summonerId = this.id;
     if (slot === 'ULT') {
+      const { shieldVal, atkBonus } = this.skills.ULT;
       for (const ally of board.flat()) {
         if (ally?.owner !== this.owner || ally.typeKey !== 'BIT') continue;
-        ally.applyBuff('shield', 15, 1);
-        ally.applyBuff('atk_up', 10, 1);
+        ally.applyBuff('shield', shieldVal, 1);
+        ally.applyBuff('atk_up', atkBonus, 1);
       }
     }
   }

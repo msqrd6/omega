@@ -61,7 +61,7 @@ function svgIcon(name, cls = 'svg-ic', sw = '2.4') {
 function arDotsHtml(rem, max) {
   const safeMax = Math.max(1, max || 1);
   const safeRem = Math.max(0, Math.min(safeMax, rem || 0));
-  let out = '<span class="ar-dots">';
+  let out = `<span class="ar-dots" role="img" aria-label="ストック残り ${safeRem} / ${safeMax}">`;
   for (let i = 0; i < safeMax; i++) {
     out += `<i class="ar-dot ${i >= safeRem ? 'used' : ''}"></i>`;
   }
@@ -616,23 +616,26 @@ export function normalizeHeroKey(typeKey) {
   return canonicalKeys[typeKey] || typeKey;
 }
 
+const blastUlt = HERO_TYPES.BLAST.skills.ULT;
+const hiveUlt = HERO_TYPES.HIVE.skills.ULT;
+
 export const ULT_FX_META = {
   KINESIS: { color: '#d8ff00', color2: '#66fff2', codename: 'KINESIS // LIGHTNING RUSH', sub: 'EX ATK ORDER +1', mode: 'self', pop: '+1 EX ATK', isDmg: false },
   VEIL:   { color: '#b366ff', color2: '#f2b8ff', codename: 'VEIL // VOID DRAIN', sub: 'SHADOW DRAIN PROTOCOL ACTIVE', mode: 'self', pop: 'SHADOW DRAIN', isDmg: false },
-  BLAST:   { color: '#ff5a26', color2: '#ffd447', codename: 'BLAST // IGNITION', sub: 'RADIUS-2 BLAST // 20 DMG', mode: 'aoe2', pop: '-20 DMG', isDmg: true },
+  BLAST:   { color: '#ff5a26', color2: '#ffd447', codename: 'BLAST // IGNITION', sub: `RADIUS-${blastUlt.range} // ${blastUlt.damage} DMG · SELF ${blastUlt.selfDamage} DMG`, mode: 'aoe2', pop: `-${blastUlt.damage} DMG`, selfPop: `-${blastUlt.selfDamage} DMG`, isDmg: true },
   WARDEN:  { color: '#00e5ff', color2: '#c8ff80', codename: 'WARDEN // AEGIS BARRIER', sub: 'ALL ALLIES SHIELD +15', mode: 'allies', pop: '+15 SHIELD', isDmg: false },
   VULCAN:  { color: '#ff7b24', color2: '#ffd447', codename: 'VULCAN // FORTRESS', sub: 'TURRET RADIUS-2 AIRSTRIKE // 25 DMG', mode: 'turret_aoe2', pop: '-25 DMG', isDmg: true },
   SMOG:   { color: '#2ee59d', color2: '#c4ff4d', codename: 'SMOG // BIOHAZARD', sub: '3x3 TOXIC HAZARD DEPLOYED', mode: 'around', pop: 'TOXIC ZONE', isDmg: false },
   GLITCH:  { color: '#ff3ec8', color2: '#8d7bff', codename: 'GLITCH // OVERRIDE', sub: 'WARP // VULNERABLE & DISARM', mode: 'warp_charge', pop: 'WARP CHARGE!', isDmg: true },
   PRISM:  { color: '#8d7bff', color2: '#ff3ec8', codename: 'PRISM // BLACKOUT', sub: 'TRACED ENEMIES // BIND & 20 DMG', mode: 'enemies', pop: 'BLACKOUT!', isDmg: true },
-  HIVE:    { color: '#b366ff', color2: '#66fff2', codename: 'HIVE // SWARM DRIVE', sub: 'DEPLOY BIT // SHIELD +15 & ATK +10', mode: 'bits', pop: 'SWARM DRIVE', isDmg: false, isShield: true },
-  LILY:    { color: '#38f6b4', color2: '#ffe169', codename: 'LILY // HALO SYNC', sub: 'ALLIED UNITS HP +15 // ULT +30', mode: 'allies', pop: '+15 HP', isDmg: false },
+  HIVE:    { color: '#b366ff', color2: '#66fff2', codename: 'HIVE // SWARM DRIVE', sub: `DEPLOY BIT // SHIELD +${hiveUlt.shieldVal} & ATK +${hiveUlt.atkBonus}`, mode: 'bits', pop: 'SWARM DRIVE', isDmg: false, isShield: true },
+  LILY:    { color: '#38f6b4', color2: '#ffe169', codename: 'LILY // HALO SYNC', sub: 'ALLIED UNITS HP +15 // ULT +30', mode: 'allies', isHeal: true },
   NEXUS:   { color: '#38bdf8', color2: '#38f6b4', codename: 'NEXUS // OVERCLOCK LINK', sub: 'LINKED ALLIES SHIELD +25', mode: 'marked', pop: '+25 SHIELD', isDmg: false, isShield: true },
   HALO:    { color: '#38f6b4', color2: '#e066ff', codename: 'HALO // RESCUE WARP', sub: 'WARP & SANCTUARY HEAL +20 HP', mode: 'around_target', pop: '+20 HP', isDmg: false, isShield: true }
 };
 
 export const SKILL_FX_META = {
-  KINESIS: { color: '#d8ff00', color2: '#b8ff99', pop: 'ATK +5', selfCast: true },
+  KINESIS: { color: '#d8ff00', color2: '#b8ff99', pop: 'EX MOVE +1', selfCast: true },
   VEIL:   { color: '#b366ff', color2: '#ecc4ff', pop: 'TELEPORT', selfCast: false },
   BLAST:   { color: '#ff7b24', color2: '#ffe07d', pop: 'MINE SET', selfCast: false, hideTargetFromEnemy: true },
   BIT:     { color: '#ff7b24', color2: '#ffe07d', pop: 'SELF DESTRUCT', selfCast: true },
@@ -940,12 +943,14 @@ function spawnTargetWave(fxLayer, target, casterPos, meta, boardFlipped) {
   node.style.setProperty('--fx-c2', meta.color2);
   node.style.setProperty('--fx-delay', `${delayMs}ms`);
 
-  const showRing = target.hitPiece || (target.r === casterPos.r && target.c === casterPos.c);
-  const showPop = target.hitPiece || meta.mode === 'self' || (meta.mode === 'around' && target.r === casterPos.r && target.c === casterPos.c);
+  const atCaster = target.r === casterPos.r && target.c === casterPos.c;
+  const showRing = target.hitPiece || atCaster;
+  const showPop = target.hitPiece || meta.mode === 'self' || (meta.mode === 'around' && atCaster);
+  const pop = atCaster ? (meta.selfPop ?? meta.pop) : meta.pop;
   node.innerHTML = `
     <span class="fx-target-pulse"></span>
     ${showRing ? `<span class="fx-ring" style="--ring-scale:1.55;--ring-dur:0.65s;--ring-delay:${delayMs}ms"></span>` : ''}
-    ${showPop ? `<span class="fx-pop ${meta.isDmg ? 'is-dmg' : meta.isShield ? 'is-shield' : ''}">${esc(meta.pop)}</span>` : ''}
+    ${showPop ? `<span class="fx-pop ${meta.isDmg ? 'is-dmg' : meta.isShield ? 'is-shield' : ''}">${esc(pop)}</span>` : ''}
   `;
   fxLayer.appendChild(node);
 
@@ -1277,6 +1282,11 @@ export function playUltCutinFX(casterPos, casterUnit, clickedTarget, boardFlippe
   const targets = (meta.mode === 'enemy' && clickedTarget && board[clickedTarget.r]?.[clickedTarget.c] && board[clickedTarget.r][clickedTarget.c].owner !== casterUnit.owner)
     ? [{ r: clickedTarget.r, c: clickedTarget.c, hitPiece: true }]
     : getUltPreviewTargets(casterPos, casterUnit, clickedTarget);
+  const healTargets = meta.isHeal ? targets.flatMap(pos => {
+    const ally = board[pos.r]?.[pos.c];
+    const amount = ally && Math.min(def.skills.ULT.heal, ally.maxHp - ally.hp);
+    return amount > 0 ? [{ ...pos, amount }] : [];
+  }) : [];
 
   ultTimers.push(setTimeout(() => {
     stage.style.setProperty('--ult-fx-color', meta.color);
@@ -1292,7 +1302,11 @@ export function playUltCutinFX(casterPos, casterUnit, clickedTarget, boardFlippe
     if (casterPiece) casterPiece.classList.add('is-ult-casting');
 
     spawnCasterBurst(fxLayer, casterPos, meta, boardFlipped);
-    targets.forEach(t => spawnTargetWave(fxLayer, t, casterPos, meta, boardFlipped));
+    if (meta.isHeal) {
+      healTargets.forEach(target => playCombatPopupFX('heal', target, target.amount, null, boardFlipped));
+    } else {
+      targets.forEach(target => spawnTargetWave(fxLayer, target, casterPos, meta, boardFlipped));
+    }
   }, 860));
 
   ultTimers.push(setTimeout(() => {

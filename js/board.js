@@ -118,6 +118,20 @@ export function addSpecialActionOrder(owner, tokenDef) {
   syncActionOrdersCount(owner);
 }
 
+function createBitAttackOrder(bit) {
+  return {
+    id: `${bit.owner}_atk_bit_${bit.id}`,
+    type: 'attack',
+    name: '攻撃',
+    badgeText: 'EX ATK',
+    scope: bit.id,
+    unitType: 'BIT',
+    unitName: bit.name,
+    used: false,
+    desc: 'ビットのパッシブ『自律ドライブ』による専用攻撃オーダー。共通攻撃とは独立してこのビットのみが通常攻撃できます。'
+  };
+}
+
 // ターン開始時：物体化オーダーを生成・補充（パッシブによる専用オーダーも生成）
 export function resetActionOrders(owner, { playPassivePopupFX } = {}) {
   if (!owner) return;
@@ -148,43 +162,15 @@ export function resetActionOrders(owner, { playPassivePopupFX } = {}) {
   ];
 
   // 盤面の味方ユニットを走査し、専用オーダーを付与
-  let kinesisTokenAdded = false;
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const u = board[r][c];
       if (!u || u.owner !== owner) continue;
 
-      // キネシス生存時：キネシス専用移動オーダー+1
-      if ((u.typeKey === 'KINESIS' || u.typeKey === 'DUELIST') && !kinesisTokenAdded) {
-        kinesisTokenAdded = true;
-        playPassivePopupFX?.({ r, c }, { label: 'EX MOVE +1' });
-        tokens.push({
-          id: `${owner}_move_kinesis`,
-          type: 'move',
-          name: '移動',
-          badgeText: 'EX MOVE',
-          scope: 'KINESIS',
-          unitType: 'KINESIS',
-          unitName: 'キネシス',
-          used: false,
-          desc: 'キネシスのパッシブ『ライトニング・ステップ』による専用移動オーダー。共通移動とは独立してキネシスのみが移動できます。'
-        });
-      }
-
       // ビット生存時：各ビット専用攻撃オーダー+1
       if (u.typeKey === 'BIT') {
         playPassivePopupFX?.({ r, c }, { label: 'EX ATK +1' });
-        tokens.push({
-          id: `${owner}_atk_bit_${u.id}`,
-          type: 'attack',
-          name: '攻撃',
-          badgeText: 'EX ATK',
-          scope: u.id,
-          unitType: 'BIT',
-          unitName: 'ビット',
-          used: false,
-          desc: 'ビットのパッシブ『自律ドライブ』による専用攻撃オーダー。共通攻撃とは独立してこのビットのみが通常攻撃できます。'
-        });
+        tokens.push(createBitAttackOrder(u));
       }
     }
   }
@@ -376,6 +362,7 @@ export function spawnHero(typeKey, owner, r, c) {
   const entity = createEntity(typeKey, owner, r, c);
   if (!entity) return null;
   board[r][c] = entity;
+  if (entity.typeKey === 'BIT') addSpecialActionOrder(owner, createBitAttackOrder(entity));
   return entity;
 }
 
