@@ -27,22 +27,8 @@ export class BoardEntity {
     this.r = r;
     this.c = c;
     this.classType = classType;
-    this.marks = new Map();
-
-    // バフ（シールド等はアンカーやオブジェクトにも付与される場合がある）
-    this.buffs = {
-      atk_up: null,
-      shield: null,
-      shadow_drain: null
-    };
-
-    // デバフ（通常はユニットのみ有効）
-    this.debuffs = {
-      vulnerable: null,
-      disarm: null,
-      bind: null,
-      silence: null
-    };
+    this.buffs = [];
+    this.debuffs = [];
   }
 
   isUnit() {
@@ -63,38 +49,45 @@ export class BoardEntity {
   }
 
   getShieldVal() {
-    return (this.buffs && this.buffs.shield) ? this.buffs.shield.val : 0;
+    return this.buffs.reduce((total, buff) => total + (buff.key === 'shield' ? buff.val : 0), 0);
   }
 
   hasBuff(key) {
-    return !!(this.buffs && this.buffs[key] && this.buffs[key].turns > 0);
+    return this.buffs.some(buff => buff.key === key);
   }
 
   hasDebuff(key) {
-    return !!(this.debuffs && this.debuffs[key] && this.debuffs[key].turns > 0);
+    return this.debuffs.some(debuff => debuff.key === key);
   }
 
-  applyBuff(key, val, turns) {
-    if (!this.isUnit() && key !== 'shield') return; // アンカーはシールドのみ付与可能
-    if (!this.buffs) this.buffs = {};
-    this.buffs[key] = { val, turns };
+  applyBuff(key, val, turns = 0) {
+    if (this.isUnit() || key === 'shield') this.buffs.push({ key, val, turns });
   }
 
-  applyDebuff(key, turns, { allowNonUnit = false, expiresOn = this.owner, skipEnd = false } = {}) {
-    if (!this.isUnit() && !allowNonUnit) return; // デバフはユニットのみ有効（アンカー・オブジェクトは無効）
-    if (!this.debuffs) this.debuffs = {};
-    const cur = this.debuffs[key];
-    const curTurns = cur ? cur.turns : 0;
-    this.debuffs[key] = { turns: Math.max(curTurns, turns), expiresOn, skipEnd };
+  applyDebuff(key, turns = 0) {
+    if (this.isUnit()) this.debuffs.push({ key, turns });
   }
 
   clearAllDebuffs() {
-    if (!this.debuffs) return;
-    this.debuffs = {
-      vulnerable: null,
-      disarm: null,
-      bind: null,
-      silence: null
-    };
+    this.debuffs = [];
+  }
+
+  absorbDamage(damage) {
+    // Stable sort keeps application order when two shields expire together.
+    const shields = this.buffs.filter(buff => buff.key === 'shield').sort((a, b) => a.turns - b.turns);
+    for (const shield of shields) {
+      if (damage === 0) break;
+      const absorbed = Math.min(shield.val, damage);
+      shield.val -= absorbed;
+      damage -= absorbed;
+    }
+    this.buffs = this.buffs.filter(buff => buff.val > 0);
+    return damage;
+  }
+
+  expireEffects() {
+    // A value of zero keeps an effect active through the current hand.
+    this.buffs = this.buffs.filter(buff => --buff.turns >= 0);
+    this.debuffs = this.debuffs.filter(debuff => --debuff.turns >= 0);
   }
 }

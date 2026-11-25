@@ -9,7 +9,7 @@ import {
   DEFAULT_ROSTER,
   DEFAULT_AI_ROSTER,
   HERO_TYPES
-} from './config.js?v=lab-white-1';
+} from './config.js?v=lab-white-3';
 import {
   board,
   initBoard,
@@ -24,23 +24,21 @@ import {
   hasActionOrder,
   resetActionOrders,
   resetTurnPassives,
-  phantomZones,
   isUnit,
+  isObject,
   isLocalPlayer,
+  getUnitPos,
   setLocalPlayerRole
-} from './board.js?v=lab-white-1';
+} from './board.js?v=lab-white-3';
 import {
   executeMove,
   executeAttack,
   executeSkill,
-  destroyBarricade,
+  destroyObject,
   tickTurnEffects,
-  processTurretAttacks,
-  processTurnStartHazards,
-  processTurnEndPassives
-} from './actions.js?v=lab-white-1';
+  processTurnEnd
+} from './actions.js?v=lab-white-3';
 import {
-  tileElements,
   createBoardDOMOnce,
   updateBoardView,
   updateTargetingPreview,
@@ -57,10 +55,11 @@ import {
   addLog,
   setBoardPerspective,
   setPhaseInstruction
-} from './ui.js?v=lab-white-1';
-import { runAITurn } from './ai.js?v=lab-white-1';
+} from './ui.js?v=lab-white-8';
+import { runAITurn } from './ai.js?v=lab-white-5';
 import { network } from './network.js?v=lab-white-1';
-import { initUrbanUI, clearUltFxState, clearTurnCutin, createTurnFxQueue, playTurnTransition, playFinisherFX } from './urban-ui.js?v=lab-white-1';
+import { initUrbanUI, clearBattlePresentation, clearTurnCutin, createTurnFxQueue, playTurnTransition, playFinisherFX } from './urban-ui.js?v=lab-white-5';
+import { initBattleAudio, playBattleSound } from './battle-audio.js?v=juice-1';
 
 // ゲーム進行ステート
 // 'TITLE' -> 'PICK_P1' -> 'DEPLOY_P1' -> 'DEPLOY_P2' -> 'BATTLE'
@@ -71,6 +70,9 @@ let gameMode = 'pve';     // 'pve' or 'online'
 let myOnlineRole = null;  // 'P1' (先行/ホスト) or 'P2' (後攻/ゲスト) or null
 let isGameOver = false;
 let aiTurnTimeoutId = null;
+let battleSession = new AbortController();
+let activeBattleOperation = null;
+let incomingBattleActions = Promise.resolve();
 
 // オンラインピックの同期状態
 let myPickConfirmed = false;
@@ -83,7 +85,36 @@ let teamRoster = {
   P1: [...DEFAULT_ROSTER],
   P2: [...DEFAULT_AI_ROSTER]
 };
+let soloSquads = {
+  ALLY: [...DEFAULT_ROSTER],
+  ENEMY: [...DEFAULT_AI_ROSTER]
+};
 let tempPickedHeroes = [];
+let soloPickTeam = 'ALLY';
+let soloHumanRole = 'P1';
+const getSoloAiRole = () => (soloHumanRole === 'P1' ? 'P2' : 'P1');
+const getActiveHumanRole = () => (gameMode === 'online' ? myOnlineRole : soloHumanRole);
+
+const DRAFT_ROLES = ['ASSAULT', 'SENTINEL', 'DISRUPTOR', 'SUPPORT'];
+
+function pickRandomItem(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+/** 4ロール各1体以上を保証し、残り1枠とスロット順をランダムに決定する5体編成を生成 */
+function createBalancedRandomRoster() {
+  const chosen = DRAFT_ROLES.map(role => {
+    const candidates = SELECTABLE_HERO_KEYS.filter(key => HERO_TYPES[key].role === role);
+    return pickRandomItem(candidates);
+  });
+  const remainingPool = SELECTABLE_HERO_KEYS.filter(key => !chosen.includes(key));
+  chosen.push(pickRandomItem(remainingPool));
+  for (let i = chosen.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [chosen[i], chosen[j]] = [chosen[j], chosen[i]];
+  }
+  return chosen;
+}
 
 // 選択・コマンドステート
 let selectedPos = null;
@@ -92,6 +123,31 @@ let selectedDeployPos = null;
 let commandMode = null; // 'MOVE', 'ATTACK', 'SKILL_A', 'SKILL_ULT'
 let validTargets = [];
 let hoveredPos = null;
+
+function resetBattleSession() {
+  battleSession.abort();
+  battleSession = new AbortController();
+  incomingBattleActions = Promise.resolve();
+  activeBattleOperation = null;
+  document.getElementById('screen-battle').removeAttribute('aria-busy');
+}
+
+function runBattleOperation(operation) {
+  const signal = battleSession.signal;
+  const screen = document.getElementById('screen-battle');
+  screen.setAttribute('aria-busy', 'true');
+  const completion = Promise.resolve().then(() => {
+    if (!signal.aborted) return operation({ signal, render: renderAll });
+  }).catch(error => {
+    console.error('Battle action failed:', error);
+  }).finally(() => {
+    if (activeBattleOperation !== completion) return;
+    activeBattleOperation = null;
+    screen.removeAttribute('aria-busy');
+  });
+  activeBattleOperation = completion;
+  return completion;
+}
 
 function clearAITimeout() {
   if (aiTurnTimeoutId) {
@@ -114,12 +170,15 @@ function selectFirstDeployPiece(owner) {
 
 export function initGame() {
   clearAITimeout();
-  clearUltFxState();
+  resetBattleSession();
+  clearBattlePresentation();
   initBoard();
   resetActionOrders('P1');
   resetActionOrders('P2');
 
+  soloHumanRole = 'P1';
   setLocalPlayerRole('P1');
+  setBoardPerspective(false);
   gamePhase = 'PICK_P1';
   turn = 'P1';
   turnCount = 1;
@@ -128,11 +187,17 @@ export function initGame() {
   myPickConfirmed = false;
   opponentPickConfirmed = false;
 
+  const enemyRandomRoster = createBalancedRandomRoster();
   teamRoster = {
     P1: [...DEFAULT_ROSTER],
-    P2: [...DEFAULT_AI_ROSTER]
+    P2: [...enemyRandomRoster]
+  };
+  soloSquads = {
+    ALLY: [...DEFAULT_ROSTER],
+    ENEMY: [...enemyRandomRoster]
   };
   tempPickedHeroes = [...DEFAULT_ROSTER];
+  soloPickTeam = 'ALLY';
   resetDraftView();
 
   selectedPos = null;
@@ -144,18 +209,15 @@ export function initGame() {
   const logBox = document.getElementById('log-box');
   if (logBox) logBox.innerHTML = '';
   addLog("🎮 CYBER TACTICS へようこそ！", "system");
-  addLog("【先行・自軍】キャラクター選択フェーズ：全ロールから自由に5体を選んでください。", "system");
-  setPhaseInstruction("【キャラクター選択】全ロールの中から好きな5体を選んで [この編成で決定] を押してください");
+  addLog("【キャラクター選択】自軍・敵軍の5体を選んで「出撃開始」を押してください。", "system");
+  setPhaseInstruction("【キャラクター選択】自軍・敵軍の編成を調整して [出撃開始] を押してください");
 
   document.getElementById('disconnect-modal')?.classList.remove('active');
   const victoryModal = document.getElementById('victory-modal');
   if (victoryModal) victoryModal.classList.remove('active');
 
   renderAll();
-  renderPickModal({
-    currentOwner: 'P1',
-    selectedHeroes: tempPickedHeroes
-  });
+  renderCurrentPickModal();
 }
 
 function renderAll() {
@@ -196,7 +258,7 @@ function renderAll() {
       selectedHazardPos,
       commandMode: isDeployPhase ? null : commandMode,
       gamePhase,
-      canControl: !isGameOver && gamePhase === 'BATTLE' && (gameMode === 'online' ? turn === myOnlineRole : turn === 'P1')
+      canControl: !isGameOver && gamePhase === 'BATTLE' && turn === getActiveHumanRole()
     });
   }
 
@@ -226,16 +288,17 @@ function renderAll() {
     myOnlineRole,
     gamePhase,
     onPieceDragStartCallback: onPieceDragStart,
-    onPieceDragEndCallback: onPieceDragEnd
+    onPieceDragEndCallback: clearDragHighlights
   });
 }
 
 function onTileHover(pos) {
+  if (activeBattleOperation || isGameOver) return;
   const prev = hoveredPos;
   hoveredPos = pos;
   if (!commandMode || !commandMode.startsWith('SKILL_')) return;
   if (prev?.r === pos?.r && prev?.c === pos?.c) return;
-  if (gamePhase !== 'BATTLE' || (gameMode === 'pve' && turn === 'P2')) return;
+  if (gamePhase !== 'BATTLE' || (gameMode === 'pve' && turn !== soloHumanRole)) return;
   if (gameMode === 'online' && turn !== myOnlineRole) return;
   updateTargetingPreview({
     turn,
@@ -249,7 +312,7 @@ function onTileHover(pos) {
 
 // タイルクリック処理 (移動・攻撃のクリック実行は廃止され、ドラッグ＆ドロップのみ)
 function onTileClick(r, c) {
-  if (isGameOver) return;
+  if (isGameOver || activeBattleOperation) return;
 
   // =============================================================
   // 1. 初期配置フェーズ
@@ -272,6 +335,7 @@ function onTileClick(r, c) {
         }
         selectedDeployPos = { r, c };
         selectedPos = { r, c };
+        playBattleSound('select');
         addLog(`📌 ${clickedUnit.name} を選択中。自陣内の空きマスへドラッグ、または味方へドラッグで位置スワップできます。`, curOwner.toLowerCase());
         renderAll();
       } else {
@@ -291,7 +355,7 @@ function onTileClick(r, c) {
   // =============================================================
   // 2. 通常バトルフェーズ (BATTLE)
   // =============================================================
-  if (gameMode === 'pve' && turn === 'P2') return;
+  if (gameMode === 'pve' && turn !== soloHumanRole) return;
   const isOnlineOpponentTurn = (gameMode === 'online' && turn !== myOnlineRole);
 
   const clickedUnit = board[r][c];
@@ -305,38 +369,25 @@ function onTileClick(r, c) {
       const slot = commandMode.replace('SKILL_', '');
       const heroPos = selectedPos;
       const targetPos = { r, c };
-      const casterId = board[heroPos.r]?.[heroPos.c]?.id;
-      const executed = executeSkill(heroPos, targetPos, slot, triggerGameOver);
-      if (executed && gameMode === 'online') {
-        network.send('ACTION', {
-          action: 'SKILL',
-          heroPos,
-          targetPos,
-          slot
-        });
-      }
-
-      let newHeroPos = null;
-      if (casterId) {
-        for (let row = 0; row < ROWS; row++) {
-          for (let col = 0; col < COLS; col++) {
-            if (board[row][col] && board[row][col].id === casterId) {
-              newHeroPos = { r: row, c: col };
-              break;
-            }
+      const caster = board[heroPos.r]?.[heroPos.c];
+      runBattleOperation(async presentation => {
+        const executed = await executeSkill(heroPos, targetPos, slot, triggerGameOver, {
+          ...presentation,
+          onStart: () => {
+            if (gameMode === 'online') network.send('ACTION', { action: 'SKILL', heroPos, targetPos, slot });
           }
-          if (newHeroPos) break;
-        }
-      }
+        });
+        if (presentation.signal.aborted || isGameOver) return;
 
-      selectedPos = newHeroPos;
-      commandMode = null;
-      validTargets = [];
-      hoveredPos = null;
-      setPhaseInstruction(executed
-        ? "スキル発動完了！続けて他の駒をドラッグして操作するか、他に行動がなければ [ターン終了] を押してください"
-        : "このマスにはスキルを発動できません。スキルストックは消費されません。");
-      renderAll();
+        selectedPos = getUnitPos(caster);
+        commandMode = null;
+        validTargets = [];
+        hoveredPos = null;
+        setPhaseInstruction(executed
+          ? "スキル発動完了！続けて他の駒をドラッグして操作するか、他に行動がなければ [ターン終了] を押してください"
+          : "このマスにはスキルを発動できません。スキルストックは消費されません。");
+        renderAll();
+      });
       return;
     } else {
       if (clickedUnit && clickedUnit.owner === turn) {
@@ -359,7 +410,7 @@ function onTileClick(r, c) {
     return;
   }
 
-  // 駒（自軍・敵軍・防壁・アンカー）をクリックした場合は選択/偵察切り替え
+  // 駒（ユニット・設置物・アンカー）をクリックした場合は選択/偵察切り替え
   if (clickedUnit) {
     selectedHazardPos = null;
     selectHero(r, c);
@@ -382,6 +433,7 @@ function onTileClick(r, c) {
 }
 
 function selectHero(r, c) {
+  if (activeBattleOperation || isGameOver) return;
   selectedPos = { r, c };
   selectedHazardPos = null;
   commandMode = null;
@@ -390,14 +442,16 @@ function selectHero(r, c) {
 
   const unit = board[r]?.[c];
   if (!unit) return;
+  playBattleSound('select');
 
   const footHazard = getHazardInfoAt(r, c);
   const hazardNote = footHazard ? ` 【足元: ${footHazard.icon}${footHazard.name}】` : '';
 
-  if (unit.owner !== turn) {
-    setPhaseInstruction(`🔍 ${unit.name} (敵${unit.typeKey === 'BARRICADE' ? '防壁' : 'ユニット'}) を偵察中。${hazardNote}ステータスを確認できます`);
-  } else if (unit.typeKey === 'BARRICADE') {
-    setPhaseInstruction(`🧱 ${unit.name} を選択中。${hazardNote}「防壁を破壊する」ボタンで撤去できます`);
+  if (!isLocalPlayer(unit.owner)) {
+    setPhaseInstruction(`🔍 敵軍の${unit.name}を偵察中。${hazardNote}ステータスを確認できます`);
+  } else if (isObject(unit)) {
+    const destroyHint = unit.owner === turn ? `「${unit.name}を破壊する」ボタンで破壊できます` : '自軍のターン中に破壊できます';
+    setPhaseInstruction(`${unit.icon} ${unit.name}を選択中。${hazardNote}${destroyHint}`);
   } else {
     setPhaseInstruction(`${unit.name} を選択中。${hazardNote}黄枠へドラッグで移動、紫枠の敵へドラッグで攻撃。能力は右のカードから使用できます。`);
   }
@@ -416,7 +470,7 @@ export function clearSelection() {
 }
 
 export function setCommandMode(mode) {
-  if (isGameOver || gamePhase !== 'BATTLE' || (gameMode === 'pve' && turn !== 'P1')) return;
+  if (activeBattleOperation || isGameOver || gamePhase !== 'BATTLE' || (gameMode === 'pve' && turn !== soloHumanRole)) return;
   if (gameMode === 'online' && turn !== myOnlineRole) return;
   if (!selectedPos) return;
   const { r, c } = selectedPos;
@@ -464,34 +518,27 @@ export function setCommandMode(mode) {
   renderAll();
 }
 
-export function handleDestroyBarricade(r, c) {
-  if (isGameOver) return;
-  if (gamePhase !== 'BATTLE') return;
-  if (gameMode === 'online' && turn !== myOnlineRole) return;
+export function handleDestroyObject(r, c) {
+  if (isGameOver || activeBattleOperation) return;
+  if (gamePhase !== 'BATTLE' || !isLocalPlayer(turn)) return;
 
-  const unit = board[r]?.[c];
-  if (!unit || unit.typeKey !== 'BARRICADE' || unit.owner !== turn) return;
+  const object = board[r]?.[c];
+  if (!isObject(object) || object.owner !== turn || object.hp <= 0) return;
 
-  if (gameMode === 'online') {
-    network.send('ACTION', {
-      action: 'DESTROY_BARRICADE',
-      pos: { r, c }
-    });
-  }
-
-  destroyBarricade(r, c);
-  clearSelection();
+  runBattleOperation(async presentation => {
+    if (gameMode === 'online') {
+      const action = object.typeKey === 'BARRICADE' ? 'DESTROY_BARRICADE' : 'DESTROY_OBJECT';
+      network.send('ACTION', { action, pos: { r, c } });
+    }
+    const destroyed = await destroyObject(r, c, turn, presentation);
+    if (destroyed && !presentation.signal.aborted) clearSelection();
+  });
 }
 
-window.__onDestroyBarricade = (r, c) => {
-  if (r !== undefined && c !== undefined) {
-    handleDestroyBarricade(r, c);
-  } else if (selectedPos) {
-    handleDestroyBarricade(selectedPos.r, selectedPos.c);
-  }
-};
+window.__onDestroyObject = handleDestroyObject;
 
 window.__onInspectHazardAt = (r, c) => {
+  if (isGameOver || activeBattleOperation) return;
   const hazard = getHazardInfoAt(r, c);
   if (hazard) {
     selectedHazardPos = { r, c };
@@ -511,10 +558,10 @@ window.__onSelectUnitAt = (r, c) => {
 };
 
 export function manualEndTurn() {
-  if (isGameOver) return;
+  if (isGameOver || activeBattleOperation) return;
   if (gamePhase !== 'BATTLE') return;
 
-  if (gameMode === 'pve' && turn === 'P2') return;
+  if (gameMode === 'pve' && turn !== soloHumanRole) return;
 
   if (gameMode === 'online' && turn !== myOnlineRole) return;
 
@@ -523,36 +570,24 @@ export function manualEndTurn() {
   }
 
   addLog(`${isLocalPlayer(turn) ? '自軍' : '敵軍'} がターンを終了しました`, turn.toLowerCase());
-  executeTurnChange();
+  runBattleOperation(executeTurnChange);
 }
 
-function executeTurnChange() {
+async function executeTurnChange(presentation) {
   clearAITimeout();
-  const endingFx = createTurnFxQueue();
   const startingFx = createTurnFxQueue();
+  const hasEnded = () => isGameOver || presentation.signal.aborted;
 
-  // 1. 直前の手番プレイヤーのタレット自動射撃
-  processTurretAttacks(turn, triggerGameOver, endingFx);
-  if (isGameOver) return;
-
-  // 2. 直前の手番プレイヤーのターン終了時パッシブ効果
-  processTurnEndPassives(turn, endingFx);
-
-  // 3. 直前の手番プレイヤーのバフ・デバフ持続ターン減算
-  tickTurnEffects(turn);
-  if (isGameOver) return;
+  await processTurnEnd(turn, triggerGameOver, presentation);
+  if (hasEnded()) return;
+  tickTurnEffects();
 
   selectedPos = null;
   commandMode = null;
   validTargets = [];
 
-  // 手番交代
-  if (turn === 'P1') {
-    turn = 'P2';
-  } else {
-    turn = 'P1';
-    turnCount++;
-  }
+  turn = turn === 'P1' ? 'P2' : 'P1';
+  turnCount++;
 
   // 新手番プレイヤーの行動オーダーを全回復
   resetActionOrders(turn, startingFx);
@@ -560,13 +595,9 @@ function executeTurnChange() {
   // 新手番プレイヤーのターン開始時パッシブ状態を更新
   resetTurnPassives(turn, startingFx);
 
-  // 4. ターン開始時ハザード効果
-  processTurnStartHazards(turn, triggerGameOver, startingFx);
-  if (isGameOver) return;
-
   renderAll();
 
-  playTurnTransition(turn, turnCount, endingFx.effects, startingFx.effects, startEnemyAiTurn);
+  playTurnTransition(turn, turnCount, startingFx.effects, startEnemyAiTurn);
   setPhaseInstruction(
     isLocalPlayer(turn)
       ? "自軍ターン: キャラクターを持ち上げてドラッグ（移動/攻撃）、またはクリックでスキル確認"
@@ -575,25 +606,31 @@ function executeTurnChange() {
 }
 
 function startEnemyAiTurn() {
-  if (gameMode === 'pve' && gamePhase === 'BATTLE' && turn === 'P2' && !isGameOver) {
-    // AIウォッチドッグタイマー: 万一8秒以内にAIが終了しない場合は強制的にP1へ手番を戻す
+  const aiRole = getSoloAiRole();
+  const humanRole = soloHumanRole;
+  if (gameMode === 'pve' && gamePhase === 'BATTLE' && turn === aiRole && !isGameOver) {
+    const signal = battleSession.signal;
+    // Allow for the cut-in and combat animations during longer AI turns.
     aiTurnTimeoutId = setTimeout(() => {
-      if (gameMode === 'pve' && turn === 'P2' && !isGameOver) {
-        console.warn("AI turn watchdog triggered: forcing turn change back to P1.");
-        aiTurnTimeoutId = null;
-        executeTurnChange();
+      if (!signal.aborted && gameMode === 'pve' && turn === aiRole && !isGameOver) {
+        console.warn(`AI turn watchdog triggered: forcing turn change back to ${humanRole}.`);
+        resetBattleSession();
+        runBattleOperation(executeTurnChange);
       }
-    }, 8000);
+    }, 12000);
 
     runAITurn({
+      aiOwner: aiRole,
+      signal,
+      performAction: runBattleOperation,
       onGameOver: (winner, reason, context) => {
         clearAITimeout();
         triggerGameOver(winner, reason, context);
       },
       onEndTurnCallback: () => {
         clearAITimeout();
-        if (gameMode === 'pve' && turn === 'P2' && !isGameOver) {
-          executeTurnChange();
+        if (!signal.aborted && gameMode === 'pve' && turn === aiRole && !isGameOver) {
+          runBattleOperation(executeTurnChange);
         }
       },
       updateViewCallback: renderAll
@@ -642,7 +679,8 @@ export function switchScreen(screenName) {
 
 export function showTitleScreen() {
   clearAITimeout();
-  clearUltFxState();
+  resetBattleSession();
+  clearBattlePresentation();
   switchScreen('title');
   document.getElementById('disconnect-modal')?.classList.remove('active');
   const victoryModal = document.getElementById('victory-modal');
@@ -656,7 +694,7 @@ export function showTitleScreen() {
 
 export function resetGame() {
   clearAITimeout();
-  clearUltFxState();
+  clearBattlePresentation();
   if (gameMode === 'online') {
     showTitleScreen();
   } else {
@@ -667,7 +705,7 @@ export function resetGame() {
 
 function updateRematch() {
   if (myRematchReady && opponentRematchReady) {
-    clearUltFxState();
+    clearBattlePresentation();
     startOnlinePick(myOnlineRole);
     return;
   }
@@ -689,7 +727,7 @@ function requestOnlineRematch() {
 
 // ドラッグ開始 (駒をつかんだ時)
 function onPieceDragStart(r, c) {
-  if (isGameOver) return;
+  if (isGameOver || activeBattleOperation) return;
 
   if (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_P2') {
     if (gameMode === 'online') {
@@ -700,17 +738,19 @@ function onPieceDragStart(r, c) {
     const u = board[r][c];
     if (!u || u.owner !== curOwner) return;
 
+    playBattleSound('select');
     selectedDeployPos = { r, c };
     setPhaseInstruction(`${u.name} を自陣の空きマスへドラッグ＆ドロップ！`);
     renderAll();
     return;
   }
 
-  if (gameMode === 'pve' && turn === 'P2') return;
+  if (gameMode === 'pve' && turn !== soloHumanRole) return;
   if (gameMode === 'online' && turn !== myOnlineRole) return;
 
   const hero = board[r][c];
   if (!hero || hero.owner !== turn || !isUnit(hero)) return;
+  playBattleSound('select');
 
   selectedPos = { r, c };
   commandMode = null;
@@ -730,19 +770,16 @@ function onPieceDragStart(r, c) {
   }
 }
 
-// ドラッグ終了
-function onPieceDragEnd() {
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      tileElements[r]?.[c]?.classList.remove('drag-over-valid', 'drag-over-attack');
-    }
-  }
-  renderAll();
+function clearDragHighlights() {
+  document.querySelectorAll('#board .drag-over-valid, #board .drag-over-attack').forEach(tile => {
+    tile.classList.remove('drag-over-valid', 'drag-over-attack');
+  });
 }
 
 // ドロップ処理
 function onPieceDrop(fromR, fromC, toR, toC) {
-  if (isGameOver) return;
+  clearDragHighlights();
+  if (isGameOver || activeBattleOperation) return;
 
   if (gamePhase === 'DEPLOY_P1' || gamePhase === 'DEPLOY_P2') {
     if (gameMode === 'online') {
@@ -776,6 +813,7 @@ function onPieceDrop(fromR, fromC, toR, toC) {
         unit.c = toC;
       }
       addLog(`🔄 ${unit.name} の位置を変更しました。`, curOwner.toLowerCase());
+      playBattleSound('select');
       selectedPos = { r: toR, c: toC };
       selectedDeployPos = { r: toR, c: toC };
       renderAll();
@@ -795,6 +833,7 @@ function onPieceDrop(fromR, fromC, toR, toC) {
         targetUnit.c = fromC;
       }
       addLog(`🔀 ${unit.name} と ${targetUnit.name} の配置位置を入れ替えました！`, curOwner.toLowerCase());
+      playBattleSound('select');
       selectedPos = { r: toR, c: toC };
       selectedDeployPos = { r: toR, c: toC };
       renderAll();
@@ -805,7 +844,7 @@ function onPieceDrop(fromR, fromC, toR, toC) {
   }
 
   // バトル中のドロップ
-  if (gameMode === 'pve' && turn === 'P2') return;
+  if (gameMode === 'pve' && turn !== soloHumanRole) return;
   if (gameMode === 'online' && turn !== myOnlineRole) return;
 
   const hero = board[fromR][fromC];
@@ -836,9 +875,12 @@ function onPieceDrop(fromR, fromC, toR, toC) {
           to: { r: toR, c: toC }
         });
       }
-      executeAttack({ r: fromR, c: fromC }, { r: toR, c: toC }, triggerGameOver);
-      setPhaseInstruction("攻撃完了！続けて [移動] または [スキルカード]、他に行動がなければ [ターン終了] を選べます");
-      renderAll();
+      runBattleOperation(async presentation => {
+        await executeAttack({ r: fromR, c: fromC }, { r: toR, c: toC }, triggerGameOver, presentation);
+        if (presentation.signal.aborted || isGameOver) return;
+        setPhaseInstruction("攻撃完了！続けて [移動] または [スキルカード]、他に行動がなければ [ターン終了] を選べます");
+        renderAll();
+      });
     } else {
       addLog(`そこは ${hero.name} の通常攻撃の射程外です`, 'system');
       renderAll();
@@ -868,9 +910,13 @@ function onPieceDrop(fromR, fromC, toR, toC) {
           to: { r: toR, c: toC }
         });
       }
-      selectedPos = executeMove({ r: fromR, c: fromC }, { r: toR, c: toC }, triggerGameOver);
-      setPhaseInstruction("移動完了！続けて [敵へドラッグして通常攻撃] または [スキルカード]、他に行動がなければ [ターン終了] を選べます");
-      renderAll();
+      runBattleOperation(async presentation => {
+        const destination = await executeMove({ r: fromR, c: fromC }, { r: toR, c: toC }, triggerGameOver, presentation);
+        if (presentation.signal.aborted || isGameOver) return;
+        selectedPos = destination;
+        setPhaseInstruction("移動完了！続けて [敵へドラッグして通常攻撃] または [スキルカード]、他に行動がなければ [ターン終了] を選べます");
+        renderAll();
+      });
     } else {
       addLog(`そこは ${hero.name} の移動範囲外です`, 'system');
       renderAll();
@@ -881,63 +927,86 @@ function onPieceDrop(fromR, fromC, toR, toC) {
 // ==============================================================
 // キャラクターピック＆初期配置ハンドラー
 // ==============================================================
+function renderCurrentPickModal() {
+  const isOnline = gameMode === 'online';
+  const currentOwner = isOnline ? myOnlineRole : (soloPickTeam === 'ALLY' ? soloHumanRole : getSoloAiRole());
+  const selectedHeroes = isOnline ? tempPickedHeroes : soloSquads[soloPickTeam];
+  renderPickModal({
+    currentOwner,
+    selectedHeroes,
+    myPickConfirmed,
+    isOnline,
+    soloPickTeam,
+    soloOrder: soloHumanRole,
+    allyCount: soloSquads.ALLY.length,
+    enemyCount: soloSquads.ENEMY.length
+  });
+}
+
+window.__onSwitchSoloPickTeam = (targetTeam) => {
+  if (gameMode === 'online') return;
+  if (targetTeam !== 'ALLY' && targetTeam !== 'ENEMY') return;
+  soloPickTeam = targetTeam;
+  renderCurrentPickModal();
+};
+
+window.__onSwitchSoloOrder = (targetOrder) => {
+  if (gameMode === 'online') return;
+  if (targetOrder !== 'P1' && targetOrder !== 'P2') return;
+  soloHumanRole = targetOrder;
+  setLocalPlayerRole(soloHumanRole);
+  renderCurrentPickModal();
+};
+
 window.__onTogglePickHero = (key) => {
   if (gameMode === 'online' && myPickConfirmed) return;
 
-  if (tempPickedHeroes.includes(key)) {
-    tempPickedHeroes = tempPickedHeroes.filter(k => k !== key);
-  } else if (tempPickedHeroes.length < 5) {
-    tempPickedHeroes.push(key);
+  const currentList = (gameMode === 'online') ? tempPickedHeroes : soloSquads[soloPickTeam];
+  let nextList;
+  if (currentList.includes(key)) {
+    nextList = currentList.filter(k => k !== key);
+  } else if (currentList.length < 5) {
+    nextList = [...currentList, key];
   } else {
     alert("選択できるユニットは最大5体です。不要なユニットの選択を解除してください。");
     return;
   }
 
-  const curOwner = (gameMode === 'online') ? myOnlineRole : 'P1';
-  renderPickModal({
-    currentOwner: curOwner,
-    selectedHeroes: tempPickedHeroes,
-    myPickConfirmed,
-    isOnline: (gameMode === 'online')
-  });
+  if (gameMode === 'online') {
+    tempPickedHeroes = nextList;
+  } else {
+    soloSquads[soloPickTeam] = nextList;
+  }
+  renderCurrentPickModal();
 };
 
 window.__onAutoPick = () => {
   if (gameMode === 'online' && myPickConfirmed) return;
-  const pool = [...SELECTABLE_HERO_KEYS];
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
+  const picked = createBalancedRandomRoster();
+  if (gameMode === 'online') {
+    tempPickedHeroes = picked;
+  } else {
+    soloSquads[soloPickTeam] = picked;
   }
-  tempPickedHeroes = pool.slice(0, 5);
-  const curOwner = (gameMode === 'online') ? myOnlineRole : 'P1';
-  renderPickModal({
-    currentOwner: curOwner,
-    selectedHeroes: tempPickedHeroes,
-    myPickConfirmed,
-    isOnline: (gameMode === 'online')
-  });
+  renderCurrentPickModal();
 };
 
 window.__onClearPick = () => {
   if (gameMode === 'online' && myPickConfirmed) return;
-  tempPickedHeroes = [];
-  const curOwner = (gameMode === 'online') ? myOnlineRole : 'P1';
-  renderPickModal({
-    currentOwner: curOwner,
-    selectedHeroes: tempPickedHeroes,
-    myPickConfirmed,
-    isOnline: (gameMode === 'online')
-  });
+  if (gameMode === 'online') {
+    tempPickedHeroes = [];
+  } else {
+    soloSquads[soloPickTeam] = [];
+  }
+  renderCurrentPickModal();
 };
 
 window.__onConfirmPick = () => {
-  if (tempPickedHeroes.length !== 5) {
-    alert("5体のユニットを選択してください！");
-    return;
-  }
-
   if (gameMode === 'online') {
+    if (tempPickedHeroes.length !== 5) {
+      alert("5体のユニットを選択してください！");
+      return;
+    }
     teamRoster[myOnlineRole] = [...tempPickedHeroes];
     myPickConfirmed = true;
     addLog(`✅ 【自軍 (${myOnlineRole})】チーム編成決定: ${teamRoster[myOnlineRole].map(k => HERO_TYPES[k].name).join(', ')}`, myOnlineRole.toLowerCase());
@@ -948,30 +1017,48 @@ window.__onConfirmPick = () => {
       startOnlineDeployPhase();
     } else {
       addLog(`⏳ 相手プレイヤーのチーム編成完了を待機中...`, 'system');
-      renderPickModal({
-        currentOwner: myOnlineRole,
-        selectedHeroes: tempPickedHeroes,
-        myPickConfirmed: true,
-        isOnline: true
-      });
+      renderCurrentPickModal();
     }
     return;
   }
 
-  // vs AI (ソロプレイ)
-  teamRoster.P1 = [...tempPickedHeroes];
-  addLog(`✅ 自軍 チーム編成決定: ${teamRoster.P1.map(k => HERO_TYPES[k].name).join(', ')}`, 'p1');
+  // vs AI (ソロプレイ): 自軍・敵軍とも5体必須
+  if (soloSquads.ALLY.length !== 5) {
+    soloPickTeam = 'ALLY';
+    renderCurrentPickModal();
+    alert("自軍のユニットを5体選択してください！");
+    return;
+  }
+  if (soloSquads.ENEMY.length !== 5) {
+    soloPickTeam = 'ENEMY';
+    renderCurrentPickModal();
+    alert("敵軍のユニットを5体選択してください！");
+    return;
+  }
 
-  teamRoster.P2 = [...DEFAULT_AI_ROSTER];
-  addLog(`🤖 敵軍 (AI) 編成決定: ${teamRoster.P2.map(k => HERO_TYPES[k].name).join(', ')}`, 'p2');
+  const humanRole = soloHumanRole;
+  const aiRole = getSoloAiRole();
+  teamRoster[humanRole] = [...soloSquads.ALLY];
+  teamRoster[aiRole] = [...soloSquads.ENEMY];
+
+  setLocalPlayerRole(humanRole);
+  setBoardPerspective(humanRole === 'P2');
+
+  addLog(`✅ 自軍 (${humanRole === 'P1' ? '先攻' : '後攻'}) チーム編成決定: ${teamRoster[humanRole].map(k => HERO_TYPES[k].name).join(', ')}`, humanRole.toLowerCase());
+  addLog(`🤖 敵軍 (AI・${aiRole === 'P1' ? '先攻' : '後攻'}) 編成決定: ${teamRoster[aiRole].map(k => HERO_TYPES[k].name).join(', ')}`, aiRole.toLowerCase());
 
   switchScreen('battle');
   gamePhase = 'DEPLOY_P1';
   applyDefaultPlacement('P1', teamRoster.P1);
   selectFirstDeployPiece('P1');
 
-  addLog("【先行・自軍】初期配置フェーズ：自陣（縦2マス以内）に配置してください。", "system");
-  setPhaseInstruction("【先行・自軍 初期配置】この布陣で良ければ「配置完了」を押してください（駒のドラッグで位置調整も可能）");
+  if (humanRole === 'P1') {
+    addLog("【先攻・自軍】初期配置フェーズ：自陣（縦2マス以内）に配置してください。", "system");
+    setPhaseInstruction("【先攻・自軍 初期配置】この布陣で良ければ「配置確定」を押してください（駒のドラッグで位置調整も可能）");
+  } else {
+    addLog("【先攻・敵軍 (AI)】初期配置が展開されました。調整するか「配置確定」で後攻（自軍）の対抗配置へ進みます。", "p1");
+    setPhaseInstruction("【先攻・敵軍 (AI) 初期配置】AIの布陣を確認・調整して「配置確定」を押すと後攻（自軍）を配置できます");
+  }
   renderAll();
 };
 
@@ -1051,14 +1138,19 @@ window.__onConfirmDeploy = () => {
       return;
     }
 
-    addLog("✅ 先行 (自軍) の配置が確定しました！", 'p1');
-    addLog("【後攻・敵軍】初期配置フェーズ：自軍の配置が見えた状態で、上側2マス以内に配置してください。", 'system');
+    addLog(`✅ 先攻 (${isLocalPlayer('P1') ? '自軍' : '敵軍・AI'}) の配置が確定しました！`, 'p1');
 
     gamePhase = 'DEPLOY_P2';
     applyDefaultPlacement('P2', teamRoster.P2);
     selectFirstDeployPiece('P2');
-    addLog("🤖 敵軍 (AI) の対抗初期配置が展開されました。「バトル開始！」を押すとバトルが始まります。", 'p2');
-    setPhaseInstruction("【後攻・敵軍】AIの初期配置が展開されました。調整するか「バトル開始！」を押してください");
+    if (isLocalPlayer('P2')) {
+      addLog("【後攻・自軍】初期配置フェーズ：先攻 (AI) の配置を見た状態で、手前2マスに自軍を配置してください。", 'p2');
+      setPhaseInstruction("【後攻・自軍】先攻 (AI) の布陣を見て手前2マスに配置し、「バトル開始！」を押してください");
+    } else {
+      addLog("【後攻・敵軍】初期配置フェーズ：自軍の配置が見えた状態で、上側2マス以内に配置してください。", 'system');
+      addLog("🤖 敵軍 (AI) の対抗初期配置が展開されました。「バトル開始！」を押すとバトルが始まります。", 'p2');
+      setPhaseInstruction("【後攻・敵軍】AIの初期配置が展開されました。調整するか「バトル開始！」を押してください");
+    }
 
     renderAll();
   } else if (gamePhase === 'DEPLOY_P2') {
@@ -1069,9 +1161,8 @@ window.__onConfirmDeploy = () => {
       return;
     }
 
-    addLog("✅ 後攻 (敵軍) の配置が確定しました！", 'p2');
+    addLog(`✅ 後攻 (${isLocalPlayer('P2') ? '自軍' : '敵軍・AI'}) の配置が確定しました！`, 'p2');
     addLog("⚔️ 両軍の初期配置が完了！少数精鋭アンカー破壊バトルが始まります！", 'system');
-    addLog("先行・自軍の手番です。自軍キャラをドラッグして移動/攻撃、またはクリックでスキル確認。", 'p1');
 
     startBattlePhase();
   }
@@ -1097,7 +1188,9 @@ window.__triggerHoldAction = () => {
 
 // HTMLグローバル公開
 window.setCommandMode = setCommandMode;
-window.clearSelection = clearSelection;
+window.clearSelection = () => {
+  if (!activeBattleOperation && !isGameOver) clearSelection();
+};
 window.manualEndTurn = manualEndTurn;
 window.showTitleScreen = showTitleScreen;
 window.switchScreen = switchScreen;
@@ -1108,6 +1201,7 @@ window.resetGame = resetGame;
 // 🌐 オンライン対戦 (P2P / PeerJS) 統括ロジック
 // ==============================================================
 export function startOnlinePick(role) {
+  resetBattleSession();
   myOnlineRole = role;
   gameMode = 'online';
   setLocalPlayerRole(role);
@@ -1167,7 +1261,8 @@ export function startOnlineDeployPhase() {
 
 function startBattlePhase() {
   clearAITimeout();
-  clearUltFxState();
+  resetBattleSession();
+  clearBattlePresentation();
   gamePhase = 'BATTLE';
   turn = 'P1';
   turnCount = 1;
@@ -1180,28 +1275,10 @@ function startBattlePhase() {
   resetActionOrders('P1', startingFx);
   resetActionOrders('P2');
 
-  setBoardPerspective(gameMode === 'online' && myOnlineRole === 'P2');
-  setLocalPlayerRole(gameMode === 'online' ? myOnlineRole : 'P1');
+  const activeHuman = gameMode === 'online' ? myOnlineRole : soloHumanRole;
+  setBoardPerspective(activeHuman === 'P2');
+  setLocalPlayerRole(activeHuman);
   resetTurnPassives('P1', startingFx);
-
-  // ヴェイルのパッシブ展開
-  phantomZones.length = 0;
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const u = board[r][c];
-      if (u && (u.typeKey === 'VEIL' || u.typeKey === 'PHANTOM')) {
-        phantomZones.push({
-          r,
-          c,
-          owner: u.owner,
-          sourceHeroId: u.id,
-          sourceHeroType: u.typeKey
-        });
-        startingFx.playPassivePopupFX({ r, c }, { label: 'ディメンション・ゾーン', kind: 'debuff' });
-        addLog(`👻 ${u.name} のパッシブ『シャドウ・オリジン』発動！初期配置マス(${r}, ${c})にディメンション・ゾーンを展開！`, 'skill');
-      }
-    }
-  }
 
   selectedPos = null;
   commandMode = null;
@@ -1216,11 +1293,16 @@ function startBattlePhase() {
       setPhaseInstruction("相手（先行・P1）の手番です（思考中... 相手の駒をクリックすると偵察可能）");
     }
   } else {
-    addLog(`⚔️ バトルフェーズ開始！`, 'system');
+    addLog(`⚔️ バトルフェーズ開始！あなたは 【${soloHumanRole === 'P1' ? '先攻 (P1)' : '後攻 (P2)'}】 です！`, soloHumanRole.toLowerCase());
+    setPhaseInstruction(
+      soloHumanRole === 'P1'
+        ? "先攻・自軍のターンです！キャラクターを持ち上げてドラッグ（移動/攻撃）、またはクリックでスキル確認"
+        : "先攻・敵軍 (AI) のターンです（思考中... 相手の行動を確認してください）"
+    );
   }
 
   renderAll();
-  playTurnTransition(turn, turnCount, [], startingFx.effects);
+  playTurnTransition(turn, turnCount, startingFx.effects, startEnemyAiTurn);
 }
 
 // ネットワークイベントリスナー
@@ -1241,10 +1323,13 @@ network.onMessage = (msg) => {
   if (!msg || !msg.type) return;
 
   if (msg.type === 'REMATCH_READY') {
-    if (gameMode === 'online' && isGameOver && msg.sender !== myOnlineRole) {
-      opponentRematchReady = true;
-      updateRematch();
-    }
+    const signal = battleSession.signal;
+    Promise.resolve(activeBattleOperation).then(() => {
+      if (!signal.aborted && gameMode === 'online' && isGameOver && msg.sender !== myOnlineRole) {
+        opponentRematchReady = true;
+        updateRematch();
+      }
+    });
   } else if (msg.type === 'ONLINE_PICK_CONFIRM') {
     const oppRole = (myOnlineRole === 'P1') ? 'P2' : 'P1';
     teamRoster[oppRole] = [...msg.payload.roster];
@@ -1279,38 +1364,46 @@ network.onMessage = (msg) => {
       startBattlePhase();
     }
   } else if (msg.type === 'ACTION') {
-    const { action } = msg.payload;
-    if (action === 'MOVE') {
-      executeMove(msg.payload.from, msg.payload.to, triggerGameOver);
-      renderAll();
-    } else if (action === 'ATTACK') {
-      executeAttack(msg.payload.from, msg.payload.to, triggerGameOver);
-      renderAll();
-    } else if (action === 'SKILL') {
-      executeSkill(msg.payload.heroPos, msg.payload.targetPos, msg.payload.slot, triggerGameOver);
-      renderAll();
-    } else if (action === 'DESTROY_BARRICADE') {
-      const { pos } = msg.payload;
-      destroyBarricade(pos.r, pos.c);
-      if (selectedPos && selectedPos.r === pos.r && selectedPos.c === pos.c) {
-        clearSelection();
-      } else {
-        renderAll();
-      }
-    } else if (action === 'END_TURN') {
-      addLog(`${isLocalPlayer(turn) ? '自軍' : '敵軍'} がターンを終了しました`, turn.toLowerCase());
-      executeTurnChange();
-      renderAll();
-    }
+    const signal = battleSession.signal;
+    incomingBattleActions = incomingBattleActions.then(async () => {
+      await activeBattleOperation;
+      if (signal.aborted || isGameOver || gamePhase !== 'BATTLE') return;
+      await runBattleOperation(presentation => applyRemoteBattleAction(msg.payload, msg.sender, presentation));
+    });
   }
 };
+
+async function applyRemoteBattleAction(payload, sender, presentation) {
+  const { action, from, to, heroPos, targetPos, slot, pos } = payload;
+  if (action === 'MOVE') {
+    await executeMove(from, to, triggerGameOver, presentation);
+  } else if (action === 'ATTACK') {
+    await executeAttack(from, to, triggerGameOver, presentation);
+  } else if (action === 'SKILL') {
+    await executeSkill(heroPos, targetPos, slot, triggerGameOver, presentation);
+  } else if (action === 'DESTROY_OBJECT' || action === 'DESTROY_BARRICADE') {
+    if (!pos || sender !== turn || isLocalPlayer(sender)) return;
+    if (action === 'DESTROY_BARRICADE' && board[pos.r]?.[pos.c]?.typeKey !== 'BARRICADE') return;
+    const destroyed = await destroyObject(pos.r, pos.c, sender, presentation);
+    if (destroyed && !presentation.signal.aborted && selectedPos?.r === pos.r && selectedPos.c === pos.c) {
+      clearSelection();
+      return;
+    }
+  } else if (action === 'END_TURN') {
+    addLog(`${isLocalPlayer(turn) ? '自軍' : '敵軍'} がターンを終了しました`, turn.toLowerCase());
+    await executeTurnChange(presentation);
+    return;
+  }
+  if (!presentation.signal.aborted && !isGameOver) renderAll();
+}
 
 network.onDisconnected = () => {
   if (!myOnlineRole || gamePhase === 'TITLE') return;
   addLog(`⚠️ 対戦相手との通信が切断されました。`, 'system');
   clearAITimeout();
+  resetBattleSession();
   clearTurnCutin();
-  clearUltFxState();
+  clearBattlePresentation();
   document.getElementById('disconnect-modal').classList.add('active');
 };
 
@@ -1438,6 +1531,7 @@ createBoardDOMOnce({
 });
 
 initUrbanUI();
+initBattleAudio(document.getElementById('battle-se-toggle'));
 initHomeView();
 initBoard();
 showTitleScreen();

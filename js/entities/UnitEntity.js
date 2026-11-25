@@ -3,7 +3,7 @@
    (Unit Class: 移動・攻撃・スキル・パッシブフックのインターフェース)
    ============================================================== */
 import { BoardEntity } from './BoardEntity.js?v=lab-white-1';
-import { inBounds, ULT_REQUIRED_DAMAGE } from '../config.js?v=lab-white-1';
+import { inBounds, ULT_REQUIRED_DAMAGE } from '../config.js?v=lab-white-3';
 
 export class UnitEntity extends BoardEntity {
   constructor({
@@ -44,7 +44,6 @@ export class UnitEntity extends BoardEntity {
     this.skills = skills || {};
 
     this.stockA = skills?.A?.maxStock || 0;
-    this.turnDamageDealt = 0;
     this.ultUsed = false;
   }
 
@@ -54,16 +53,22 @@ export class UnitEntity extends BoardEntity {
 
   // 実効攻撃力計算（基本ATK ＋ 攻撃力増強バフ ＋ 固有パッシブ）
   getEffectiveAtk(context = {}) {
-    let total = this.atk;
-    if (this.hasBuff('atk_up')) {
-      total += this.buffs.atk_up.val;
-    }
-    return total;
+    return this.atk + this.getAtkBonuses(context).reduce((total, buff) => total + buff.val, 0);
+  }
+
+  getAtkBonuses(context = {}) {
+    const buffs = this.buffs.filter(buff => buff.key === 'atk_up');
+    const passive = this.hasDebuff('silence') ? 0 : this.getPassiveAtk(context);
+    return passive ? [{ key: 'atk_up', val: passive }, ...buffs] : buffs;
+  }
+
+  getPassiveAtk(context) {
+    return 0;
   }
 
   // ウルト発動可能判定
   isUltReady(teamGauge) {
-    if (this.ultUsed) return false;
+    if (!this.skills.ULT || this.ultUsed) return false;
     if (this.hasDebuff('silence')) return false;
     return (teamGauge || 0) >= ULT_REQUIRED_DAMAGE;
   }

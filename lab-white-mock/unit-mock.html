@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UNIT PIECE MOCK // DESIGN PATTERNS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700;800&family=Noto+Sans+JP:wght@500;700;900&family=Oswald:wght@600;700&family=Space+Grotesk:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/unit-mock.css">
+</head>
+<body data-tile-bg="lab" data-state-mode="mixed">
+  <header class="um-bar">
+    <div class="um-bar-left">
+      <a class="um-link" href="index.html">← 全体モックへ</a>
+      <div class="um-title">
+        <strong>UNIT PIECE LAB</strong>
+        <span>盤面ユニット（駒）デザイン案比較</span>
+      </div>
+    </div>
+
+    <div class="um-controls">
+      <div class="um-group" role="group" aria-label="背景タイル">
+        <span class="um-lbl">TILE</span>
+        <button type="button" class="um-btn active" data-tile="lab">現在UIマス</button>
+        <button type="button" class="um-btn" data-tile="white">白マス</button>
+        <button type="button" class="um-btn" data-tile="gray">薄グレー</button>
+        <button type="button" class="um-btn" data-tile="toxic">トキシック</button>
+        <button type="button" class="um-btn" data-tile="dimension">ディメンション</button>
+        <button type="button" class="um-btn" data-tile="dark">暗色</button>
+        <button type="button" class="um-btn" data-tile="prod">本番マス</button>
+      </div>
+
+      <div class="um-group" role="group" aria-label="状態テスト">
+        <span class="um-lbl">STATUS</span>
+        <button type="button" class="um-btn active" data-state="mixed">代表混合</button>
+        <button type="button" class="um-btn" data-state="clean">全員通常</button>
+        <button type="button" class="um-btn" data-state="buffed">強化/シールド</button>
+        <button type="button" class="um-btn" data-state="damaged">瀕死(HP35%)</button>
+      </div>
+
+      <div class="um-group" role="group" aria-label="サイズ">
+        <span class="um-lbl">SIZE</span>
+        <button type="button" class="um-btn active" data-zoom="1x">実寸 (104px)</button>
+        <button type="button" class="um-btn" data-zoom="1.5x">拡大 (1.45x)</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="um-main" id="um-main"></main>
+
+  <script>
+    const PATHS = {
+      assault: '<path d="m13 2-9 12h7l-1 8 10-13h-8Z"/>',
+      sentinel: '<path d="m12 2 8 3v6c0 5-8 11-8 11S4 16 4 11V5Z"/>',
+      disruptor: '<circle cx="12" cy="12" r="5.5"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>',
+      support: '<path d="M8.5 3h7v5.5H21v7h-5.5V21h-7v-5.5H3v-7h5.5Z"/>',
+      core: '<path d="m12 2 9 10-9 10L3 12Z"/><path d="m12 7 4 5-4 5-4-5Z"/>',
+      turret: '<path d="M12 3v4M6 11h12l-1.5-4h-9ZM4 20h16M7 20l1.5-9h7L17 20"/><circle cx="12" cy="14" r="1.5"/>',
+      object: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v6m6 0v10M3 15h18"/>',
+      st_shield: '<path d="m12 2 8 3v6c0 5-8 11-8 11S4 16 4 11V5Z"/>',
+      st_atk: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+      st_debuff: '<path d="M12 5v14M19 12l-7 7-7-7"/>'
+    };
+
+    const icon = (name, cls = 'u-icon') =>
+      `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name] || PATHS.assault}</svg>`;
+
+    const SAMPLES = [
+      { id: 'stride', team: 'p1', name: 'ストライド', role: 'ASSAULT', roleIcon: 'assault', slug: 'kinesis', hp: 90, maxHp: 95, shield: 15, atk: 30, baseAtk: 25, status: 'st_atk', selected: true, cap: '味方・アサルト(選択)' },
+      { id: 'warden', team: 'p1', name: 'ウォーデン', role: 'SENTINEL', roleIcon: 'sentinel', slug: 'vector', hp: 100, maxHp: 100, shield: 0, atk: 25, baseAtk: 15, status: 'st_shield', cap: '味方・センチネル' },
+      { id: 'glitch', team: 'p1', name: 'グリッチ', role: 'DISRUPTOR', roleIcon: 'disruptor', slug: 'glitch', hp: 90, maxHp: 90, shield: 0, atk: 15, baseAtk: 15, status: '', cap: '味方・ディスラプター' },
+      { id: 'lily',   team: 'p1', name: 'リリィ',   role: 'SUPPORT', roleIcon: 'support', slug: 'iris', hp: 90, maxHp: 90, shield: 0, atk: 14, baseAtk: 14, status: '', cap: '味方・サポート' },
+      { id: 'core1',  team: 'p1', name: 'アンカー', role: 'CORE', structIcon: 'core', isStruct: true, hp: 100, maxHp: 100, shield: 0, atk: 0, baseAtk: 0, status: '', cap: '味方・コア' },
+      { id: 'turret', team: 'p1', name: 'セントリー', role: 'OBJECT', roleIcon: 'object', structIcon: 'turret', isStruct: true, hp: 20, maxHp: 20, shield: 0, atk: 10, baseAtk: 10, status: '', cap: '味方・タレット' },
+      { divider: true },
+      { id: 'veil',   team: 'p2', name: 'ヴェイル', role: 'ASSAULT', roleIcon: 'assault', slug: 'phase', hp: 60, maxHp: 80, shield: 0, atk: 30, baseAtk: 30, status: '', cap: '敵・アサルト' },
+      { id: 'smog',   team: 'p2', name: 'スモッグ', role: 'SENTINEL', roleIcon: 'sentinel', slug: 'toxin', hp: 85, maxHp: 100, shield: 0, atk: 12, baseAtk: 15, status: 'st_debuff', debuff: true, cap: '敵・センチネル(弱体)' },
+      { id: 'core2',  team: 'p2', name: 'アンカー', role: 'CORE', structIcon: 'core', isStruct: true, hp: 95, maxHp: 100, shield: 0, atk: 0, baseAtk: 0, status: '', cap: '敵・コア' }
+    ];
+
+    const PATTERNS = [
+      {
+        key: 'current',
+        badge: 'CURRENT / 最新UI',
+        cls: 'p-current',
+        title: '現在の lab-white-mock UI（黒すりガラス＋イエロー/パープル＋案A Plex）',
+        desc: '全体モックで調整中の最新スタイル。すりガラス凹みドック＋Space Grotesk / IBM Plex Sans JP＋ハザード視認用5px下げ配置。'
+      },
+      {
+        key: 'prod',
+        badge: 'PROD / 本番',
+        cls: 'p-prod',
+        title: '本番 index.html（zzz-hdd レイアウト）',
+        desc: '現在の本番ゲーム画面で採用しているデザイン。ライム/レッド枠＋凹み型ドック＋Oswald斜体数値。'
+      },
+      {
+        key: 'base',
+        badge: '0 / BASE',
+        cls: 'p-base',
+        title: '現行改良ベース（丸枠＋黒ステータスバー）',
+        desc: '現在 lab-white-mock の「改良」に入っている構成。円形ポートレート＋下部黒バーの基準案。'
+      },
+      {
+        key: 'square',
+        badge: 'PATTERN A',
+        cls: 'p-square',
+        title: '角丸スクエア・タクティカルカード型',
+        desc: 'マスいっぱいの角丸正方形カードにキャラとバーを統合。情報密度とまとまりが高い王道タクティクス調。'
+      },
+      {
+        key: 'chamfer',
+        badge: 'PATTERN B',
+        cls: 'p-chamfer',
+        title: '面取りサイバーベゼル型',
+        desc: '八角・面取りシルエットの硬質なフレーム＋六角ベゼルバー。AR/SF系のシャープさを強調。'
+      },
+      {
+        key: 'pill',
+        badge: 'PATTERN C',
+        cls: 'p-pill',
+        title: 'ミニマル・フローティングピル型',
+        desc: '枠線をすっきり整理し、ユニット名を省いて「HP・ATK」だけの小型ピルを浮かべた引き算デザイン。'
+      },
+      {
+        key: 'split',
+        badge: 'PATTERN D',
+        cls: 'p-split',
+        title: '縦HPバー＋右下独立ATKバッジ型',
+        desc: '左端に縦HPゲージ、左下HPチップ、右下ATKバッジを分離配置。HPとATKの役割・視線導線を明確化。'
+      },
+      {
+        key: 'accent',
+        badge: 'PATTERN E',
+        cls: 'p-accent',
+        title: 'ロールアクセント＋2分割バー型',
+        desc: '枠上端にロール色の極細ラインを入れ、下部バーを「左：HP/名前」「右：ATK」に明暗分割した構成。'
+      }
+    ];
+
+    let stateMode = 'mixed';
+    let zoomMode = '1x';
+
+    function resolveSample(raw) {
+      const s = { ...raw };
+      if (stateMode === 'clean') {
+        s.hp = s.maxHp;
+        s.shield = 0;
+        s.atk = s.baseAtk;
+        s.status = '';
+        s.debuff = false;
+        s.selected = false;
+      } else if (stateMode === 'buffed') {
+        s.hp = s.maxHp;
+        s.shield = s.role === 'OBJECT' ? 0 : 15;
+        s.atk = s.baseAtk > 0 ? s.baseAtk + 10 : 0;
+        s.status = s.role === 'CORE' ? 'st_shield' : 'st_atk';
+        s.debuff = false;
+      } else if (stateMode === 'damaged') {
+        s.hp = Math.max(5, Math.round(s.maxHp * 0.35));
+        s.shield = 0;
+        s.atk = s.baseAtk;
+        s.status = s.baseAtk > 0 ? 'st_debuff' : '';
+        s.debuff = s.baseAtk > 0;
+      }
+      return s;
+    }
+
+    function statClasses(s) {
+      const hpCls = 'u-hp-val' + (s.shield > 0 ? ' has-shield' : '');
+      const atkCls = 'u-atk-val'
+        + (s.atk === 0 ? ' is-none' : '')
+        + (s.atk > s.baseAtk ? ' is-buffed' : '')
+        + (s.debuff ? ' is-debuffed' : '');
+      const hpText = s.hp + s.shield;
+      const atkText = s.atk > 0 ? s.atk : '—';
+      const total = Math.max(s.maxHp, s.hp + s.shield);
+      const hpPct = Math.round((s.hp / total) * 100);
+      const shPct = Math.round((s.shield / total) * 100);
+      return { hpCls, atkCls, hpText, atkText, hpPct, shPct };
+    }
+
+    function faceInnerHtml(s) {
+      if (s.isStruct) {
+        return icon(s.structIcon, 'u-icon u-struct-icon');
+      }
+      return `<img src="../assets/${s.slug}-urban-anime-v2.png" alt="${s.name}">`;
+    }
+
+    function renderPiece(patternKey, raw) {
+      const s = resolveSample(raw);
+      const st = statClasses(s);
+      const roleHtml = s.roleIcon ? `<span class="u-role">${icon(s.roleIcon)}</span>` : '';
+      const pipHtml = s.status ? `<span class="u-status-pip">${icon(s.status)}</span>` : '';
+      const baseClasses = `u-piece ${s.team}${s.isStruct ? ' is-struct' : ''}`;
+
+      if (patternKey === 'prod' || patternKey === 'current') {
+        const dockPath = patternKey === 'current'
+          ? 'M 4,2 L 28,2 Q 30,2 30.8,4 L 33.2,15 Q 34,17 36,17 L 54,17 Q 56,17 56.8,15 L 58.8,5.5 Q 59.6,3.5 61.6,3.5 L 76,3.5 Q 79,3.5 79,6.5 L 79,30 Q 79,34 75,34 L 5,34 Q 1,34 1,30 L 1,5 Q 1,2 4,2 Z'
+          : 'M 4,1 L 26,1 Q 28,1 28.8,3 L 31.2,15 Q 32,17 34,17 L 56.5,17 Q 58.5,17 59.3,15 L 60.8,7.5 Q 61.6,5.5 63.6,5.5 L 76,5.5 Q 79,5.5 79,8.5 L 79,30 Q 79,34 75,34 L 5,34 Q 1,34 1,30 L 1,4 Q 1,1 4,1 Z';
+        return `
+          <div class="${baseClasses}" data-role="${s.role}">
+            <div class="u-face">${faceInnerHtml(s)}</div>
+            ${roleHtml}${pipHtml}
+            <div class="u-readout">
+              <svg class="u-dock-svg" viewBox="0 0 80 35" preserveAspectRatio="none" aria-hidden="true">
+                <path d="${dockPath}"/>
+              </svg>
+              <div class="u-values">
+                <b class="${st.hpCls}">${st.hpText}</b>
+                <span class="${st.atkCls}">${st.atkText}</span>
+              </div>
+              <div class="u-hp-track">
+                <i style="width:${st.hpPct}%"></i>
+                ${st.shPct > 0 ? `<i class="u-bar-sh" style="width:${st.shPct}%"></i>` : ''}
+              </div>
+              <span class="u-name">${s.name}</span>
+            </div>
+          </div>`;
+      }
+
+      if (patternKey === 'chamfer') {
+        return `
+          <div class="${baseClasses}" data-role="${s.role}">
+            <div class="u-bezel-outer">
+              <div class="u-face">${faceInnerHtml(s)}</div>
+            </div>
+            ${roleHtml}${pipHtml}
+            <div class="u-dock">
+              <div class="u-dock-row">
+                <b class="${st.hpCls}">${st.hpText}</b>
+                <span class="${st.atkCls}">${st.atkText}</span>
+              </div>
+              <div class="u-bar-track">
+                <i class="u-bar-hp" style="width:${st.hpPct}%"></i>
+                ${st.shPct > 0 ? `<i class="u-bar-sh" style="width:${st.shPct}%"></i>` : ''}
+              </div>
+              <div class="u-name">${s.name}</div>
+            </div>
+          </div>`;
+      }
+
+      if (patternKey === 'pill') {
+        return `
+          <div class="${baseClasses}" data-role="${s.role}">
+            <div class="u-face">${faceInnerHtml(s)}</div>
+            ${roleHtml}${pipHtml}
+            <div class="u-dock">
+              <span class="u-hp-wrap"><span class="u-stat-lbl">HP</span><b class="${st.hpCls}">${st.hpText}</b></span>
+              <span class="u-atk-wrap"><span class="u-stat-lbl">ATK</span><span class="${st.atkCls}">${st.atkText}</span></span>
+              <div class="u-arc-hp">
+                <i class="u-bar-hp" style="width:${st.hpPct}%"></i>
+                ${st.shPct > 0 ? `<i class="u-bar-sh" style="width:${st.shPct}%"></i>` : ''}
+              </div>
+            </div>
+          </div>`;
+      }
+
+      if (patternKey === 'split') {
+        return `
+          <div class="${baseClasses}" data-role="${s.role}">
+            <div class="u-vhp-track">
+              <i class="u-vhp-fill" style="height:${st.hpPct}%"></i>
+              ${st.shPct > 0 ? `<i class="u-vhp-sh" style="height:${st.shPct}%"></i>` : ''}
+            </div>
+            <div class="u-face">${faceInnerHtml(s)}</div>
+            ${roleHtml}${pipHtml}
+            <div class="u-hp-chip"><b class="${st.hpCls}">${st.hpText}</b></div>
+            <div class="u-atk-badge${s.atk > s.baseAtk ? ' is-buffed' : ''}${s.atk === 0 ? ' is-none' : ''}">
+              <span class="${st.atkCls}">${st.atkText}</span>
+            </div>
+          </div>`;
+      }
+
+      if (patternKey === 'accent') {
+        return `
+          <div class="${baseClasses}" data-role="${s.role}">
+            <div class="u-face">
+              <span class="u-role-bar"></span>
+              ${faceInnerHtml(s)}
+            </div>
+            ${roleHtml}${pipHtml}
+            <div class="u-dock">
+              <div class="u-dock-left">
+                <div class="u-dock-left-top">
+                  <b class="${st.hpCls}">${st.hpText}</b>
+                  <span class="u-name">${s.name}</span>
+                </div>
+                <div class="u-bar-track">
+                  <i class="u-bar-hp" style="width:${st.hpPct}%"></i>
+                  ${st.shPct > 0 ? `<i class="u-bar-sh" style="width:${st.shPct}%"></i>` : ''}
+                </div>
+              </div>
+              <div class="u-dock-right">
+                <span class="u-atk-lbl">ATK</span>
+                <span class="${st.atkCls}">${st.atkText}</span>
+              </div>
+            </div>
+          </div>`;
+      }
+
+      if (patternKey === 'square') {
+        return `
+          <div class="${baseClasses}" data-role="${s.role}">
+            <div class="u-face">${faceInnerHtml(s)}</div>
+            ${roleHtml}${pipHtml}
+            <div class="u-dock">
+              <div class="u-dock-row">
+                <b class="${st.hpCls}">${st.hpText}</b>
+                <span class="${st.atkCls}">${st.atkText}</span>
+              </div>
+              <div class="u-bar-track">
+                <i class="u-bar-hp" style="width:${st.hpPct}%"></i>
+                ${st.shPct > 0 ? `<i class="u-bar-sh" style="width:${st.shPct}%"></i>` : ''}
+              </div>
+              <div class="u-name">${s.name}</div>
+            </div>
+          </div>`;
+      }
+
+      // Pattern 0 (base)
+      return `
+        <div class="${baseClasses}" data-role="${s.role}">
+          <div class="u-face">${faceInnerHtml(s)}</div>
+          ${roleHtml}${pipHtml}
+          <div class="u-dock">
+            <div class="u-dock-row">
+              <b class="${st.hpCls}">${st.hpText}</b>
+              <span class="${st.atkCls}">${st.atkText}</span>
+            </div>
+            <div class="u-bar-track">
+              <i class="u-bar-hp" style="width:${st.hpPct}%"></i>
+              ${st.shPct > 0 ? `<i class="u-bar-sh" style="width:${st.shPct}%"></i>` : ''}
+            </div>
+            <div class="u-name">${s.name}</div>
+          </div>
+        </div>`;
+    }
+
+    function renderAll() {
+      const main = document.getElementById('um-main');
+      main.innerHTML = PATTERNS.map(p => `
+        <section class="pattern-card" data-pattern="${p.key}">
+          <div class="pattern-head">
+            <div class="pattern-head-left">
+              <span class="pattern-badge">${p.badge}</span>
+              <h2 class="pattern-title">${p.title}</h2>
+            </div>
+            <p class="pattern-desc">${p.desc}</p>
+          </div>
+          <div class="pattern-grid ${p.cls}${zoomMode === '1.5x' ? ' is-zoom' : ''}">
+            ${SAMPLES.map(s => {
+              if (s.divider) return `<div class="sample-divider" aria-hidden="true"></div>`;
+              const sel = (stateMode === 'mixed' && s.selected) ? ' is-selected' : '';
+              return `
+                <div class="sample-slot">
+                  <div class="um-tile${sel}">${renderPiece(p.key, s)}</div>
+                  <span class="sample-slot-cap">${s.cap}</span>
+                </div>`;
+            }).join('')}
+          </div>
+        </section>
+      `).join('');
+    }
+
+    document.querySelectorAll('[data-tile]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-tile]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.body.dataset.tileBg = btn.dataset.tile;
+      });
+    });
+
+    document.querySelectorAll('[data-state]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-state]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        stateMode = btn.dataset.state;
+        renderAll();
+      });
+    });
+
+    document.querySelectorAll('[data-zoom]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-zoom]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        zoomMode = btn.dataset.zoom;
+        renderAll();
+      });
+    });
+
+    renderAll();
+  </script>
+</body>
+</html>

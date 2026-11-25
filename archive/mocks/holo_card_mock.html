@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CYBER TACTICS // 盤面駒ビューワー＆設計モック</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700;900&family=Orbitron:wght@700;800;900&family=Rajdhani:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Three.js, GSAP & Base64 Asset Data -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="assets_data.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --panel-bg: rgba(15, 23, 42, 0.95);
+      --border-cyan: rgba(56, 189, 248, 0.35);
+      --ally-blue: #0096fa;
+      --ally-cyan: #00bbf9;
+      --enemy-red: #ff2e63;
+      --gold: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #0b1120;
+      font-family: 'Noto Sans JP', sans-serif;
+      color: #f1f5f9;
+      display: flex;
+    }
+
+    /* ==============================================================
+       1. MAIN 3D VIEWPORT AREA (左〜中央の広大なエリアで駒を表示)
+       ============================================================== */
+    .viewport-area {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: calc(100vw - 360px);
+      height: 100vh;
+      overflow: hidden;
+      background: radial-gradient(circle at 45% 48%, #1e293b 0%, #0f172a 60%, #050811 100%);
+    }
+
+    #webgl-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+      z-index: 1;
+    }
+
+    #webgl-canvas:active {
+      cursor: grabbing;
+    }
+
+    /* Subtle tactical floor grid */
+    .bg-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle at 45% 48%, rgba(0, 150, 250, 0.08) 0%, transparent 65%),
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 100% 100%, 48px 48px, 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Top Left Header */
+    .top-left-hud {
+      position: absolute;
+      top: 20px;
+      left: 24px;
+      z-index: 15;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      pointer-events: auto;
+    }
+
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 16px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1.5px solid #0096fa;
+      border-radius: 8px;
+      color: #38bdf8;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-decoration: none;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      transition: all 0.2s ease;
+    }
+
+    .back-btn:hover {
+      background: #0284c7;
+      color: #ffffff;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 150, 250, 0.5);
+    }
+
+    .title-banner {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .title-banner h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 17px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      color: #ffffff;
+    }
+
+    .title-banner span {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+    }
+
+    /* Viewport bottom hint */
+    .viewport-hint {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      z-index: 10;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: 11px;
+      color: #94a3b8;
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .hint-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #0096fa;
+      box-shadow: 0 0 8px #0096fa;
+    }
+
+    /* On-board Micro HUD tag (tactics_3d_mock と同一) */
+    #piece-labels-container {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+      overflow: hidden;
+    }
+
+    .piece-micro-hud {
+      position: absolute;
+      transform: translate(-50%, 0);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .micro-top-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.94);
+      border: 1.5px solid var(--ally-cyan);
+      padding: 3px 12px;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .piece-micro-hud.red .micro-top-row {
+      border-color: var(--enemy-red);
+    }
+
+    .micro-name {
+      font-size: 13px;
+      font-weight: 900;
+      color: #ffffff;
+      white-space: nowrap;
+    }
+
+    .micro-hp-num {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 12px;
+      font-weight: 900;
+      color: #38bdf8;
+    }
+
+    .piece-micro-hud.red .micro-hp-num {
+      color: #fb7185;
+    }
+
+    .micro-hp-track {
+      width: 90px;
+      height: 9px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1.5px solid #ffffff;
+      border-radius: 999px;
+      overflow: hidden;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+    }
+
+    .micro-hp-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0077ff, #00e5ff);
+      transition: width 0.3s ease;
+    }
+
+    .piece-micro-hud.red .micro-hp-fill {
+      background: linear-gradient(90deg, #e11d48, #ff4d79);
+    }
+
+    /* ==============================================================
+       2. RIGHT FLOATING CONTROL PANEL (右寄せ・最小限のパラメータ)
+       ============================================================== */
+    .right-sidebar {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 360px;
+      height: 100vh;
+      background: var(--panel-bg);
+      border-left: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(20px);
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 20px;
+      gap: 18px;
+      overflow-y: auto;
+    }
+
+    .sidebar-section-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 1.2px;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .sidebar-section-title::before {
+      content: '';
+      display: inline-block;
+      width: 3px;
+      height: 12px;
+      background: #0096fa;
+      border-radius: 2px;
+    }
+
+    /* Button grids */
+    .unit-button-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .btn-action {
+      padding: 10px 12px;
+      background: rgba(30, 41, 59, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-align: left;
+    }
+
+    .btn-action:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.5);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    .btn-action.active {
+      background: linear-gradient(135deg, rgba(0, 150, 250, 0.35), rgba(2, 132, 199, 0.5));
+      border-color: #0096fa;
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(0, 150, 250, 0.4);
+    }
+
+    .btn-action.red.active {
+      background: linear-gradient(135deg, rgba(255, 46, 99, 0.35), rgba(225, 29, 72, 0.5));
+      border-color: #ff2e63;
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(255, 46, 99, 0.4);
+    }
+
+    /* Team Switcher */
+    .team-switch-wrap {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-team {
+      flex: 1;
+      padding: 10px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(30, 41, 59, 0.6);
+      color: #cbd5e1;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+
+    .btn-team.active.white {
+      background: #ffffff;
+      color: #0f172a;
+      border-color: #ffffff;
+      box-shadow: 0 0 16px rgba(255, 255, 255, 0.4);
+    }
+
+    .btn-team.active.black {
+      background: #1e293b;
+      color: #fb7185;
+      border-color: #ff2e63;
+      box-shadow: 0 0 16px rgba(255, 46, 99, 0.4);
+    }
+
+    /* Camera View Mode Switcher */
+    .view-switch-wrap {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-view {
+      flex: 1;
+      padding: 9px 8px;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: #cbd5e1;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      text-align: center;
+    }
+
+    .btn-view:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.5);
+      color: #ffffff;
+    }
+
+    .btn-view.active {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+    }
+
+    /* Hologram Foil Controls */
+    .foil-control-box {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .foil-toggle-wrap {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-foil-toggle {
+      flex: 1;
+      padding: 8px;
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(30, 41, 59, 0.6);
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+
+    .btn-foil-toggle.active {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.35), rgba(192, 132, 252, 0.45));
+      border-color: #f59e0b;
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(245, 158, 11, 0.4);
+    }
+
+    .foil-type-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .btn-foil-type {
+      padding: 7px 6px;
+      font-size: 10.5px;
+      font-weight: 700;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(30, 41, 59, 0.5);
+      color: #cbd5e1;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .btn-foil-type:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: #ffffff;
+    }
+
+    .btn-foil-type.active {
+      background: linear-gradient(135deg, #0284c7, #6366f1);
+      border-color: #38bdf8;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    .foil-slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .foil-slider-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: #94a3b8;
+    }
+
+    .foil-slider-row input[type="range"] {
+      width: 140px;
+      accent-color: #38bdf8;
+      cursor: pointer;
+    }
+
+    /* Compact Status Summary */
+    .status-summary-card {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .summary-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .summary-name {
+      font-size: 17px;
+      font-weight: 900;
+      color: #ffffff;
+    }
+
+    .summary-role {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px;
+      font-weight: 900;
+      color: #38bdf8;
+      padding: 2px 8px;
+      background: rgba(56, 189, 248, 0.12);
+      border-radius: 4px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .summary-stats-row {
+      display: flex;
+      gap: 16px;
+      font-family: 'Orbitron', sans-serif;
+    }
+
+    .summary-stat-box {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .summary-stat-lbl {
+      font-size: 9px;
+      font-weight: 800;
+      color: #94a3b8;
+    }
+
+    .summary-stat-val {
+      font-size: 15px;
+      font-weight: 900;
+    }
+    .summary-stat-val.hp { color: #10b981; }
+    .summary-stat-val.atk { color: #fb7185; }
+
+    .summary-passive-desc {
+      font-size: 11px;
+      color: #cbd5e1;
+      line-height: 1.4;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 8px;
+    }
+
+    @media (max-width: 900px) {
+      .viewport-area { width: 100vw; }
+      .right-sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==============================================================
+       1. 3D VIEWPORT (中央にバトル中の駒を堂々と表示)
+       ============================================================== -->
+  <div class="viewport-area">
+    <div class="bg-grid"></div>
+
+    <div class="top-left-hud">
+      <a href="tactics_3d_mock.html" class="back-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        3D バトル盤面へ
+      </a>
+      <div class="title-banner">
+        <h1>BATTLE PIECE VIEWER</h1>
+        <span>tactics_3d_mock.html バトル実装駒 同期ビューワー</span>
+      </div>
+    </div>
+
+    <div id="piece-labels-container">
+      <div class="piece-micro-hud blue" id="piece-hud-tag">
+        <div class="micro-top-row">
+          <span class="micro-name" id="hud-name">キネシス</span>
+          <span class="micro-hp-num" id="hud-hp">95</span>
+        </div>
+        <div class="micro-hp-track">
+          <div class="micro-hp-fill" id="hud-hp-bar" style="width: 100%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <canvas id="webgl-canvas"></canvas>
+
+    <div class="viewport-hint">
+      <span class="hint-dot"></span>
+      <span>マウスドラッグで360度自由回転 / ホイールで拡大縮小。バトル中の駒そのものを観察・設計できます。</span>
+    </div>
+  </div>
+
+  <!-- ==============================================================
+       2. RIGHT CONTROL SIDEBAR (パラメータを右寄せ・最小限に集約)
+       ============================================================== -->
+  <aside class="right-sidebar">
+    <!-- Section 1: Unit Selector -->
+    <div>
+      <div class="sidebar-section-title">UNIT SELECT (ユニット選択)</div>
+      <div class="unit-button-grid">
+        <button class="btn-action active" data-unit="KINESIS">⚡ キネシス</button>
+        <button class="btn-action" data-unit="VECTOR">🛡️ ベクター</button>
+        <button class="btn-action" data-unit="HIVE">🛸 ハイヴ</button>
+        <button class="btn-action" data-unit="IRIS">💉 アイリス</button>
+        <button class="btn-action red" data-unit="NITRO">💣 ニトロ</button>
+        <button class="btn-action red" data-unit="PHASE">🌌 フェイズ</button>
+        <button class="btn-action red" data-unit="GLITCH">🌀 グリッチ</button>
+      </div>
+    </div>
+
+    <!-- Section 2: Chassis Team Toggle -->
+    <div>
+      <div class="sidebar-section-title">CHASSIS (所属シャシー)</div>
+      <div class="team-switch-wrap">
+        <button class="btn-team active white" id="btn-team-p1">⚪ 白軍 (BLUE P1)</button>
+        <button class="btn-team black" id="btn-team-p2">⚫ 黒軍 (RED P2)</button>
+      </div>
+    </div>
+
+    <!-- Section 3: View Mode -->
+    <div>
+      <div class="sidebar-section-title">CAMERA VIEW (カメラ視点)</div>
+      <div class="view-switch-wrap">
+        <button class="btn-view active" id="btn-view-board">🕹️ バトル俯瞰</button>
+        <button class="btn-view" id="btn-view-front">👁️ 正面3D</button>
+        <button class="btn-view" id="btn-view-free">🌀 自動回転</button>
+      </div>
+    </div>
+
+    <!-- Section: Hologram Foil Effect (キラカード加工) -->
+    <div>
+      <div class="sidebar-section-title">HOLOGRAM FOIL (キラカード加工)</div>
+      <div class="foil-control-box">
+        <div class="foil-toggle-wrap">
+          <button class="btn-foil-toggle active" id="btn-foil-on">✨ キラ加工 ON</button>
+          <button class="btn-foil-toggle" id="btn-foil-off">通常マット OFF</button>
+        </div>
+        <div class="foil-type-grid" id="foil-type-container">
+          <button class="btn-foil-type active" data-type="0">🌈 プリズム波</button>
+          <button class="btn-foil-type" data-type="1">🌀 コズミック</button>
+          <button class="btn-foil-type" data-type="2">👑 ゴールド箔</button>
+          <button class="btn-foil-type" data-type="3">🔷 サイバー六角</button>
+        </div>
+        <div class="foil-slider-group">
+          <div class="foil-slider-row">
+            <span>輝き強度 (SHINE)</span>
+            <input type="range" id="slider-foil-shine" min="0.3" max="2.5" step="0.1" value="1.3">
+          </div>
+          <div class="foil-slider-row">
+            <span>ラメ粒子 (GLITTER)</span>
+            <input type="range" id="slider-foil-glitter" min="0.0" max="2.0" step="0.1" value="1.0">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Compact Unit Status -->
+    <div>
+      <div class="sidebar-section-title">UNIT STATUS (ユニット諸元)</div>
+      <div class="status-summary-card">
+        <div class="summary-header">
+          <span class="summary-name" id="sum-name">キネシス</span>
+          <span class="summary-role" id="sum-role">⚡ ASSAULT</span>
+        </div>
+        <div class="summary-stats-row">
+          <div class="summary-stat-box">
+            <span class="summary-stat-lbl">HEALTH</span>
+            <span class="summary-stat-val hp" id="sum-hp">95 HP</span>
+          </div>
+          <div class="summary-stat-box">
+            <span class="summary-stat-lbl">ATTACK</span>
+            <span class="summary-stat-val atk" id="sum-atk">25 ATK</span>
+          </div>
+          <div class="summary-stat-box">
+            <span class="summary-stat-lbl">CHASSIS</span>
+            <span class="summary-stat-val" id="sum-team" style="font-size: 13px; color: #38bdf8;">WHITE P1</span>
+          </div>
+        </div>
+        <div class="summary-passive-desc" id="sum-passive">
+          自軍ターン開始時、通常の行動トークンとは別に自身専用の移動トークン+1枚を獲得。
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==============================================================
+       3. JAVASCRIPT: tactics_3d_mock.html と 100% 同一の駒生成
+       ============================================================== -->
+  <script>
+    /* ==========================================================================
+       1. DATA DEFINITIONS (tactics_3d_mock.html と完全同期)
+       ========================================================================== */
+    const UNITS_DATA = {
+      KINESIS: {
+        id: 'KINESIS', name: 'キネシス', role: 'ASSAULT', icon: '⚡', team: 'P1',
+        hp: 95, maxHp: 95, atk: 25, img: 'assets/kinesis.jpg',
+        passiveDesc: '【自律機動】自軍ターン開始時、通常の行動トークンとは別に、自身専用の移動トークンを+1枚追加獲得する。'
+      },
+      VECTOR: {
+        id: 'VECTOR', name: 'ベクター', role: 'SENTINEL', icon: '🛡️', team: 'P1',
+        hp: 100, maxHp: 100, atk: 25, img: 'assets/vector.jpg',
+        passiveDesc: '【バンカー・スナイパー】防壁オブジェクトまたは防衛コアに隣接している間、精密射撃態勢となり攻撃力+10の増強バフを獲得する。'
+      },
+      HIVE: {
+        id: 'HIVE', name: 'ハイヴ', role: 'DISRUPTOR', icon: '🛸', team: 'P1',
+        hp: 90, maxHp: 90, atk: 15, img: 'assets/hive.jpg',
+        passiveDesc: '【ニューロ・カウンター】召喚した自律ビット破壊時、破壊した敵ユニットへ弱体化（被ダメ1.5倍）を付与する。'
+      },
+      IRIS: {
+        id: 'IRIS', name: 'アイリス', role: 'SUPPORT', icon: '💉', team: 'P1',
+        hp: 90, maxHp: 90, atk: 14, img: 'assets/iris.jpg',
+        passiveDesc: '【ナノ・エンハンスメント】自軍ターン終了時、前方直線上で最も近くにいる負傷味方1体を自動検知しHPを5回復。'
+      },
+      NITRO: {
+        id: 'NITRO', name: 'ニトロ', role: 'ASSAULT', icon: '💣', team: 'P2',
+        hp: 85, maxHp: 85, atk: 30, img: 'assets/nitro.jpg',
+        passiveDesc: '【アフターバーナー】敵ユニットを撃破した瞬間、消費した移動トークン1枚を即座にチャージ・回収する。'
+      },
+      PHASE: {
+        id: 'PHASE', name: 'フェイズ', role: 'ASSAULT', icon: '🌌', team: 'P2',
+        hp: 90, maxHp: 90, atk: 25, img: 'assets/phase.jpg',
+        passiveDesc: '【位相共鳴】ディメンション・ゾーン内に侵入または待機した際、自身のHPを10回復しULTを+10チャージ。'
+      },
+      GLITCH: {
+        id: 'GLITCH', name: 'グリッチ', role: 'DISRUPTOR', icon: '🌀', team: 'P2',
+        hp: 90, maxHp: 90, atk: 15, img: 'assets/phase.jpg',
+        passiveDesc: '【ディメンション・チャージ】ワープ着地時、空間歪曲ショックにより着地点周囲1マスの全敵へ弱体化を付与。'
+      }
+    };
+
+    let currentUnitId = 'KINESIS';
+    let currentTeam = 'P1'; // 'P1' (White) or 'P2' (Black)
+    let autoRotate = false;
+
+    /* ==========================================================================
+       2. THREE.JS SCENE SETUP (tactics_3d_mock.html と同じライティング仕様)
+       ========================================================================== */
+    const canvasEl = document.getElementById('webgl-canvas');
+    const viewportArea = document.querySelector('.viewport-area');
+
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(35, viewportArea.clientWidth / viewportArea.clientHeight, 0.1, 500);
+    // tactics_3d_mock のバトル視点比率 (斜め俯瞰) & 正面アングル
+    const BOARD_CAM_POS = new THREE.Vector3(0, 4.4, 3.8);
+    const FRONT_CAM_POS = new THREE.Vector3(0, 3.5, 2.2);
+    camera.position.copy(BOARD_CAM_POS);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas: canvasEl,
+      antialias: true,
+      alpha: true,
+      powerPreference: 'high-performance'
+    });
+    renderer.setSize(viewportArea.clientWidth, viewportArea.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding; // 正しいsRGBガンマ補正でくすみを完全解消！
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // Lighting (SF・近未来タクティカルスタジオライティング)
+    const ambientLight = new THREE.AmbientLight(0xf8fafc, 0.85);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    dirLight.position.set(6, 14, 10);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.bias = -0.0008;
+    scene.add(dirLight);
+
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.7);
+    rimLight.position.set(-6, 2, -6);
+    scene.add(rimLight);
+
+    // Subtle Sci-Fi Under-Chassis Accent Light (底面からの淡い発光)
+    const underGlowLight = new THREE.PointLight(0x00bbf9, 0.8, 8);
+    underGlowLight.position.set(0, -1.8, 0.5);
+    scene.add(underGlowLight);
+
+    /* ==========================================================================
+       3. CYBER-TACTICAL HEXAGON PIECE (SF・近未来・ミニマル 3Dアセット)
+       ========================================================================== */
+    // Helper to get asset URL (Base64優先、ローカルファイルCORS制限を完全回避)
+    function getAssetUrl(unitId, fallbackPath) {
+      const key = unitId.toLowerCase();
+      if (typeof ASSETS_BASE64 !== 'undefined' && ASSETS_BASE64[key]) {
+        return ASSETS_BASE64[key];
+      }
+      return fallbackPath;
+    }
+
+    // Preloaded image cache
+    const loadedImages = {};
+    Object.keys(UNITS_DATA).forEach(k => {
+      const img = new Image();
+      img.onload = () => {
+        loadedImages[k] = img;
+        if (currentUnitId === k && currentPieceGroup) {
+          renderCurrentPiece();
+        }
+      };
+      img.src = getAssetUrl(k, UNITS_DATA[k].img);
+    });
+
+    // Aerospace-inspired Cyber Hexagon Shape (反時計回り CCW: 正しいThree.js外形ポリゴン)
+    function createCyberHexShape(scale = 1.0) {
+      const shape = new THREE.Shape();
+      const s = scale;
+      // Apex nose から反時計回り (CCW) に周回
+      shape.moveTo(0 * s, 1.12 * s);
+      shape.lineTo(-0.80 * s, 0.54 * s);
+      shape.lineTo(-0.88 * s, -0.62 * s);
+      shape.lineTo(-0.62 * s, -0.98 * s);
+      shape.lineTo(0.62 * s, -0.98 * s);
+      shape.lineTo(0.88 * s, -0.62 * s);
+      shape.lineTo(0.80 * s, 0.54 * s);
+      shape.closePath();
+      return shape;
+    }
+
+    const cyberHexShape = createCyberHexShape(1.0);
+
+    // 1. Heavy Monolith Chassis (外殻メインボディ)
+    function createCyberChassisGeometry() {
+      const geo = new THREE.ExtrudeGeometry(cyberHexShape, {
+        steps: 1,
+        depth: 0.26,
+        bevelEnabled: true,
+        bevelThickness: 0.04,
+        bevelSize: 0.04,
+        bevelSegments: 3
+      });
+      geo.center(); // 中心を (0,0,0) に完全センタリング (上面は y = +0.13, 底面は y = -0.13)
+      geo.rotateX(-Math.PI / 2);
+      return geo;
+    }
+    const sharedPieceBodyGeo = createCyberChassisGeometry();
+
+    // 2. Raised Outer Bezel Rim (シールを収める「くぼみ」を作る外周土手フレーム)
+    function createCyberRimShape() {
+      const shape = createCyberHexShape(1.0); // 外形 CCW
+      // 内側のくぼみ穴 (scale 0.915 に拡大してシール面積を最大化、時計回り CW で確実に穴を穿つ)
+      const hole = new THREE.Path();
+      const s = 0.915;
+      hole.moveTo(0 * s, 1.12 * s);
+      hole.lineTo(0.80 * s, 0.54 * s);
+      hole.lineTo(0.88 * s, -0.62 * s);
+      hole.lineTo(0.62 * s, -0.98 * s);
+      hole.lineTo(-0.62 * s, -0.98 * s);
+      hole.lineTo(-0.88 * s, -0.62 * s);
+      hole.lineTo(-0.80 * s, 0.54 * s);
+      hole.closePath();
+      shape.holes.push(hole);
+      return shape;
+    }
+
+    function createCyberRimGeometry() {
+      const shape = createCyberRimShape();
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: 0.045, // くぼみの深さ (4.5cm)
+        bevelEnabled: true,
+        bevelThickness: 0.015,
+        bevelSize: 0.015,
+        bevelSegments: 2
+      });
+      geo.center();
+      geo.rotateX(-Math.PI / 2);
+      return geo;
+    }
+    const sharedRimGeo = createCyberRimGeometry();
+
+    // 3. Waist Energy Slit Conduit (側面ネオンレール)
+    function createWaistRailGeometry() {
+      const shape = createCyberHexShape(1.025);
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: 0.035,
+        bevelEnabled: false
+      });
+      geo.center();
+      geo.rotateX(-Math.PI / 2);
+      return geo;
+    }
+    const sharedWaistRailGeo = createWaistRailGeometry();
+
+    // 4. Sticker Decal Plate (くぼみにぴったり収まる大判シールプレート: scale 0.915)
+    const STICKER_SCALE = 0.915;
+    const sharedStickerPlateGeo = new THREE.PlaneGeometry(1.80 * STICKER_SCALE, 2.15 * STICKER_SCALE);
+    sharedStickerPlateGeo.rotateX(-Math.PI / 2);
+
+    /* ==========================================================================
+       HOLOGRAPHIC FOIL SHADER MATERIAL (リアル・キラカード加工)
+       ========================================================================== */
+    const holoVertexShader = `
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vViewDir;
+      varying vec3 vWorldPosition;
+
+      void main() {
+        vUv = uv;
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPos.xyz;
+        vNormal = normalize(mat3(modelMatrix) * normal);
+        vViewDir = normalize(cameraPosition - worldPos.xyz);
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `;
+
+    const holoFragmentShader = `
+      uniform sampler2D uBaseTexture;
+      uniform vec3 uLightPos;
+      uniform float uTime;
+      uniform float uHoloType; // 0: Prismatic, 1: Cosmic, 2: Golden, 3: CyberHex
+      uniform float uFoilIntensity;
+      uniform float uGlitterIntensity;
+      uniform float uEnableHolo;
+
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vViewDir;
+      varying vec3 vWorldPosition;
+
+      vec3 spectral(float t) {
+        vec3 a = vec3(0.5, 0.5, 0.5);
+        vec3 b = vec3(0.5, 0.5, 0.5);
+        vec3 c = vec3(1.0, 1.0, 1.0);
+        vec3 d = vec3(0.00, 0.33, 0.67);
+        return a + b * cos(6.2831853 * (c * t + d));
+      }
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+      }
+
+      float getGlitter(vec2 uv, vec3 viewDir, vec3 normal) {
+        vec2 grid = floor(uv * 320.0);
+        float h = hash(grid);
+        vec3 flakeNormal = normalize(normal + vec3(sin(h * 6.283), 0.0, cos(h * 6.283)) * 0.85);
+        float flakeSpec = pow(max(0.0, dot(flakeNormal, viewDir)), 40.0);
+        return flakeSpec * step(0.32, h);
+      }
+
+      float hexDist(vec2 p) {
+        p = abs(p);
+        float c = dot(p, normalize(vec2(1.0, 1.73)));
+        c = max(c, p.x);
+        return c;
+      }
+
+      void main() {
+        vec4 baseColor = texture2D(uBaseTexture, vUv);
+        if (baseColor.a < 0.05) discard;
+
+        if (uEnableHolo < 0.5) {
+          gl_FragColor = baseColor;
+          return;
+        }
+
+        vec3 N = normalize(vNormal);
+        vec3 V = normalize(vViewDir);
+        vec3 L = normalize(uLightPos - vWorldPosition);
+        vec3 R = reflect(-L, N);
+
+        float ndotv = abs(dot(N, V));
+        float spec = pow(max(0.0, dot(R, V)), 26.0);
+
+        // カメラ視線と光の角度によって走るプリズム位相
+        float anglePhase = (1.0 - ndotv) * 3.6 + sin(uTime * 0.8) * 0.22;
+
+        vec3 rainbowColor = vec3(0.0);
+
+        if (uHoloType < 0.5) {
+          // 0: Prismatic Secret (角度で斜めに走るオーロラ・レインボースペクトル)
+          float wave = (vUv.x + vUv.y) * 4.0 + anglePhase * 1.5;
+          rainbowColor = spectral(wave);
+        } else if (uHoloType < 1.5) {
+          // 1: Cosmic Spiral (中心からの渦巻きホログラム)
+          vec2 center = vUv - 0.5;
+          float dist = length(center);
+          float angle = atan(center.y, center.x);
+          float spiral = dist * 7.5 - angle * 1.5 + anglePhase * 1.3;
+          rainbowColor = spectral(spiral);
+        } else if (uHoloType < 2.5) {
+          // 2: Golden Foil (黄金〜コッパーの上品な箔押し加工)
+          float goldWave = sin(vUv.x * 7.0 + anglePhase * 1.8) * cos(vUv.y * 7.0 + anglePhase * 1.4);
+          vec3 richGold = vec3(1.0, 0.84, 0.28);
+          vec3 copper = vec3(1.0, 0.48, 0.18);
+          rainbowColor = mix(richGold, copper, goldWave * 0.5 + 0.5) * 1.4;
+        } else {
+          // 3: Cyber Hex Grid (SF近未来ハニカムセル・ホログラム)
+          vec2 hexUv = vUv * 48.0;
+          float hex = hexDist(fract(hexUv) - 0.5);
+          float edge = smoothstep(0.46, 0.5, hex);
+          float cellHash = hash(floor(hexUv));
+          rainbowColor = spectral(cellHash * 2.2 + anglePhase * 0.8) * (0.8 + edge * 2.2);
+        }
+
+        // キラキラ瞬く微細ラメ粒子
+        float glitterVal = getGlitter(vUv, V, N) * uGlitterIntensity;
+        vec3 glitterColor = spectral(glitterVal * 4.0 + hash(vUv * 120.0)) * glitterVal * 3.2;
+
+        // クリアコート表面の滑らかな鏡面ハイライト
+        vec3 clearCoatGlare = vec3(1.0) * spec * 0.42;
+
+        // キャラクターの明度 (Luminance)
+        float lum = dot(baseColor.rgb, vec3(0.299, 0.587, 0.114));
+
+        // ホロ箔（虹色）光彩
+        vec3 foil = rainbowColor * uFoilIntensity;
+
+        // 白飛びを完全に防ぎ、キャラクターの表情・目元・色彩を美しく際立たせる「ホロフォイル印刷シミュレーション」
+        // 1. 絵柄のインク層にホロの光が透過・干渉するリッチなカラー光彩
+        vec3 foilTint = baseColor.rgb * foil * 1.1;
+
+        // 2. 背景やハイライト部に走るプリズムオーロラ (スクリーン合成で白飛びを物理的に回避)
+        vec3 holoShimmer = 1.0 - (1.0 - baseColor.rgb) * (1.0 - clamp(foil * 0.32, 0.0, 0.70));
+
+        // 3. 原画の透明感を保ちつつ、上品なホログラムを融合
+        vec3 blended = mix(baseColor.rgb, holoShimmer, 0.75) + foilTint * 0.22;
+
+        // 4. 微細ラメ粒子 (glitter) とクリアコート表面反射
+        vec3 finalColor = blended + glitterColor * 0.32 + clearCoatGlare;
+
+        gl_FragColor = vec4(finalColor, baseColor.a);
+      }
+    `;
+
+    // Hologram Uniforms
+    let isHoloEnabled = true;
+    let currentHoloType = 0.0; // 0: Prismatic, 1: Cosmic, 2: Gold, 3: Cyber
+    let foilShineVal = 1.3;
+    let foilGlitterVal = 1.0;
+
+    const holoUniforms = {
+      uBaseTexture: { value: null },
+      uLightPos: { value: new THREE.Vector3(3.0, 5.0, 4.0) },
+      uTime: { value: 0 },
+      uHoloType: { value: 0.0 },
+      uFoilIntensity: { value: 1.3 },
+      uGlitterIntensity: { value: 1.0 },
+      uEnableHolo: { value: 1.0 }
+    };
+
+    // Canvas path tracing helper for Cyber Hexagon (Canvas 2048x2048 ジャストフィット)
+    function traceCyberHexCanvas(ctx, isBlue = true, inset = 0) {
+      ctx.beginPath();
+      if (isBlue) {
+        // P1: Pointing Upward
+        ctx.moveTo(1024, 75 + inset);
+        ctx.lineTo(1830 - inset * 0.8, 590 + inset * 0.6);
+        ctx.lineTo(1910 - inset * 0.8, 1630 - inset * 0.7);
+        ctx.lineTo(1670 - inset * 0.6, 1950 - inset);
+        ctx.lineTo(378 + inset * 0.6, 1950 - inset);
+        ctx.lineTo(138 + inset * 0.8, 1630 - inset * 0.7);
+        ctx.lineTo(218 + inset * 0.8, 590 + inset * 0.6);
+      } else {
+        // P2: Pointing Downward
+        ctx.moveTo(1024, 1973 - inset);
+        ctx.lineTo(218 + inset * 0.8, 1458 - inset * 0.6);
+        ctx.lineTo(138 + inset * 0.8, 418 + inset * 0.7);
+        ctx.lineTo(378 + inset * 0.6, 98 + inset);
+        ctx.lineTo(1670 - inset * 0.6, 98 + inset);
+        ctx.lineTo(1910 - inset * 0.8, 418 + inset * 0.7);
+        ctx.lineTo(1830 - inset * 0.8, 1458 - inset * 0.6);
+      }
+      ctx.closePath();
+    }
+
+    // High-Resolution Futuristic Minimal Canvas Texture
+    function createCharacterPieceTopTexture(unitData) {
+      const cvs = document.createElement('canvas');
+      cvs.width = 2048;
+      cvs.height = 2048;
+      const ctx = cvs.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      const tex = new THREE.CanvasTexture(cvs);
+      tex.encoding = THREE.sRGBEncoding; // Three.js r128 sRGBガンマ補正でくすみ完全解消！
+      tex.generateMipmaps = false;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.anisotropy = 16;
+
+      const isBlue = unitData.team === 'P1';
+      const primaryColor = isBlue ? '#00bbf9' : '#ff2e63';
+      const secondaryColor = isBlue ? 'rgba(0, 187, 249, 0.55)' : 'rgba(255, 46, 99, 0.55)';
+
+      function drawCard(imgElement) {
+        ctx.clearRect(0, 0, 2048, 2048);
+
+        ctx.save();
+
+        // 1. Clip Cyber Hexagon Contour
+        traceCyberHexCanvas(ctx, isBlue, 0);
+        ctx.clip();
+
+        // 2. Clean High-Tech Base
+        ctx.fillStyle = isBlue ? '#ffffff' : '#080d1a';
+        ctx.fillRect(0, 0, 2048, 2048);
+
+        // 3. Character Artwork with Zoom-In (写真を大きく・表情をダイレクトに強調！)
+        if (imgElement) {
+          ctx.save();
+          // コントラストと彩度をブーストして、鮮やかでクリアな原画クオリティに
+          ctx.filter = 'contrast(1.06) saturate(1.16)';
+          
+          // 写真を約1.32倍にズームイン配置して大きく見せる！
+          const zoom = 1.32;
+          const drawW = 2048 * zoom;
+          const drawH = 2048 * zoom;
+          const offsetX = (2048 - drawW) / 2;
+          // P1は顔が上部、P2は顔が下部にあるためフォーカス位置を調整
+          const offsetY = isBlue ? (2048 - drawH) * 0.32 : (2048 - drawH) * 0.68;
+          ctx.drawImage(imgElement, offsetX, offsetY, drawW, drawH);
+          ctx.filter = 'none';
+          ctx.restore();
+        }
+
+        // ※ 黒ずみビネットは完全撤去！原画本来の透明感と鮮やかな発色を100%活かす
+
+        // 4. Precision Corner Reticles (SF照準マーク)
+        ctx.strokeStyle = primaryColor;
+        ctx.lineWidth = 7;
+        const R = 80;
+        function drawReticle(x, y, dx, dy) {
+          ctx.beginPath();
+          ctx.moveTo(x, y + dy * R);
+          ctx.lineTo(x, y);
+          ctx.lineTo(x + dx * R, y);
+          ctx.stroke();
+        }
+        if (isBlue) {
+          drawReticle(360, 720, 1, 1);
+          drawReticle(1688, 720, -1, 1);
+          drawReticle(320, 1720, 1, -1);
+          drawReticle(1728, 1720, -1, -1);
+        } else {
+          drawReticle(360, 1328, 1, -1);
+          drawReticle(1688, 1328, -1, -1);
+          drawReticle(320, 328, 1, 1);
+          drawReticle(1728, 328, -1, 1);
+        }
+
+        // 6. Dual Precision Border Frame (二重スリムベゼル)
+        ctx.strokeStyle = primaryColor;
+        ctx.lineWidth = 16;
+        traceCyberHexCanvas(ctx, isBlue, 8);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 4;
+        traceCyberHexCanvas(ctx, isBlue, 30);
+        ctx.stroke();
+
+        ctx.restore();
+        tex.needsUpdate = true;
+      }
+
+      // Check image cache or load fresh
+      const cached = loadedImages[unitData.id];
+      if (cached && (cached.complete || cached.naturalWidth > 0)) {
+        drawCard(cached);
+      } else {
+        drawCard(null);
+        const assetSrc = getAssetUrl(unitData.id, unitData.img);
+        if (assetSrc) {
+          const img = new Image();
+          img.onload = () => {
+            loadedImages[unitData.id] = img;
+            drawCard(img);
+          };
+          img.src = assetSrc;
+          if (img.complete) {
+            drawCard(img);
+          }
+        }
+      }
+
+      return tex;
+    }
+
+    // Active Piece Group Container
+    const pieceRootGroup = new THREE.Group();
+    scene.add(pieceRootGroup);
+
+    let currentPieceGroup = null;
+
+    function renderCurrentPiece() {
+      if (currentPieceGroup) {
+        pieceRootGroup.remove(currentPieceGroup);
+      }
+
+      const data = {
+        ...UNITS_DATA[currentUnitId],
+        team: currentTeam
+      };
+
+      const group = new THREE.Group();
+      const isBlue = data.team === 'P1';
+      const primaryHex = isBlue ? 0x00bbf9 : 0xff2e63;
+
+      // 1. Heavy Monolith Chassis Base (外殻メインボディ)
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: isBlue ? 0xf8fafc : 0x0a0f1d,
+        roughness: isBlue ? 0.16 : 0.24,
+        metalness: isBlue ? 0.12 : 0.42
+      });
+      const bodyMesh = new THREE.Mesh(sharedPieceBodyGeo, bodyMat);
+      bodyMesh.position.set(0, 0, 0); // 上面は y = +0.13, 底面は y = -0.13 (背面シールなし、美しいソリッド装甲)
+      bodyMesh.castShadow = true;
+      bodyMesh.receiveShadow = true;
+      if (!isBlue) bodyMesh.rotation.y = Math.PI;
+      group.add(bodyMesh);
+
+      // 2. Raised Bezel Rim (シールを収める「くぼみポケット」を作る外周土手フレーム)
+      const rimMesh = new THREE.Mesh(sharedRimGeo, bodyMat);
+      // 土手の上面は y = +0.22, 底面は y = +0.17 (物理的に深さ 4.5cm のくぼみを形成)
+      rimMesh.position.set(0, 0.195, 0);
+      rimMesh.castShadow = true;
+      rimMesh.receiveShadow = true;
+      if (!isBlue) rimMesh.rotation.y = Math.PI;
+      group.add(rimMesh);
+
+      // 3. Waist Energy Slit Conduit (側面の極細エナジーレール)
+      const waistMat = new THREE.MeshStandardMaterial({
+        color: primaryHex,
+        emissive: primaryHex,
+        emissiveIntensity: 0.85,
+        roughness: 0.2,
+        metalness: 0.8
+      });
+      const waistMesh = new THREE.Mesh(sharedWaistRailGeo, waistMat);
+      waistMesh.position.set(0, 0, 0);
+      if (!isBlue) waistMesh.rotation.y = Math.PI;
+      group.add(waistMesh);
+
+      // 4. Recessed Decal Sticker Plate (くぼみの中にピタッと貼り付けられた高精細キラカードシール)
+      const topTex = createCharacterPieceTopTexture(data);
+      holoUniforms.uBaseTexture.value = topTex;
+
+      const stickerMat = new THREE.ShaderMaterial({
+        vertexShader: holoVertexShader,
+        fragmentShader: holoFragmentShader,
+        uniforms: holoUniforms,
+        transparent: true,
+        side: THREE.DoubleSide
+      });
+      const stickerPlate = new THREE.Mesh(sharedStickerPlateGeo, stickerMat);
+      // くぼみの底面 (y = +0.17) の直上 y = +0.175 に配置 (外周土手 y = +0.22 より約 4.5cm 深く沈み込む！)
+      stickerPlate.position.set(0, 0.175, 0);
+      group.add(stickerPlate);
+
+      // 5. Nose Beacon is removed as requested (クリーンでミニマルな外観に統一)
+
+      // ※ 背面シールは完全に撤去し、ソリッドな美麗アーマーシャシーとして統一
+
+      pieceRootGroup.add(group);
+      currentPieceGroup = group;
+
+      if (underGlowLight) {
+        underGlowLight.color.setHex(primaryHex);
+      }
+
+      // Update HUD and summary
+      updateHUD(data);
+      updateSidebarSummary(data);
+    }
+
+    function updateHUD(data) {
+      const isBlue = data.team === 'P1';
+      const hudEl = document.getElementById('piece-hud-tag');
+      hudEl.className = `piece-micro-hud ${isBlue ? 'blue' : 'red'}`;
+      document.getElementById('hud-name').innerText = data.name;
+      document.getElementById('hud-hp').innerText = `${data.hp}`;
+      document.getElementById('hud-hp-bar').style.width = '100%';
+    }
+
+    function updateSidebarSummary(data) {
+      const isBlue = data.team === 'P1';
+      document.getElementById('sum-name').innerText = data.name;
+      document.getElementById('sum-role').innerText = `${data.icon} ${data.role}`;
+      document.getElementById('sum-hp').innerText = `${data.hp} HP`;
+      document.getElementById('sum-atk').innerText = `${data.atk} ATK`;
+      const teamEl = document.getElementById('sum-team');
+      teamEl.innerText = isBlue ? 'WHITE P1' : 'BLACK P2';
+      teamEl.style.color = isBlue ? '#38bdf8' : '#fb7185';
+      document.getElementById('sum-passive').innerText = data.passiveDesc;
+    }
+
+    // Initial Piece Spawn
+    renderCurrentPiece();
+
+    /* ==========================================================================
+       5. CONTROLS & SIDEBAR EVENTS
+       ========================================================================== */
+    // Unit selection buttons
+    document.querySelectorAll('[data-unit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-unit]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentUnitId = btn.dataset.unit;
+        currentTeam = UNITS_DATA[currentUnitId].team;
+
+        document.getElementById('btn-team-p1').classList.toggle('active', currentTeam === 'P1');
+        document.getElementById('btn-team-p2').classList.toggle('active', currentTeam === 'P2');
+
+        renderCurrentPiece();
+        gsap.fromTo(currentPieceGroup.position, { y: 0.3 }, { y: 0, duration: 0.35, ease: 'back.out(2)' });
+      });
+    });
+
+    // Team switch buttons
+    const btnP1 = document.getElementById('btn-team-p1');
+    const btnP2 = document.getElementById('btn-team-p2');
+
+    btnP1.addEventListener('click', () => {
+      currentTeam = 'P1';
+      btnP1.classList.add('active');
+      btnP2.classList.remove('active');
+      renderCurrentPiece();
+      gsap.fromTo(currentPieceGroup.position, { y: 0.3 }, { y: 0, duration: 0.35, ease: 'back.out(2)' });
+    });
+
+    btnP2.addEventListener('click', () => {
+      currentTeam = 'P2';
+      btnP2.classList.add('active');
+      btnP1.classList.remove('active');
+      renderCurrentPiece();
+      gsap.fromTo(currentPieceGroup.position, { y: 0.3 }, { y: 0, duration: 0.35, ease: 'back.out(2)' });
+    });
+
+    // View Angle Buttons
+    const btnViewBoard = document.getElementById('btn-view-board');
+    const btnViewFront = document.getElementById('btn-view-front');
+    const btnViewFree  = document.getElementById('btn-view-free');
+
+    function setActiveViewBtn(btn) {
+      [btnViewBoard, btnViewFront, btnViewFree].forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    btnViewBoard.addEventListener('click', () => {
+      setActiveViewBtn(btnViewBoard);
+      autoRotate = false;
+      gsap.to(pieceRootGroup.rotation, { x: 0, y: 0, duration: 0.6 });
+      gsap.to(camera.position, {
+        x: BOARD_CAM_POS.x,
+        y: BOARD_CAM_POS.y,
+        z: BOARD_CAM_POS.z,
+        duration: 0.8,
+        ease: 'power2.inOut',
+        onUpdate: () => camera.lookAt(0, 0, 0)
+      });
+    });
+
+    btnViewFront.addEventListener('click', () => {
+      setActiveViewBtn(btnViewFront);
+      autoRotate = false;
+      gsap.to(pieceRootGroup.rotation, { x: 0, y: 0, duration: 0.6 });
+      gsap.to(camera.position, {
+        x: FRONT_CAM_POS.x,
+        y: FRONT_CAM_POS.y,
+        z: FRONT_CAM_POS.z,
+        duration: 0.8,
+        ease: 'power2.inOut',
+        onUpdate: () => camera.lookAt(0, 0, 0)
+      });
+    });
+
+    btnViewFree.addEventListener('click', () => {
+      autoRotate = !autoRotate;
+      btnViewFree.classList.toggle('active', autoRotate);
+    });
+
+    // Hologram Foil Controls
+    const btnFoilOn = document.getElementById('btn-foil-on');
+    const btnFoilOff = document.getElementById('btn-foil-off');
+    const sliderFoilShine = document.getElementById('slider-foil-shine');
+    const sliderFoilGlitter = document.getElementById('slider-foil-glitter');
+
+    btnFoilOn.addEventListener('click', () => {
+      isHoloEnabled = true;
+      btnFoilOn.classList.add('active');
+      btnFoilOff.classList.remove('active');
+      holoUniforms.uEnableHolo.value = 1.0;
+    });
+
+    btnFoilOff.addEventListener('click', () => {
+      isHoloEnabled = false;
+      btnFoilOff.classList.add('active');
+      btnFoilOn.classList.remove('active');
+      holoUniforms.uEnableHolo.value = 0.0;
+    });
+
+    document.querySelectorAll('#foil-type-container .btn-foil-type').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#foil-type-container .btn-foil-type').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentHoloType = parseFloat(btn.dataset.type);
+        holoUniforms.uHoloType.value = currentHoloType;
+      });
+    });
+
+    sliderFoilShine.addEventListener('input', (e) => {
+      foilShineVal = parseFloat(e.target.value);
+      holoUniforms.uFoilIntensity.value = foilShineVal;
+    });
+
+    sliderFoilGlitter.addEventListener('input', (e) => {
+      foilGlitterVal = parseFloat(e.target.value);
+      holoUniforms.uGlitterIntensity.value = foilGlitterVal;
+    });
+
+    // Mouse drag rotation & Zoom
+    let isDragging = false;
+    let prevPointer = { x: 0, y: 0 };
+
+    canvasEl.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      prevPointer = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - prevPointer.x;
+      const dy = e.clientY - prevPointer.y;
+      prevPointer = { x: e.clientX, y: e.clientY };
+
+      pieceRootGroup.rotation.y += dx * 0.009;
+      pieceRootGroup.rotation.x += dy * 0.009;
+      // Clamp pitch
+      pieceRootGroup.rotation.x = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, pieceRootGroup.rotation.x));
+      autoRotate = false;
+      btnViewFree.classList.remove('active');
+    });
+
+    window.addEventListener('pointerup', () => {
+      isDragging = false;
+    });
+
+    canvasEl.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const zoomDelta = e.deltaY * 0.004;
+      const newLen = camera.position.length() + zoomDelta;
+      if (newLen > 2.5 && newLen < 14) {
+        camera.position.setLength(newLen);
+      }
+    }, { passive: false });
+
+    window.addEventListener('resize', () => {
+      const w = viewportArea.clientWidth;
+      const h = viewportArea.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    });
+
+    /* ==========================================================================
+       6. ANIMATION LOOP & HUD PROJECTION
+       ========================================================================== */
+    const hudEl = document.getElementById('piece-hud-tag');
+    const tempVec = new THREE.Vector3();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (autoRotate) {
+        pieceRootGroup.rotation.y += 0.012;
+      }
+
+      if (holoUniforms && holoUniforms.uTime) {
+        holoUniforms.uTime.value += 0.016;
+      }
+
+      // Project HUD above the piece in 2D screen space
+      if (currentPieceGroup) {
+        tempVec.set(0, 0.15, 0.55);
+        tempVec.applyMatrix4(pieceRootGroup.matrixWorld);
+        tempVec.project(camera);
+
+        const w = viewportArea.clientWidth;
+        const h = viewportArea.clientHeight;
+        const screenX = (tempVec.x * 0.5 + 0.5) * w;
+        const screenY = (-(tempVec.y * 0.5) + 0.5) * h;
+
+        hudEl.style.left = `${screenX}px`;
+        hudEl.style.top = `${screenY}px`;
+        hudEl.style.display = tempVec.z < 1 ? 'flex' : 'none';
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>

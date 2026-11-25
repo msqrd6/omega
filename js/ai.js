@@ -2,26 +2,25 @@
    ai.js: CPU (AI) 思考ルーチン - スマート連携・キル優先・ハザード回避対応
    (UI/DOM直接参照を排除し、エラーハンドリングを完全装備)
    ============================================================== */
-import { ROWS, COLS } from './config.js?v=lab-white-1';
+import { ROWS, COLS } from './config.js?v=lab-white-3';
 import {
   board,
-  inBounds,
   getValidMoves,
   getValidAttacks,
   getValidSkillTargets,
   getAttackRangeCells,
   getEffectiveAtk,
-  hasHazardAt,
+  getHazardInfoAt,
   isUltReady,
   hasDebuff,
   hasAnyDebuff,
   hasActionOrder,
   isUnit,
-  isObject,
-  isAnchor
-} from './board.js?v=lab-white-1';
-import { executeMove, executeAttack, executeSkill } from './actions.js?v=lab-white-1';
-import { setPhaseInstruction } from './ui.js?v=lab-white-1';
+  isObject
+} from './board.js?v=lab-white-3';
+import { getSkillImpact } from './battle-targets.js';
+import { executeMove, executeAttack, executeSkill } from './actions.js?v=lab-white-3';
+import { setPhaseInstruction } from './ui.js?v=lab-white-8';
 
 // RULEBOOK正式名と旧エイリアスの双方に対応する判定ヘルパー
 const isType = (u, ...keys) => {
@@ -43,12 +42,12 @@ const isType = (u, ...keys) => {
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-function getMyHeroes() {
+function getMyHeroes(aiOwner = 'P2') {
   const heroes = [];
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const u = board[r][c];
-      if (u && u.owner === 'P2' && isUnit(u)) {
+      if (u && u.owner === aiOwner && isUnit(u)) {
         heroes.push({ r, c, unit: u });
       }
     }
@@ -56,7 +55,8 @@ function getMyHeroes() {
   return heroes;
 }
 
-export async function runAITurn({ onGameOver, onEndTurnCallback, updateViewCallback }) {
+export async function runAITurn({ aiOwner = 'P2', signal, performAction, onGameOver, onEndTurnCallback, updateViewCallback }) {
+  const humanOwner = aiOwner === 'P1' ? 'P2' : 'P1';
   let gameOverTriggered = false;
   const handleGameOver = (winner, reason = 'anchor', context = null) => {
     gameOverTriggered = true;
@@ -64,106 +64,97 @@ export async function runAITurn({ onGameOver, onEndTurnCallback, updateViewCallb
       onGameOver(winner, reason, context);
     }
   };
+  const act = async (execute, args, delay) => {
+    await Promise.all([
+      performAction(async presentation => {
+        await execute(...args, handleGameOver, presentation);
+        if (!signal.aborted && !gameOverTriggered) updateViewCallback?.();
+      }),
+      sleep(delay)
+    ]);
+    return !signal.aborted && !gameOverTriggered;
+  };
 
   try {
     setPhaseInstruction("ENEMY AI思考中...");
     await sleep(400);
+    if (signal.aborted) return;
 
     const usedSkillUnitIds = new Set();
 
     // =============================================================
     // 1. ウルト判定
     // =============================================================
-    const curHeroesForUlt = getMyHeroes();
+    const curHeroesForUlt = getMyHeroes(aiOwner);
     const bestUlt = evaluateBestUlt(curHeroesForUlt);
     if (bestUlt && bestUlt.score >= 25) {
       const casterId = board[bestUlt.heroPos.r]?.[bestUlt.heroPos.c]?.id;
-      executeSkill(bestUlt.heroPos, bestUlt.targetPos, 'ULT', handleGameOver);
-      if (gameOverTriggered) return;
+      if (!await act(executeSkill, [bestUlt.heroPos, bestUlt.targetPos, 'ULT'], 500)) return;
       if (casterId) usedSkillUnitIds.add(casterId);
-      if (typeof updateViewCallback === 'function') updateViewCallback();
-      await sleep(500);
     }
 
     // =============================================================
     // 2. 通常スキル使用判定 (1ターンにユニット各1回、有効な状況で使用)
     // =============================================================
     for (let step = 0; step < 2; step++) {
-      const curHeroes = getMyHeroes().filter(h => !usedSkillUnitIds.has(h.unit.id));
+      const curHeroes = getMyHeroes(aiOwner).filter(h => !usedSkillUnitIds.has(h.unit.id));
       const bestSkill = evaluateBestNormalSkill(curHeroes);
       if (!bestSkill || bestSkill.score <= 0) break;
 
       const casterId = board[bestSkill.heroPos.r]?.[bestSkill.heroPos.c]?.id;
-      executeSkill(bestSkill.heroPos, bestSkill.targetPos, 'A', handleGameOver);
-      if (gameOverTriggered) return;
+      if (!await act(executeSkill, [bestSkill.heroPos, bestSkill.targetPos, 'A'], 400)) return;
       if (casterId) usedSkillUnitIds.add(casterId);
-      if (typeof updateViewCallback === 'function') updateViewCallback();
-      await sleep(400);
     }
 
     // =============================================================
     // 3. 通常攻撃 (移動前)
     // =============================================================
     for (let atkStep = 0; atkStep < 3; atkStep++) {
-      if (!hasActionOrder('P2', 'attack', 1)) break;
-      const curHeroes = getMyHeroes();
-      const bestAttack = evaluateBestAttack(curHeroes);
+      if (!hasActionOrder(aiOwner, 'attack', 1)) break;
+      const curHeroes = getMyHeroes(aiOwner);
+      const bestAttack = evaluateBestAttack(curHeroes, humanOwner);
       if (!bestAttack) break;
-      executeAttack(bestAttack.from, bestAttack.target, handleGameOver);
-      if (gameOverTriggered) return;
-      if (typeof updateViewCallback === 'function') updateViewCallback();
-      await sleep(450);
+      if (!await act(executeAttack, [bestAttack.from, bestAttack.target], 450)) return;
     }
 
     // =============================================================
     // 4. 移動 (共通移動オーダーおよび専用移動オーダーを順次消費)
     // =============================================================
     for (let m = 0; m < 2; m++) {
-      if (!hasActionOrder('P2', 'move', 1)) break;
-      const curHeroes = getMyHeroes();
-      const bestMove = evaluateBestMove(curHeroes);
+      if (!hasActionOrder(aiOwner, 'move', 1)) break;
+      const curHeroes = getMyHeroes(aiOwner);
+      const bestMove = evaluateBestMove(curHeroes, humanOwner);
       if (!bestMove) break;
-      executeMove(bestMove.from, bestMove.to, handleGameOver);
-      if (gameOverTriggered) return;
-      if (typeof updateViewCallback === 'function') updateViewCallback();
-      await sleep(450);
+      if (!await act(executeMove, [bestMove.from, bestMove.to], 450)) return;
     }
 
     // =============================================================
     // 5. 移動後の追撃通常攻撃 (まだ攻撃オーダーが残っていれば実行)
     // =============================================================
     for (let atkStep = 0; atkStep < 3; atkStep++) {
-      if (!hasActionOrder('P2', 'attack', 1)) break;
-      const curHeroes = getMyHeroes();
-      const bestAttack = evaluateBestAttack(curHeroes);
+      if (!hasActionOrder(aiOwner, 'attack', 1)) break;
+      const curHeroes = getMyHeroes(aiOwner);
+      const bestAttack = evaluateBestAttack(curHeroes, humanOwner);
       if (!bestAttack) break;
-      executeAttack(bestAttack.from, bestAttack.target, handleGameOver);
-      if (gameOverTriggered) return;
-      if (typeof updateViewCallback === 'function') updateViewCallback();
-      await sleep(450);
+      if (!await act(executeAttack, [bestAttack.from, bestAttack.target], 450)) return;
     }
 
     // =============================================================
     // 6. 移動後の追加通常スキル (まだ未使用のユニットで有効なものがあれば)
     // =============================================================
-    const remainingHeroes = getMyHeroes().filter(h => !usedSkillUnitIds.has(h.unit.id));
+    const remainingHeroes = getMyHeroes(aiOwner).filter(h => !usedSkillUnitIds.has(h.unit.id));
     const bestPostSkill = evaluateBestNormalSkill(remainingHeroes);
     if (bestPostSkill && bestPostSkill.score > 20) {
       const casterId = board[bestPostSkill.heroPos.r]?.[bestPostSkill.heroPos.c]?.id;
-      executeSkill(bestPostSkill.heroPos, bestPostSkill.targetPos, 'A', handleGameOver);
-      if (gameOverTriggered) return;
+      if (!await act(executeSkill, [bestPostSkill.heroPos, bestPostSkill.targetPos, 'A'], 400)) return;
       if (casterId) usedSkillUnitIds.add(casterId);
-      if (typeof updateViewCallback === 'function') updateViewCallback();
-      await sleep(400);
     }
   } catch (err) {
     console.error("AI turn encountered an error:", err);
   } finally {
-    if (!gameOverTriggered) {
+    if (!signal.aborted && !gameOverTriggered) {
       await sleep(250);
-      if (typeof onEndTurnCallback === 'function') {
-        onEndTurnCallback();
-      }
+      if (!signal.aborted) onEndTurnCallback?.();
     }
   }
 }
@@ -228,39 +219,47 @@ function scoreSkillAction(h, slot, tPos) {
   const enemies = pieces.filter(piece => piece.owner !== hero.owner);
   const distance = (a, b) => Math.max(Math.abs(a.r - b.r), Math.abs(a.c - b.c));
   const near = (pieces, center, radius) => pieces.filter(piece => distance(piece, center) <= radius);
-  const heal = (pieces, amount) => pieces.reduce((sum, piece) =>
-    sum + (isUnit(piece) ? Math.min(amount, piece.maxHp - piece.hp) : 0), 0);
-  const damage = (pieces, amount) => pieces.reduce((sum, piece) =>
-    sum + amount + (piece.hp + piece.getShieldVal() <= amount ? (piece.isAnchor() ? 1000 : 35) : 0), 0);
+  const heal = (pieces, amount) => pieces.reduce((sum, piece) => sum + Math.min(amount, piece.maxHp - piece.hp), 0);
+  const cleanse = pieces => pieces.filter(hasAnyDebuff).length * 20;
+  const damage = (pieces, amount) => pieces.reduce((sum, piece) => {
+    const potential = hasDebuff(piece, 'vulnerable') ? Math.floor(amount * 1.5) : amount;
+    return sum + Math.min(potential, piece.hp + piece.getShieldVal()) +
+      (piece.hp + piece.getShieldVal() <= potential ? (piece.isAnchor() ? 1000 : 35) : 0);
+  }, 0);
   const shields = (pieces, amount) => pieces.reduce((sum, piece) =>
-    sum + (near(enemies.filter(isUnit), piece, 2).length ? Math.max(0, amount - piece.getShieldVal()) : 0), 0);
+    sum + (near(enemies.filter(isUnit), piece, 2).length ? amount : 0), 0);
   const ult = slot === 'ULT';
+  const { targets, shieldTargets } = getSkillImpact(hero, slot, tPos, board);
 
   switch (hero.typeKey) {
-    case 'PRISM': return damage(hero.getMarkedTargets(board, slot), ult ? 20 : 10);
-    case 'NEXUS': {
-      const linked = hero.getMarkedTargets(board, slot);
-      return shields(linked, ult ? 25 : 10) + (ult ? linked.filter(piece => isUnit(piece) && hasAnyDebuff(piece)).length * 20 : 0);
+    case 'PRISM': return ult ? damage(targets, hero.skills.ULT.damage) :
+      targets.filter(piece => !hasDebuff(piece, 'bind')).length * 17;
+    case 'NEXUS': return shields(targets, hero.skills[slot].shieldVal) +
+      (ult ? 0 : targets.filter(piece => near(enemies, piece, 1).length).length * 5);
+    case 'LILY': return heal(targets, hero.skills[slot].heal) + cleanse(targets);
+    case 'WARDEN': return ult ? targets.length * 23 + shields(shieldTargets, hero.skills.ULT.shieldVal) :
+      (near(enemies, tPos, 1).length ? 12 : 0);
+    case 'BLAST': return damage(targets, hero.skills[slot].damage);
+    case 'SMOG': {
+      if (ult) return damage(targets, 10) + targets.length * 7;
+      const target = board[tPos.r][tPos.c];
+      if (target && target.owner !== hero.owner && target.isUnit()) return 14 + damage([target], 5);
+      const atCaster = tPos.r === hero.r && tPos.c === hero.c;
+      return atCaster && getHazardInfoAt(hero.r, hero.c)?.owner !== hero.owner ? 11 : 0;
     }
-    case 'LILY': return ult ? heal(allies, 15) + 10 : heal([board[tPos.r][tPos.c]], 30);
-    case 'WARDEN': return ult ? shields(allies, 15) : (near(enemies, tPos, 1).length ? 12 : 0);
-    case 'BLAST': {
-      if (!ult) return near(enemies, tPos, 1).length ? 15 : 0;
-      const { damage: blastDamage, selfDamage, range } = hero.skills.ULT;
-      return damage(near(enemies, hero, range), blastDamage) - (hero.hp <= selfDamage ? 35 : selfDamage);
-    }
-    case 'SMOG': return ult ? damage(near(enemies.filter(piece => !piece.isAnchor()), hero, 1), 10) : (near(enemies, tPos, 1).length ? 12 : 0);
-    case 'GLITCH': return near(enemies.filter(isUnit), tPos, 1).length * (ult ? 23 : 13);
-    case 'HIVE': return near(enemies, tPos, 1).length * 12 + (ult ? shields(allies.filter(piece => piece.typeKey === 'BIT'), hero.skills.ULT.shieldVal) : 0);
-    case 'VULCAN': return ult ? damage(near(enemies.filter(piece => !piece.isAnchor()), tPos, 2), 25) : near(enemies.filter(isUnit), tPos, 1).length * 10;
-    case 'HALO': return heal(near(allies, ult ? tPos : hero, 1), 20);
-    case 'KINESIS': {
-      if (ult) return near(enemies, hero, 1).length ? 30 : 0;
-      return hero.getValidMoves({ board }).some(pos => near(enemies, pos, 1).length) ? 13 : 0;
-    }
+    case 'GLITCH': return targets.length * (ult ? 23 : 13);
+    case 'HIVE': return near(enemies, tPos, 1).length * 12 + (ult ? 12 + shields(targets, hero.skills.ULT.shieldVal) : 0);
+    case 'VULCAN': return ult ? damage(targets, hero.skills.ULT.damage) : near(enemies.filter(isUnit), tPos, 1).length * 10;
+    case 'HALO': return ult ? heal([hero, ...targets.filter(piece => piece !== hero)], 20) : heal(targets, 20);
+    case 'KINESIS':
+      return ult ? (near(enemies, hero, 1).length ? 30 : 0) :
+        (hero.getValidMoves({ board }).some(pos => near(enemies, pos, 1).length) ? 13 : 0);
     case 'VEIL': {
-      if (!ult) return hero.hp <= 40 ? 65 : 0;
-      return hero.maxHp - hero.hp >= 15 && getValidAttacks(hero.r, hero.c).length ? 45 : 0;
+      const currentThreats = near(enemies.filter(isUnit), hero, 1).length;
+      if (ult) return currentThreats * 15 + (currentThreats && hero.hp <= 40 ? 15 : 0);
+      const threats = near(enemies.filter(isUnit), tPos, 1).length;
+      if (hero.hp <= 40) return (currentThreats - threats) * 20;
+      return near(enemies, tPos, 1).length && !near(allies.filter(piece => piece !== hero), tPos, 1).length ? 12 : 0;
     }
     default: return 0;
   }
@@ -269,7 +268,7 @@ function scoreSkillAction(h, slot, tPos) {
 // -------------------------------------------------------------
 // 通常攻撃候補の評価
 // -------------------------------------------------------------
-function evaluateBestAttack(myHeroes) {
+function evaluateBestAttack(myHeroes, humanOwner = 'P1') {
   let best = null;
   let highestScore = -9999;
 
@@ -280,7 +279,7 @@ function evaluateBestAttack(myHeroes) {
     const attacks = getValidAttacks(h.r, h.c);
     for (const at of attacks) {
       const target = board[at.r]?.[at.c];
-      if (!target || target.owner !== 'P1') continue;
+      if (!target || target.owner !== humanOwner) continue;
 
       let score = 0;
       const effAtk = getEffectiveAtk(h.unit, target);
@@ -294,7 +293,7 @@ function evaluateBestAttack(myHeroes) {
           for (let er = 0; er < ROWS; er++) {
             for (let ec = 0; ec < COLS; ec++) {
               const eu = board[er][ec];
-              if (eu && eu.owner === 'P1' && isUnit(eu)) {
+              if (eu && eu.owner === humanOwner && isUnit(eu)) {
                 enemyUnitsCount++;
               }
             }
@@ -326,7 +325,7 @@ function evaluateBestAttack(myHeroes) {
 // -------------------------------------------------------------
 // 移動候補の評価
 // -------------------------------------------------------------
-function evaluateBestMove(myHeroes) {
+function evaluateBestMove(myHeroes, humanOwner = 'P1') {
   let best = null;
   let highestScore = -9999;
 
@@ -334,7 +333,7 @@ function evaluateBestMove(myHeroes) {
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const u = board[r][c];
-      if (u && u.typeKey === 'ANCHOR' && u.owner === 'P1') {
+      if (u && u.typeKey === 'ANCHOR' && u.owner === humanOwner) {
         enemyCorePos = { r, c };
         break;
       }
@@ -351,9 +350,9 @@ function evaluateBestMove(myHeroes) {
       let score = 0;
 
       // 1. ハザードマスの回避
-      if (hasHazardAt(m.r, m.c)) {
-        score -= 80;
-      }
+      const zone = getHazardInfoAt(m.r, m.c);
+      if (zone && zone.owner !== h.unit.owner) score -= 15;
+      if (zone?.owner === h.unit.owner && h.unit.typeKey === 'SMOG') score += 10;
 
       // 2. 移動後に通常攻撃可能な敵がいるか
       let canAttackEnemy = false;
@@ -361,7 +360,7 @@ function evaluateBestMove(myHeroes) {
       const rangeCells = getAttackRangeCells(m.r, m.c);
       for (const cell of rangeCells) {
         const u = board[cell.r][cell.c];
-        if (u && u.owner === 'P1') {
+        if (u && u.owner === humanOwner) {
           canAttackEnemy = true;
           if (u.typeKey === 'ANCHOR') canAttackCore = true;
         }

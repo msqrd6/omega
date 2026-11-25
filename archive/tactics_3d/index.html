@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CYBER TACTICS 3D // 少数精鋭コア破壊タクティクス</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Dela+Gothic+One&family=JetBrains+Mono:ital,wght@0,500;0,700;0,800;1,700&family=Noto+Sans+JP:wght@500;700;900&family=Orbitron:wght@700;800;900&family=Rajdhani:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Three.js & Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="assets_data.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css?v=20261027_scifi_art">
+</head>
+<body>
+
+  <!-- ==============================================================
+       SMARTPHONE LANDSCAPE 16:9 FIXED LETTERBOX CONTAINER
+       ============================================================== -->
+  <div class="game-frame" id="game-frame">
+
+    <!-- ==============================================================
+         画面1: 🎮 タイトル画面 (Screen: Title)
+         ============================================================== -->
+    <div id="screen-title" class="game-screen active">
+      <div class="title-container">
+        <div class="title-badge">CYBERNETIC TACTICAL CHESS 3D</div>
+        <h1 class="title-logo">CYBER TACTICS</h1>
+        <p class="title-subtitle">5vs5 少数精鋭ヒーローバトル ＆ コア破壊タクティクス</p>
+
+        <div class="title-menu">
+          <!-- クイック即時バトル -->
+          <button id="btn-title-quick" class="title-btn title-btn-quick" onclick="window.__startQuick3D()">
+            <div class="title-btn-icon">⚡</div>
+            <div class="title-btn-content">
+              <span class="title-btn-main">クイック3Dバトル (即時開戦)</span>
+              <span class="title-btn-sub">おすすめデフォルト編成で即座に3D盤面バトルを開始</span>
+            </div>
+            <div class="title-btn-arrow">▶</div>
+          </button>
+
+          <!-- ドラフトピックからの本格PvE -->
+          <button id="btn-title-pve" class="title-btn title-btn-pve" onclick="window.__startPvEMode()">
+            <div class="title-btn-icon">🤖</div>
+            <div class="title-btn-content">
+              <span class="title-btn-main">vs AI (ドラフト編成から開始)</span>
+              <span class="title-btn-sub">自由な5体編成と初期配置でAI軍を迎え撃つ</span>
+            </div>
+            <div class="title-btn-arrow">▶</div>
+          </button>
+
+          <!-- P2Pオンライン通信対戦 -->
+          <button id="btn-title-online" class="title-btn title-btn-online" onclick="window.__startOnlineFromTitle()">
+            <div class="title-btn-icon">🌐</div>
+            <div class="title-btn-content">
+              <span class="title-btn-main">オンライン対戦 (P2P通信)</span>
+              <span class="title-btn-sub">合言葉・招待URLで離れた友達と直接通信対戦</span>
+            </div>
+            <div class="title-btn-arrow">▶</div>
+          </button>
+
+          <!-- ルール解説 -->
+          <button id="btn-title-rules" class="title-btn title-btn-rules" onclick="window.__toggleRulesModal(true)">
+            <div class="title-btn-icon">📖</div>
+            <div class="title-btn-content">
+              <span class="title-btn-main">用語・ルール解説</span>
+              <span class="title-btn-sub">ヒーロー性能・ハザード・オブジェクトのルールを確認</span>
+            </div>
+            <div class="title-btn-arrow">?</div>
+          </button>
+        </div>
+
+        <div class="title-footer">
+          <span>CYBER TACTICS 3D v2.5 • WebGL Three.js Engine • WebRTC P2P</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==============================================================
+         画面2: ⚡ キャラクターピック画面 (Screen: Pick)
+         ============================================================== -->
+    <div id="screen-pick" class="game-screen">
+      <div class="pick-screen-container">
+        <!-- ピック画面ヘッダー -->
+        <div class="pick-screen-header">
+          <div class="pick-header-left">
+            <div id="pick-header-badge" class="pick-header-badge">PHASE 01 // HERO DRAFT</div>
+            <h2 id="pick-screen-title" class="pick-screen-title">チーム編成フェーズ</h2>
+            <div id="pick-screen-desc" class="pick-screen-desc">全ヒーローから自由に <strong>5体</strong> を選抜して出撃せよ</div>
+          </div>
+          <div class="pick-header-right">
+            <button class="mode-btn mode-btn-danger" onclick="window.__returnToTitle()">🏠 タイトルへ戻る</button>
+          </div>
+        </div>
+
+        <!-- 出撃編成スロット (5枠) -->
+        <div class="draft-slots-bar">
+          <div class="draft-slots-header">
+            <span class="draft-slots-title">🛡️ 出撃メンバー編成:</span>
+            <span id="draft-counter-badge" class="draft-counter-badge">0 / 5 体</span>
+          </div>
+          <div id="draft-slots-container" class="draft-slots-container">
+            <!-- JSで動的生成 -->
+          </div>
+        </div>
+
+        <!-- ピック操作バー -->
+        <div class="pick-screen-footer">
+          <div class="pick-footer-actions">
+            <button class="pick-btn-sub" onclick="window.__onAutoPick()">🎲 おすすめ5体</button>
+            <button class="pick-btn-sub" onclick="window.__onClearPick()">🗑️ 選択リセット</button>
+          </div>
+          <button id="pick-confirm-btn" class="pick-btn-confirm" disabled onclick="window.__onConfirmPick()">
+            <span>✅ この編成で決定（初期配置へ ➔）</span>
+          </button>
+        </div>
+
+        <!-- ヒーロー一覧カードグリッド -->
+        <div id="pick-cards-grid" class="pick-cards-grid">
+          <!-- JSで動的生成 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ==============================================================
+         画面3: ⚔️ 3Dバトル盤面画面 (Screen: Battle - Slanted Neo-Brutalist HUD)
+         ============================================================== -->
+    <div id="screen-battle" class="game-screen">
+      <div class="battle-workspace">
+
+        <!-- 3D Board Viewport (WebGL Canvas + Floating 3D Labels) -->
+        <div class="board-viewport" id="board-viewport">
+          <div id="webgl-canvas"></div>
+          <div id="piece-labels-container"></div>
+
+          <!-- Floating Battle Log Drawer -->
+          <div class="battle-log-drawer" id="battle-log-drawer">
+            <div class="log-drawer-header">
+              <span>📜 リアルタイム戦闘履歴 (BATTLE RECORD)</span>
+              <button class="tl-home-btn" onclick="window.__toggleBattleLog()">✕ 閉じる</button>
+            </div>
+            <div id="log-box" class="log-box"></div>
+          </div>
+        </div>
+
+        <!-- Top Caution Stripe -->
+        <div class="top-caution-stripe"></div>
+
+        <!-- ==========================================================
+             SLANTED 2D HUD OVERLAY (TILT -1.4°)
+             ========================================================== -->
+        <!-- 1. Top-Left: Turn Badge + Navigation Tools -->
+        <div class="top-left-turn interactive-ui">
+          <div class="turn-team-tag" id="turn-team-badge"><span>BLUE TURN</span></div>
+          <div class="turn-num-box">
+            <span class="turn-label">TURN</span>
+            <span class="turn-val" id="turn-banner-text">01</span>
+          </div>
+          <button class="tl-action-btn-slanted" onclick="window.__returnToTitle()" title="タイトルに戻る"><span>🏠</span></button>
+          <button class="tl-action-btn-slanted" onclick="window.__toggleBattleLog()" title="戦績ログを開く"><span>📜</span></button>
+        </div>
+
+        <!-- 2. Top-Center: Enemy ULT Bar (Clean, No Core HP) -->
+        <div class="team-ult-bar enemy interactive-ui" id="enemy-ult-hud">
+          <span class="ult-bar-tag" id="enemy-ult-name">ENEMY ULT</span>
+          <div class="r2-gauge" data-tone="red" data-seg style="width: 220px;">
+            <i id="enemy-ult-fill" style="width: 0%;"></i>
+          </div>
+          <span class="ult-bar-pct" style="color:var(--red);" id="enemy-ult-val">0%</span>
+        </div>
+
+        <!-- 3. Bottom-Center: Ally ULT Bar (Clean, No Core HP) -->
+        <div class="team-ult-bar ally interactive-ui" id="ally-ult-hud">
+          <span class="ult-bar-tag" id="ally-ult-name">ALLY ULT</span>
+          <div class="r2-gauge" data-seg style="width: 240px;">
+            <i id="ally-ult-fill" style="width: 0%;"></i>
+          </div>
+          <span class="ult-bar-pct" style="color:var(--kd);" id="ally-ult-val">0%</span>
+        </div>
+
+        <!-- 4. Right Tactical Dock: Tokens + Character Sheet + Phase End (TILT -1.4°) -->
+        <aside class="right-tactical-dock interactive-ui" id="hud-layer">
+
+          <!-- 4A. ACTION TOKENS PANEL (Clean Large MOVE / ATK Tokens) -->
+          <section class="tokens-panel" id="action-tokens-panel">
+            <div class="tokens-wrap-grid" id="action-tokens-container">
+              <!-- Populated dynamically -->
+            </div>
+          </section>
+
+          <!-- 4B. CHARACTER / ENTITY SHEET CARD -->
+          <article class="entity-sheet-card" id="unit-inspector" data-category="UNIT">
+
+            <!-- Portrait + Tags + Name -->
+            <div class="sheet-hero-header">
+              <img id="dossier-img" class="sheet-portrait-img" src="assets/kinesis.jpg" alt="Portrait">
+
+              <!-- Top Tags: Class, Role, Team -->
+              <div class="sheet-tags-bar">
+                <div class="tag-group-left">
+                  <span class="r2-tag class-unit" id="sheet-class-tag"><span>ユニット</span></span>
+                  <span class="r2-tag role-badge" id="dossier-role"><span>⚡ アサルト</span></span>
+                </div>
+                <span class="r2-tag team-badge" id="sheet-team-tag"><span>BLUE</span></span>
+              </div>
+
+              <!-- Bottom Name Overlay -->
+              <div class="sheet-name-overlay">
+                <h1 class="sheet-unit-name" id="dossier-name">キネシス</h1>
+              </div>
+            </div>
+
+            <!-- Core Stats Strip: HP (+SHIELD unified) / ATK (naturally added) -->
+            <div class="sheet-stats-strip" id="sheet-stats-strip">
+              <!-- Cell 1: HP & Shield Unified -->
+              <div class="stat-cell" id="cell-hp">
+                <div class="stat-head">
+                  <span class="stat-label">HP</span>
+                  <span class="r2-num" id="num-hp">
+                    <b id="dossier-hp">95</b><small id="dossier-maxhp">/ 95</small>
+                  </span>
+                </div>
+                <div class="hp-shield-bars-stack" id="hp-gauge-box">
+                  <!-- Extra Shield Bar above HP Bar when shield > 0 -->
+                  <div class="r2-gauge shield-top-bar" data-seg id="shield-bar-wrap" style="display:none;">
+                    <i id="bar-shield" style="width: 0%;"></i>
+                  </div>
+                  <!-- Main HP Bar (Depleted: Dark Slate / Remaining: Emerald Green) -->
+                  <div class="r2-gauge hp-gauge-main" data-seg>
+                    <i id="bar-hp" style="width: 100%;"></i>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Cell 2: ATK (Natural Sum) -->
+              <div class="stat-cell" id="cell-atk">
+                <div class="stat-head">
+                  <span class="stat-label">ATK</span>
+                  <span class="r2-num" id="num-atk"><b id="dossier-atk">30</b></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Status Effects / Abnormal States Bar (STATE //) -->
+            <div class="sheet-status-bar" id="sheet-status-bar">
+              <span class="status-bar-label">STATE //</span>
+              <div id="status-badges-container"></div>
+            </div>
+
+            <!-- Sheet Body: Passive (Flat Text) + Action Stack -->
+            <div class="sheet-body-content">
+              <!-- Passive / Effect (Unboxed flat text under STATE) -->
+              <div class="passive-block" id="passive-block">
+                <div class="passive-header">
+                  <span class="passive-title" id="dossier-passive-title">ライトニング・ステップ</span>
+                  <span class="passive-tag" id="dossier-passive-tag">PASSIVE</span>
+                </div>
+                <p class="passive-desc" id="dossier-passive-desc"></p>
+              </div>
+
+              <!-- Action Commands Stack (Skill & ULT, or Free Barricade removal) -->
+              <div class="commands-stack" id="commands-stack">
+                <!-- Tactical Skill Card -->
+                <button class="cmd-card-btn" id="card-cmd-skill">
+                  <div class="cmd-top-row">
+                    <div class="cmd-title-group">
+                      <span class="cmd-type-badge">SKILL</span>
+                      <span class="cmd-name" id="card-skill-title">オーバードライブ</span>
+                    </div>
+                    <div class="cmd-stock-box" title="スキルストック">
+                      <span class="stock-dots" id="card-skill-stock">●●</span>
+                    </div>
+                  </div>
+                  <div class="cmd-desc" id="card-skill-desc"></div>
+                </button>
+
+                <!-- Ultimate Skill Card -->
+                <button class="cmd-card-btn ult-btn" id="card-cmd-ult">
+                  <div class="cmd-top-row">
+                    <div class="cmd-title-group">
+                      <span class="cmd-type-badge ult">ULT</span>
+                      <span class="cmd-name" id="card-ult-title">ライトニング・ラッシュ</span>
+                    </div>
+                    <div class="cmd-stock-box" title="ウルトストック">
+                      <span class="stock-dots ult-dots" id="card-ult-stock">●</span>
+                    </div>
+                  </div>
+                  <div class="cmd-desc" id="card-ult-desc"></div>
+                </button>
+              </div>
+            </div>
+
+          </article>
+
+          <!-- 4C. PHASE END BUTTON (Slanted, Hold-to-confirm) -->
+          <button class="btn-phase-end-slanted" id="btn-end-turn" title="0.35秒長押しまたはクリックでターン終了">
+            <div class="pe-fill-layer" id="pe-hold-fill"></div>
+            <div class="pe-content-wrap">
+              <span class="pe-title">PHASE END</span>
+              <span class="pe-sub" id="pe-hint-text">HOLD 0.35s ▶▶</span>
+            </div>
+          </button>
+
+        </aside>
+
+        <!-- Deploy Phase Control Bar (Slanted Neo-Brutalist) -->
+        <div id="deploy-control-bar" class="deploy-control-bar-slanted" style="display: none;">
+          <button class="deploy-btn-sub" onclick="window.__onAutoDeploy()">
+            <span>🎲 おすすめ配置</span>
+          </button>
+          <button id="btn-deploy-confirm" class="deploy-btn-confirm" onclick="window.__onConfirmDeploy()">
+            <span id="btn-deploy-confirm-text">✅ 先行 (BLUE) 配置完了 ➔</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Slanted Ultimate Cut-in Overlay -->
+      <div id="ex-cutin-overlay" class="r2-cutin-overlay">
+        <div class="r2-cutin-bar" id="cutin-slash">
+          <span class="r2-cutin-role" id="cutin-badge">ULT</span>
+          <span class="r2-cutin-en" id="cutin-voice">OVERDRIVE</span>
+          <span class="r2-cutin-ja" id="cutin-title">ライトニング・ラッシュ</span>
+          <img id="cutin-img" src="assets/kinesis.jpg" style="display:none;" alt="Cutin">
+        </div>
+      </div>
+
+      <!-- 内部互換ダミー -->
+      <div id="phase-instruction" style="display:none;" aria-hidden="true"></div>
+    </div><!-- /#screen-battle -->
+
+    <!-- ==============================================================
+         ルール解説モーダル
+         ============================================================== -->
+    <div id="rules-modal" class="modal-overlay">
+      <div class="modal-box" style="max-width: 640px; text-align: left;">
+        <div class="modal-title" style="text-align: center; color: var(--ally-cyan); margin-bottom: 12px;">📖 駒・盤面・用語の定義</div>
+        <div style="font-size: 0.85rem; line-height: 1.6; color: #cbd5e1; display: flex; flex-direction: column; gap: 9px; max-height: 480px; overflow-y: auto;">
+          <div><strong>🏆 勝利条件</strong>: <strong>相手のコアを破壊する</strong>、または<strong>相手のユニットをすべて破壊（部隊全滅）させる</strong>ことで即座に勝利！</div>
+          <div><strong>👤 ユニット</strong>: 行動（移動・通常攻撃・スキル）できるヒーロー駒。当たり判定あり。全滅すると敗北。</div>
+          <div><strong>💎 コア</strong>: 移動・攻撃は不可。耐久値が0になると即座に敗北。</div>
+          <div><strong>🧱 オブジェクト</strong>: 防壁、自動タレットなど行動不可の設置物。通行不可・攻撃破壊可能。★設置者が破壊されても存続！</div>
+          <div><strong>☣️ ハザード</strong>: ディメンション・ゾーン（弱体化）、トキシック・ゾーン（毒ダメージ）など。通行可能。展開者が破壊されると同時に消滅！</div>
+          <div><strong>⚡ ウルトゲージ</strong>: <strong>通常攻撃で与えたダメージのみ</strong>が蓄積。100蓄積で即解放！</div>
+        </div>
+        <button class="modal-btn" style="margin-top: 18px; width: 100%;" onclick="window.__toggleRulesModal(false)">閉じる</button>
+      </div>
+    </div>
+
+    <!-- ==============================================================
+         勝利 / 敗北モーダル
+         ============================================================== -->
+    <div id="victory-modal" class="modal-overlay">
+      <div class="modal-box">
+        <div id="winner-title" class="modal-title">BLUE WIN!</div>
+        <div id="winner-desc" class="modal-desc">敵コア破壊または敵部隊全滅により作戦勝利！</div>
+        <div style="display:flex; gap:12px; justify-content:center; margin-top:20px;">
+          <button class="modal-btn" onclick="window.__startQuick3D()">⚡ クイック再戦</button>
+          <button class="modal-btn" onclick="window.resetGame()">🔄 編成から再戦</button>
+          <button class="modal-btn mode-btn-danger" onclick="window.__returnToTitle()">🏠 タイトルへ戻る</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==============================================================
+         P2P オンライン対戦モーダル
+         ============================================================== -->
+    <div id="online-modal" class="modal-overlay">
+      <div class="modal-box" style="max-width: 520px; text-align: left;">
+        <div class="modal-title" style="text-align: center; color: #38bdf8; margin-bottom: 8px;">
+          🌐 オンライン対戦 (P2P)
+        </div>
+        <div style="font-size: 0.85rem; color: #94a3b8; text-align: center; margin-bottom: 16px;">
+          サーバー不要！合言葉やURLを共有するだけで友達と直接通信対戦できます。
+        </div>
+
+        <div class="online-tabs">
+          <button id="tab-host" class="online-tab-btn active" onclick="window.__switchOnlineTab('host')">🏠 部屋を作る (ホスト/BLUE)</button>
+          <button id="tab-join" class="online-tab-btn" onclick="window.__switchOnlineTab('join')">🚪 部屋に入る (ゲスト/RED)</button>
+        </div>
+
+        <div id="panel-host" class="online-panel">
+          <p style="font-size:0.85rem; color:#cbd5e1; margin-bottom:12px;">
+            部屋を作成して発行された「合言葉」または招待URLを対戦相手に送ってください。
+          </p>
+          <button id="btn-create-room" class="modal-btn" style="width:100%;" onclick="window.__createOnlineRoom()">
+            🎲 部屋を作成する
+          </button>
+
+          <div id="host-room-info" style="display:none; margin-top:16px;">
+            <div style="font-size:0.8rem; color:#94a3b8;">合言葉 (Room ID):</div>
+            <div style="display:flex; gap:8px; margin-top:4px;">
+              <input type="text" id="host-room-id-input" readonly class="online-input" style="font-weight:bold; letter-spacing:1px; color:#38bdf8;">
+              <button class="pick-btn-sub" onclick="window.__copyRoomLink()">📋 コピー</button>
+            </div>
+            <div id="host-waiting-msg" style="margin-top:12px; font-size:0.85rem; color:#fbbf24; text-align:center;">
+              ⏳ 相手の接続を待機中...
+            </div>
+          </div>
+        </div>
+
+        <div id="panel-join" class="online-panel" style="display:none;">
+          <p style="font-size:0.85rem; color:#cbd5e1; margin-bottom:12px;">
+            ホストから受け取った合言葉 (Room ID) を入力して接続してください。
+          </p>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="join-room-id-input" placeholder="例: omega-7a3b" class="online-input">
+            <button id="btn-join-room" class="modal-btn" style="min-width:120px;" onclick="window.__joinOnlineRoom()">
+              🚀 参加する
+            </button>
+          </div>
+        </div>
+
+        <div style="margin-top: 20px; display:flex; justify-content: flex-end;">
+          <button class="pick-btn-sub" onclick="window.__closeOnlineModal()">閉じる</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#game-frame -->
+
+  <!-- UI & Responsive Scaling Scripts -->
+  <script>
+    // 16:9 Letterbox Responsive Scaling
+    const GAME_BASE_W = 1600;
+    const GAME_BASE_H = 900;
+    const gameFrameEl = document.getElementById('game-frame');
+
+    function fitGameFrame() {
+      const windowW = window.innerWidth;
+      const windowH = window.innerHeight;
+      const scale = Math.min(windowW / GAME_BASE_W, windowH / GAME_BASE_H);
+      if (gameFrameEl) {
+        gameFrameEl.style.transform = `scale(${scale})`;
+      }
+    }
+    window.addEventListener('resize', fitGameFrame);
+    fitGameFrame();
+
+    // Rules Modal Toggle
+    window.__toggleRulesModal = (show) => {
+      const modal = document.getElementById('rules-modal');
+      if (modal) modal.classList.toggle('active', !!show);
+    };
+
+    // Battle Log Drawer Toggle
+    window.__toggleBattleLog = () => {
+      const drawer = document.getElementById('battle-log-drawer');
+      if (drawer) drawer.classList.toggle('open');
+    };
+  </script>
+
+  <!-- Main ES Module Entry Point -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -31,7 +31,7 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #cfd5e0;
+  background: #181818;
   color: var(--white);
   font-family: var(--jp);
   user-select: none;

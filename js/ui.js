@@ -8,32 +8,28 @@ import {
   HERO_TYPES,
   ULT_REQUIRED_DAMAGE,
   SELECTABLE_HERO_KEYS,
-  DEFAULT_ROSTER
-} from './config.js?v=lab-white-1';
+  DEFAULT_ROSTER,
+  STATUS_EFFECT_DEFS
+} from './config.js?v=lab-white-3';
 import {
   board,
-  traps,
-  phantomZones,
-  poisonZones,
   getValidMoves,
   getValidAttacks,
   isUltReady,
-  hasBuff,
   hasDebuff,
   getEffectiveAtk,
   getShieldVal,
+  getStatusEffects,
   getTeamUltGauge,
   canDeployAt,
   getHazardInfoAt,
   hasActionOrder,
-  isWardenBunkerActive,
-  isVulcanStockActive,
   getPlayerOrders,
   isLocalPlayer,
   isUnit
-} from './board.js?v=lab-white-1';
+} from './board.js?v=lab-white-3';
 
-import { characterArt, renderUrbanHero, icon, roleIcon, roleKey, floorGraphicHtml, getSkillPreviewTargets, getUltPreviewTargets, isHealSkillHero, getBoardMarks } from './urban-ui.js?v=lab-white-1';
+import { characterArt, renderUrbanHero, icon, roleIcon, roleKey, floorGraphicHtml, getSkillPreviewTargets, getUltPreviewTargets, isHealSkillHero } from './urban-ui.js?v=lab-white-5';
 
 export let tileElements = [];
 export let isBoardFlipped = false;
@@ -155,6 +151,29 @@ export function createBoardDOMOnce({ onTileClickCallback, onPieceDropCallback, o
   }
 }
 
+const previewClasses = [
+  'is-ult-caster', 'ult-zone', 'is-toxic-ult', 'ult-target',
+  'skill-target', 'heal-target', 'skill-zone', 'is-heal-zone',
+  'is-toxic-zone', 'is-debuff-zone', 'is-beam-zone', 'is-preview-hit'
+];
+
+function updateTileMarker(tile, className, kind) {
+  let marker = tile.querySelector(`.${className}`);
+  if (!kind) {
+    marker?.remove();
+    return;
+  }
+  if (!marker) {
+    marker = document.createElement('span');
+    marker.className = className;
+    tile.appendChild(marker);
+  }
+  if (marker.dataset.kind !== kind) {
+    marker.dataset.kind = kind;
+    marker.innerHTML = icon(kind);
+  }
+}
+
 // スキル・ULTの待機時＆ホバー効果範囲プレビュー更新（ピースDOM再構築なし）
 export function updateTargetingPreview({
   turn,
@@ -183,7 +202,7 @@ export function updateTargetingPreview({
     : null;
 
   const ultPreviewTargets = isUltTargeting
-    ? getUltPreviewTargets(selectedPos, selHeroGlobal, validHoveredTarget, true)
+    ? getUltPreviewTargets(selectedPos, selHeroGlobal, validHoveredTarget)
     : [];
   const ultPreviewMap = new Map(ultPreviewTargets.map(t => [`${t.r},${t.c}`, t]));
 
@@ -192,93 +211,108 @@ export function updateTargetingPreview({
     : [];
   const skillPreviewMap = new Map(skillPreviewTargets.map(t => [`${t.r},${t.c}`, t]));
 
-  const previewClasses = [
-    'is-ult-caster', 'ult-zone', 'is-toxic-ult', 'ult-target',
-    'skill-target', 'heal-target', 'skill-zone', 'is-heal-zone',
-    'is-toxic-zone', 'is-debuff-zone', 'is-beam-zone', 'is-preview-hit'
-  ];
+  const selectable = new Set(validTargets.map(({ r, c }) => r * COLS + c));
+  const healTargeting = isSkillFocus && isHealSkillHero(selHeroGlobal);
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const tile = tileElements[r]?.[c];
       if (!tile) continue;
+      const isCaster = isUltTargeting && selectedPos.r === r && selectedPos.c === c;
+      const canSelect = selectable.has(r * COLS + c);
+      const uHit = ultPreviewMap.get(`${r},${c}`);
+      const sHit = skillPreviewMap.get(`${r},${c}`);
+      const ultZone = Boolean(uHit && !isCaster);
+      const skillTarget = isSkillFocus && canSelect;
+      const showUltMark = isUltTargeting && canSelect &&
+        (validTargets.length <= 8 || (validHoveredTarget?.r === r && validHoveredTarget?.c === c));
 
-      tile.classList.remove(...previewClasses);
-
-      let targetKind = null;
-      let showUltMark = false;
-      const isSelectableTarget = validTargets.some(t => t.r === r && t.c === c);
-
-      if (isUltTargeting) {
-        const isCaster = selectedPos && selectedPos.r === r && selectedPos.c === c;
-        const uHit = ultPreviewMap.get(`${r},${c}`);
-        if (isCaster) {
-          tile.classList.add('is-ult-caster');
-        }
-        if (uHit && !isCaster) {
-          tile.classList.add('ult-zone');
-          if (selHeroGlobal.typeKey === 'SMOG') tile.classList.add('is-toxic-ult');
-        }
-        if (uHit?.hitPiece) {
-          tile.classList.add('is-preview-hit');
-        }
-        if (isSelectableTarget) {
-          tile.classList.add('ult-target');
-        }
-        const isHoveredValid = Boolean(validHoveredTarget && validHoveredTarget.r === r && validHoveredTarget.c === c);
-        if (validTargets.length <= 8) {
-          if (isSelectableTarget) {
-            showUltMark = true;
-          }
-        } else if (isHoveredValid) {
-          showUltMark = true;
-        }
-      } else if (isSkillFocus) {
-        const sHit = skillPreviewMap.get(`${r},${c}`);
-        if (isSelectableTarget) {
-          if (isHealSkillHero(selHeroGlobal)) {
-            tile.classList.add('skill-target', 'heal-target');
-            targetKind = 'heal';
-          } else {
-            tile.classList.add('skill-target');
-            targetKind = 'skill';
-          }
-        }
-        if (sHit) {
-          tile.classList.add('skill-zone');
-          if (sHit.kind === 'heal') tile.classList.add('is-heal-zone');
-          else if (sHit.kind === 'toxic') tile.classList.add('is-toxic-zone');
-          else if (sHit.kind === 'debuff') tile.classList.add('is-debuff-zone');
-          else if (sHit.kind === 'beam') tile.classList.add('is-beam-zone');
-          if (sHit.hitPiece) tile.classList.add('is-preview-hit');
-        }
+      tile.classList.toggle('is-ult-caster', isCaster);
+      tile.classList.toggle('ult-zone', ultZone);
+      tile.classList.toggle('is-toxic-ult', ultZone && selHeroGlobal.typeKey === 'SMOG');
+      tile.classList.toggle('ult-target', isUltTargeting && canSelect);
+      tile.classList.toggle('skill-target', skillTarget);
+      tile.classList.toggle('heal-target', skillTarget && healTargeting);
+      tile.classList.toggle('skill-zone', Boolean(sHit));
+      for (const kind of ['heal', 'toxic', 'debuff', 'beam']) {
+        tile.classList.toggle(`is-${kind}-zone`, sHit?.kind === kind);
       }
-
-      let markEl = tile.querySelector('.target-mark');
-      if (targetKind) {
-        if (!markEl) {
-          markEl = document.createElement('span');
-          markEl.className = 'target-mark';
-          tile.appendChild(markEl);
-        }
-        markEl.innerHTML = icon(targetKind === 'attack' ? 'attack' : targetKind === 'move' ? 'move' : 'skill');
-      } else if (markEl) {
-        markEl.remove();
-      }
-
-      let ultMarkEl = tile.querySelector('.ult-target-mark');
-      if (showUltMark) {
-        if (!ultMarkEl) {
-          ultMarkEl = document.createElement('span');
-          ultMarkEl.className = 'ult-target-mark';
-          tile.appendChild(ultMarkEl);
-        }
-        ultMarkEl.innerHTML = icon('ult');
-      } else if (ultMarkEl) {
-        ultMarkEl.remove();
-      }
+      tile.classList.toggle('is-preview-hit', Boolean(uHit?.hitPiece || sHit?.hitPiece));
+      updateTileMarker(tile, 'target-mark', skillTarget ? 'skill' : null);
+      updateTileMarker(tile, 'ult-target-mark', showUltMark ? 'ult' : null);
     }
   }
+}
+
+const pieceViews = new WeakMap();
+
+function updatePieceView(element, unit) {
+  const enemy = !isLocalPlayer(unit.owner);
+  let view = pieceViews.get(element);
+  if (view?.unit !== unit || view.enemy !== enemy) {
+    const face = characterArt(unit.typeKey, unit.name);
+    element.className = `piece ${enemy ? 'enemy' : 'ally'} ${unit.typeKey.toLowerCase()}`;
+    element.classList.toggle('structure', !isUnit(unit));
+    element.classList.toggle('core', unit.typeKey === 'ANCHOR');
+    element.dataset.role = roleKey(unit);
+    element.innerHTML = `
+      <span class="piece-face">${face}</span>
+      <span class="piece-role">${icon(roleIcon(unit))}</span>
+      <span class="piece-status"></span>
+      <span class="piece-shield" hidden>${icon('shield')}<span></span></span>
+      <span class="piece-readout">
+        <svg class="piece-dock-svg" viewBox="0 0 80 35" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M 4,1 L 26,1 Q 28,1 28.8,3 L 31.2,15 Q 32,17 34,17 L 56.5,17 Q 58.5,17 59.3,15 L 60.8,7.5 Q 61.6,5.5 63.6,5.5 L 76,5.5 Q 79,5.5 79,8.5 L 79,30 Q 79,34 75,34 L 5,34 Q 1,34 1,30 L 1,4 Q 1,1 4,1 Z"/>
+        </svg>
+        <span class="piece-values"><b></b><span></span></span>
+        <span class="piece-hp-track"><i></i><i class="shield-fill" hidden></i></span>
+        <span class="piece-name-row"><span class="piece-name"></span></span>
+      </span>
+    `;
+    element.querySelector('.piece-name').textContent = unit.name;
+    const track = element.querySelector('.piece-hp-track');
+    const shieldBadge = element.querySelector('.piece-shield');
+    view = {
+      unit, enemy, shieldBadge,
+      shieldValue: shieldBadge.lastElementChild,
+      status: element.querySelector('.piece-status'),
+      hp: element.querySelector('.piece-values > b'),
+      atk: element.querySelector('.piece-values > span'),
+      hpFill: track.firstElementChild,
+      shieldFill: track.lastElementChild
+    };
+    pieceViews.set(element, view);
+  }
+
+  const atk = getEffectiveAtk(unit);
+  const shield = getShieldVal(unit);
+  const buffed = atk > unit.atk;
+  const status = unit.debuffs.length ? 'debuff' : buffed ? 'buff' : '';
+  if (view.statusKind !== status) {
+    view.status.innerHTML = status ? icon(status) : '';
+    view.statusKind = status;
+  }
+  if (view.atkValue !== atk) {
+    view.atk.textContent = atk > 0 ? String(atk) : '—';
+    view.atk.classList.toggle('is-none', atk <= 0);
+    view.atk.classList.toggle('is-buffed', buffed);
+    view.atkValue = atk;
+  }
+  if (view.hpValue === unit.hp && view.shieldTotal === shield && view.maxHp === unit.maxHp) return;
+
+  view.hp.textContent = String(unit.hp + shield);
+  view.hp.classList.toggle('has-shield', shield > 0);
+  view.shieldBadge.hidden = shield <= 0;
+  view.shieldValue.textContent = shield;
+  const maxHp = Math.max(1, unit.maxHp);
+  const hpPct = Math.max(0, Math.min(100, (unit.hp / maxHp) * 100));
+  const shieldPct = Math.max(0, Math.min(100 - hpPct, (shield / maxHp) * 100));
+  view.hpFill.style.width = `${hpPct.toFixed(2)}%`;
+  view.shieldFill.hidden = shieldPct === 0;
+  view.shieldFill.style.width = `${shieldPct.toFixed(2)}%`;
+  view.hpValue = unit.hp;
+  view.shieldTotal = shield;
+  view.maxHp = unit.maxHp;
 }
 
 // 盤面ビューの更新
@@ -307,10 +341,14 @@ export function updateBoardView({
     commandMode === 'SKILL_A' && !isUltTargeting && !isDeployPhase && selHeroGlobal && selHeroGlobal.owner === turn && isUnit(selHeroGlobal)
   );
 
-  if (stageEl) {
-    stageEl.classList.toggle('is-ult-armed', isUltTargeting);
-    stageEl.classList.toggle('is-skill-armed', isSkillFocus);
-  }
+  const targeting = isUltTargeting || isSkillFocus;
+  const wasTargeting = stageEl?.matches('.is-ult-armed, .is-skill-armed');
+  stageEl?.classList.toggle('is-ult-armed', isUltTargeting);
+  stageEl?.classList.toggle('is-skill-armed', isSkillFocus);
+
+  const showOrders = !targeting && !isDeployPhase && isUnit(selHeroGlobal) && selHeroGlobal.owner === turn;
+  const moves = showOrders ? getValidMoves(selectedPos.r, selectedPos.c) : [];
+  const attacks = showOrders ? getValidAttacks(selectedPos.r, selectedPos.c) : [];
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -318,70 +356,37 @@ export function updateBoardView({
       if (!tile) continue;
       const unit = board[r][c];
 
-      tile.className = 'tile';
-      const topZoneRow = isBoardFlipped ? (r > 4) : (r < 2);
-      const bottomZoneRow = isBoardFlipped ? (r < 2) : (r > 4);
-      if (topZoneRow) tile.classList.add('enemy-zone');
-      else if (bottomZoneRow) tile.classList.add('ally-zone');
-      tile.title = '';
+      tile.classList.toggle('enemy-zone', isBoardFlipped ? r > 4 : r < 2);
+      tile.classList.toggle('ally-zone', isBoardFlipped ? r < 2 : r > 4);
+      tile.classList.toggle('deploy-area-ally', isMyDeployPhase && canDeployAt(deployOwner, r, c));
+      if (!targeting && wasTargeting) tile.classList.remove(...previewClasses);
 
-      // 1. 初期配置フェーズの枠線ガイドハイライト
-      if (isDeployPhase && isMyDeployPhase && canDeployAt(deployOwner, r, c)) {
-        tile.classList.add('deploy-area-ally');
-      }
+      const zone = getHazardInfoAt(r, c);
+      const ownZone = zone && isLocalPlayer(zone.owner);
+      tile.classList.toggle('has-hazard', Boolean(zone));
+      tile.classList.toggle('poison-zone', Boolean(zone));
+      tile.classList.toggle('hazard-owner-ally', Boolean(ownZone));
+      tile.classList.toggle('hazard-owner-enemy', Boolean(zone && !ownZone));
+      const title = zone ? `${zone.icon} ${zone.name}（${ownZone ? '自軍' : '敵軍'} / ${zone.impact}）` : '';
+      if (tile.title !== title) tile.title = title;
 
-      // 2. トラップ・ハザード表示
-      const trap = traps.find(tp => tp.r === r && tp.c === c && isLocalPlayer(tp.owner));
-      const hasVisibleTrap = !!trap;
-      const trapName = trap?.type === 'TOXIC_MINE' ? 'トキシック・マイン' : 'ブラスト・マイン';
-      if (hasVisibleTrap) {
-        tile.classList.add('has-trap-ally');
-        tile.title = `${trapName}（自軍のみ視認可能）`;
-      }
+      const hazardSelected = selectedHazardPos?.r === r && selectedHazardPos?.c === c;
+      const unitSelected = selectedPos?.r === r && selectedPos?.c === c;
+      tile.classList.toggle('hazard-selected', hazardSelected);
+      tile.classList.toggle('selected', hazardSelected || unitSelected);
 
-      const fz = phantomZones.find(z => z.r === r && z.c === c);
-      const pzn = poisonZones.find(z => z.r === r && z.c === c);
-
-      if (fz) {
-        tile.classList.add('has-hazard', 'phantom-zone', isLocalPlayer(fz.owner) ? 'hazard-owner-ally' : 'hazard-owner-enemy');
-        tile.title = `👻 ディメンション・ゾーン (${isLocalPlayer(fz.owner) ? '自軍' : '敵軍'} / 侵入中は常に弱体化1.5倍 / ヴェイル撃破で消滅)`;
-      } else if (pzn) {
-        tile.classList.add('has-hazard', 'poison-zone', isLocalPlayer(pzn.owner) ? 'hazard-owner-ally' : 'hazard-owner-enemy');
-        tile.title = `🧪 トキシック・ゾーン (${isLocalPlayer(pzn.owner) ? '自軍' : '敵軍'} / ターン開始時10DMG / スモッグ撃破で消滅)`;
-      }
-
-      if (selectedHazardPos && selectedHazardPos.r === r && selectedHazardPos.c === c) {
-        tile.classList.add('selected', 'hazard-selected');
-      }
-
-      // フロアハザード・トラップバッジ描画
-      let floorEl = tile.querySelector('.floor');
-      const floorType = pzn ? 'toxic' : fz ? 'dimension' : hasVisibleTrap ? 'mine' : null;
-      const floorOwner = pzn ? pzn.owner : fz ? fz.owner : hasVisibleTrap ? trap.owner : null;
-      if (floorType) {
-        if (!floorEl || floorEl.tagName !== 'DIV') {
-          if (floorEl) floorEl.remove();
-          floorEl = document.createElement('div');
-          tile.prepend(floorEl);
+      let floor = tile.querySelector('.floor');
+      if (zone) {
+        if (!floor) {
+          floor = document.createElement('div');
+          floor.className = 'floor toxic';
+          floor.innerHTML = floorGraphicHtml(zone);
+          tile.prepend(floor);
         }
-        floorEl.className = `floor ${floorType}`;
-        floorEl.dataset.relation = isLocalPlayer(floorOwner) ? 'ally' : 'enemy';
-        floorEl.innerHTML = floorGraphicHtml({ type: floorType, name: floorType === 'toxic' ? 'トキシック' : floorType === 'dimension' ? 'ディメンション' : 'マイン' });
-      } else if (floorEl) {
-        floorEl.remove();
-      }
-
-      const mineOverlay = tile.querySelector('.tile-mine-overlay');
-      if (hasVisibleTrap && (pzn || fz)) {
-        tile.title += ` / ${trapName}（自軍のみ視認可能）`;
-        if (!mineOverlay) {
-          const badge = document.createElement('span');
-          badge.className = 'tile-mine-overlay';
-          badge.innerHTML = icon('hz_mine');
-          tile.appendChild(badge);
-        }
+        const relation = ownZone ? 'ally' : 'enemy';
+        if (floor.dataset.relation !== relation) floor.dataset.relation = relation;
       } else {
-        mineOverlay?.remove();
+        floor?.remove();
       }
 
       // 4. 駒の描画
@@ -393,23 +398,25 @@ export function updateBoardView({
           tile.appendChild(pieceEl);
         }
 
-        const isEnemy = !isLocalPlayer(unit.owner);
-        const isStructure = !isUnit(unit);
-        pieceEl.className = `piece ${isEnemy ? 'enemy' : 'ally'} ${isStructure ? 'structure' : ''} ${unit.typeKey.toLowerCase()}`;
-        const marks = getBoardMarks(unit);
-        const markNames = marks.map(mark => mark.name).join('、');
-        tile.setAttribute('aria-label', `${'ABCDEFG'[c]}${7 - r} ${unit.name} HP ${unit.hp}/${unit.maxHp}${markNames ? ` ${markNames}` : ''}`);
-        if (unit.typeKey === 'ANCHOR') pieceEl.classList.add('core');
+        updatePieceView(pieceEl, unit);
+        const label = `${'ABCDEFG'[c]}${7 - r} ${unit.name} HP ${unit.hp}/${unit.maxHp}`;
+        if (tile.getAttribute('aria-label') !== label) tile.setAttribute('aria-label', label);
 
-        const localTurn = gameMode === 'online' ? turn === myOnlineRole : turn === 'P1';
+        const localTurn = gameMode === 'online' ? turn === myOnlineRole : isLocalPlayer(turn);
         const isCurrentTurnHero = (gamePhase === 'BATTLE' && localTurn && unit.owner === turn && isUnit(unit));
         const canDragInDeploy = (isDeployPhase && isMyDeployPhase && unit.owner === deployOwner);
 
-        if (isCurrentTurnHero || canDragInDeploy) {
-          pieceEl.draggable = true;
-          pieceEl.classList.add('draggable');
+        const draggable = isCurrentTurnHero || canDragInDeploy;
+        if (pieceEl.draggable !== draggable) pieceEl.draggable = draggable;
+        pieceEl.classList.toggle('draggable', draggable);
+
+        if (draggable && !pieceEl.ondragstart) {
 
           pieceEl.ondragstart = (e) => {
+            if (pieceEl.closest('[aria-busy="true"]')) {
+              e.preventDefault();
+              return;
+            }
             e.stopPropagation();
             pieceEl.classList.add('dragging');
             e.dataTransfer.setData('text/plain', JSON.stringify({ r, c }));
@@ -421,113 +428,28 @@ export function updateBoardView({
             pieceEl.classList.remove('dragging');
             if (onPieceDragEndCallback) onPieceDragEndCallback();
           };
-        } else {
-          pieceEl.draggable = false;
-          pieceEl.classList.remove('draggable', 'dragging');
+        } else if (!draggable && pieceEl.ondragstart) {
+          pieceEl.classList.remove('dragging');
           pieceEl.ondragstart = null;
           pieceEl.ondragend = null;
         }
 
-        if (selectedPos && selectedPos.r === r && selectedPos.c === c) {
-          pieceEl.classList.add('selected');
-        }
-
-        const hasAnyDebuff = unit.debuffs && (
-          hasDebuff(unit, 'vulnerable') ||
-          hasDebuff(unit, 'disarm') ||
-          hasDebuff(unit, 'bind') ||
-          hasDebuff(unit, 'silence')
-        );
-        const hasAtkBuff = unit.buffs && (hasBuff(unit, 'atk_up') || hasBuff(unit, 'shadow_drain'));
-        const statusIconHtml = hasAnyDebuff ? icon('debuff') : (hasAtkBuff ? icon('buff') : '');
-
-        const shieldVal = getShieldVal(unit);
-        const displayHp = unit.hp + shieldVal;
-        const shieldHtml = shieldVal > 0 ? `<span class="piece-shield">${icon('shield')}${shieldVal}</span>` : '';
-        const faceHtml = unit.typeKey === 'ANCHOR'
-          ? icon('core')
-          : unit.typeKey === 'TURRET'
-            ? icon('turret')
-            : characterArt(unit.typeKey, unit.owner, unit.name);
-        const atkVal = isUnit(unit)
-          ? getEffectiveAtk(unit)
-          : (unit.atk ? unit.atk : '');
-        const baseAtk = isUnit(unit) ? (HERO_TYPES[unit.typeKey]?.atk ?? unit.atk ?? 0) : (unit.atk || 0);
-        const hasAtk = atkVal !== '' && Number(atkVal) > 0;
-        const isAtkBuffed = Boolean(hasAtk && (hasAtkBuff || Number(atkVal) > Number(baseAtk)));
-        const atkText = hasAtk ? String(atkVal) : '—';
-        const atkCls = hasAtk ? (isAtkBuffed ? 'is-buffed' : '') : 'is-none';
-        const maxHp = Math.max(1, unit.maxHp || unit.hp || 1);
-        const hpPct = Math.max(0, Math.min(100, (unit.hp / maxHp) * 100));
-        const shieldUnits = (unit.hp < maxHp && shieldVal > 0) ? Math.min(maxHp - unit.hp, shieldVal) : 0;
-        const shieldPct = Math.max(0, Math.min(100 - hpPct, (shieldUnits / maxHp) * 100));
-
-        pieceEl.dataset.role = roleKey(unit);
-        pieceEl.style.removeProperty('--hp-color');
-
-        pieceEl.innerHTML = `
-          <span class="piece-face">${faceHtml}</span>
-          <span class="piece-role">${icon(roleIcon(unit))}</span>
-          <span class="piece-status">${statusIconHtml}</span>
-          ${shieldHtml}
-          <span class="piece-readout">
-            <svg class="piece-dock-svg" viewBox="0 0 80 35" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M 4,1 L 26,1 Q 28,1 28.8,3 L 31.2,15 Q 32,17 34,17 L 56.5,17 Q 58.5,17 59.3,15 L 60.8,7.5 Q 61.6,5.5 63.6,5.5 L 76,5.5 Q 79,5.5 79,8.5 L 79,30 Q 79,34 75,34 L 5,34 Q 1,34 1,30 L 1,4 Q 1,1 4,1 Z"/>
-            </svg>
-            <span class="piece-values">
-              <b class="${shieldVal > 0 ? 'has-shield' : ''}">${displayHp}</b>
-              <span class="${atkCls}">${atkText}</span>
-            </span>
-            <span class="piece-hp-track"><i style="width:${hpPct.toFixed(2)}%"></i>${shieldPct > 0 ? `<i class="shield-fill" style="width:${shieldPct.toFixed(2)}%"></i>` : ''}</span>
-            <span class="piece-name-row">
-              <span class="piece-name">${unit.name}</span>
-              ${marks.map(mark => `<span class="piece-mark-icon" title="${mark.name}" style="--mark-color:${mark.color}">${icon(mark.icon)}</span>`).join('')}
-            </span>
-          </span>
-        `;
+        pieceEl.classList.toggle('selected', selectedPos?.r === r && selectedPos?.c === c);
       } else {
         if (pieceEl) pieceEl.remove();
-        tile.setAttribute('aria-label', `${'ABCDEFG'[c]}${7 - r} 空きマス`);
+        const label = `${'ABCDEFG'[c]}${7 - r} 空きマス`;
+        if (tile.getAttribute('aria-label') !== label) tile.setAttribute('aria-label', label);
       }
 
-      // 5. 選択中のハイライト
-      if (selectedPos && selectedPos.r === r && selectedPos.c === c) {
-        tile.classList.add('selected');
-      }
-
-      // 6. 移動先・攻撃先のハイライト（スキル・ULT待機中は updateTargetingPreview へ委譲）
-      if (!isUltTargeting && !isSkillFocus) {
-        let targetKind = null;
-        if (selectedPos && !isDeployPhase) {
-          const selHero = board[selectedPos.r]?.[selectedPos.c];
-          if (selHero && selHero.owner === turn && isUnit(selHero)) {
-            const validMoves = getValidMoves(selectedPos.r, selectedPos.c);
-            if (validMoves.some(t => t.r === r && t.c === c)) {
-              tile.classList.add('movable', 'valid-move');
-              targetKind = 'move';
-            }
-            const validAtks = getValidAttacks(selectedPos.r, selectedPos.c);
-            if (validAtks.some(t => t.r === r && t.c === c)) {
-              tile.classList.add('attackable', 'valid-attack');
-              targetKind = 'attack';
-            }
-          }
-        }
-
-        let markEl = tile.querySelector('.target-mark');
-        if (targetKind) {
-          if (!markEl) {
-            markEl = document.createElement('span');
-            markEl.className = 'target-mark';
-            tile.appendChild(markEl);
-          }
-          markEl.innerHTML = icon(targetKind === 'attack' ? 'attack' : 'move');
-        } else if (markEl) {
-          markEl.remove();
-        }
-
-        const ultMarkEl = tile.querySelector('.ult-target-mark');
-        if (ultMarkEl) ultMarkEl.remove();
+      const movable = moves.some(pos => pos.r === r && pos.c === c);
+      const attackable = attacks.some(pos => pos.r === r && pos.c === c);
+      tile.classList.toggle('movable', movable);
+      tile.classList.toggle('valid-move', movable);
+      tile.classList.toggle('attackable', attackable);
+      tile.classList.toggle('valid-attack', attackable);
+      if (!targeting) {
+        updateTileMarker(tile, 'target-mark', attackable ? 'attack' : movable ? 'move' : null);
+        updateTileMarker(tile, 'ult-target-mark', null);
       }
     }
   }
@@ -544,6 +466,8 @@ export function updateBoardView({
   }
 }
 
+let lastOrderMarkup;
+
 // 物体化行動オーダーバーの更新（ORDERS 案A: 2列スロット + EX帯）
 export function updateRightsDisplay(turn, selectedPos = null, gamePhase = 'BATTLE') {
   const container = document.getElementById('action-tokens-container');
@@ -558,7 +482,7 @@ export function updateRightsDisplay(turn, selectedPos = null, gamePhase = 'BATTL
   tokenBanner?.classList.toggle('enemy-turn', !isLocalPlayer(turn));
   const title = tokenBanner?.querySelector('.tokens-banner-title');
   if (title) title.dataset.ready = ` ${ordered.filter(order => !order.used).length}/${ordered.length}`.trim();
-  container.innerHTML = ordered.map(order => {
+  const markup = ordered.map(order => {
     const move = order.type === 'move';
     const exclusive = order.scope !== 'all';
     const label = ` ${exclusive ? 'EX ' : ''}${move ? 'MOVE' : 'ATK'}`.trim();
@@ -568,6 +492,10 @@ export function updateRightsDisplay(turn, selectedPos = null, gamePhase = 'BATTL
       ${exclusive ? `<small>${order.unitName}</small>` : ''}
     </span>`;
   }).join('');
+  if (markup !== lastOrderMarkup) {
+    container.innerHTML = markup;
+    lastOrderMarkup = markup;
+  }
 }
 
 // アンカーHP & チームウルト & ターン表示の更新（Viewer-Relative: 自軍=下/Yellow, 敵軍=上/Red）
@@ -585,8 +513,14 @@ export function updateStatus(turn, gameMode, gamePhase = 'BATTLE', turnCount = 1
   const allyUltText = document.getElementById('ally-ult-text');
   const enemyUltText = document.getElementById('enemy-ult-text');
 
-  if (allyUltBar) allyUltBar.style.width = `${ultPctAlly}%`;
-  if (enemyUltBar) enemyUltBar.style.width = `${ultPctEnemy}%`;
+  if (allyUltBar) {
+    allyUltBar.style.width = '100%';
+    allyUltBar.style.height = `${ultPctAlly}%`;
+  }
+  if (enemyUltBar) {
+    enemyUltBar.style.width = '100%';
+    enemyUltBar.style.height = `${ultPctEnemy}%`;
+  }
 
   if (allyUltText) {
     allyUltText.innerText = `${Math.round(ultPctAlly)}%`;
@@ -602,12 +536,12 @@ export function updateStatus(turn, gameMode, gamePhase = 'BATTLE', turnCount = 1
   if (coreBarAlly) {
     coreBarAlly.classList.toggle('is-ult-full', ultAlly >= ULT_REQUIRED_DAMAGE);
     const tagEl = coreBarAlly.querySelector('.core-tag');
-    if (tagEl) tagEl.textContent = 'ALLY ULT';
+    if (tagEl) tagEl.textContent = 'ULT';
   }
   if (coreBarEnemy) {
     coreBarEnemy.classList.toggle('is-ult-full', ultEnemy >= ULT_REQUIRED_DAMAGE);
     const tagEl = coreBarEnemy.querySelector('.core-tag');
-    if (tagEl) tagEl.textContent = 'ENEMY ULT';
+    if (tagEl) tagEl.textContent = 'ULT';
   }
 
   const turnEyebrowEl = document.getElementById('turn-label-eyebrow');
@@ -690,10 +624,14 @@ export function updateDeployControlBar({
   if (descEl) {
     if (isDeployWait) {
       descEl.innerText = '相手プレイヤーが初期配置中です。完了までしばらくお待ちください...';
-    } else if (curOwner === 'P1') {
-      descEl.innerText = '手前2マスに味方ユニットとアンカーを配置してください。完了したら長押しで配置を確定してください。';
+    } else if (isLocalPlayer(curOwner)) {
+      descEl.innerText = curOwner === 'P1'
+        ? '手前2マスに味方ユニットとアンカーを配置してください。完了したら長押しで配置を確定してください。'
+        : '先攻の布陣を確認し、手前2マスに自軍を対抗配置して長押しでバトル開始してください。';
     } else {
-      descEl.innerText = '先行の布陣を確認し、対抗初期配置を完了したら長押しで配置を確定してください。';
+      descEl.innerText = curOwner === 'P1'
+        ? '先攻（AI）の初期配置です。調整するか長押しで確定し、後攻（自軍）の配置へ進んでください。'
+        : '先行の布陣を確認し、対抗初期配置を完了したら長押しで配置を確定してください。';
     }
   }
 }
@@ -751,7 +689,7 @@ export function updateHoldActionButton({
       (gamePhase === 'DEPLOY_P1' && myOnlineRole === 'P2') ||
       (gamePhase === 'DEPLOY_P2' && myOnlineRole === 'P1')
     ));
-    const isEnemyBtn = isDeployWait || !isLocalPlayer(curOwner);
+    const isEnemyBtn = isDeployWait || (gameMode === 'online' && !isLocalPlayer(curOwner));
 
     btn.classList.add(isEnemyBtn ? 'is-enemy' : 'ally');
 
@@ -886,7 +824,7 @@ export function renderHeroControlPanel({
     const shieldVal = getShieldVal(hero);
     const hpPct = Math.max(0, Math.min(100, Math.round((hero.hp / hero.maxHp) * 100)));
     const shieldPct = shieldVal > 0 ? Math.min(50, Math.round((shieldVal / hero.maxHp) * 100)) : 0;
-    const canDestroyBarricade = isBarricade && !isEnemy;
+    const showDestroyButton = gamePhase === 'BATTLE' && !isAnchorUnit && isLocalPlayer(hero.owner);
 
     let themeClass = 'theme-structure';
     let classNameText = 'オブジェクト';
@@ -952,15 +890,6 @@ export function renderHeroControlPanel({
             味方・敵双方の移動および直線射線を完全に遮断します。ウォーデンが隣接すると ATK+5 されます。
           </div>
         </div>
-        ${canDestroyBarricade ? `
-          <div class="action-card-btn acb-destroy-barricade" onclick="window.__onDestroyBarricade(${selectedPos.r}, ${selectedPos.c})">
-            <div class="acb-header">
-              <span class="acb-title">💥 防壁を破壊する</span>
-              <span class="acb-badge badge-ready">即座に実行可能</span>
-            </div>
-            <div class="acb-desc">自軍ターン中にいつでも破壊可能（オーダー消費なし）。通路を開放して味方を進軍させられます。</div>
-          </div>
-        ` : `<div class="odc-hint">※自軍ターン中に任意破壊が可能です</div>`}
       `;
     } else if (isTurret) {
       themeClass = 'theme-turret';
@@ -992,7 +921,7 @@ export function renderHeroControlPanel({
             <span class="pac-badge pac-badge-active">周囲8マス</span>
           </div>
           <div class="pac-desc" style="font-size: 0.76rem; line-height: 1.45; color: #cbd5e1;">
-            自軍ターン終了時に周囲8マスのすべての敵ユニットに対して、自動で ${hero.atk || 10} DMG を迎撃射撃します。破壊されるとヴァルカンのタレットストックが1回復します。
+            自軍ターン終了時に周囲8マスのすべての敵ユニットに対して、自動で ${hero.atk || 10} DMG を迎撃射撃します。ターン開始時に盤面にもストックにもタレットが存在しない場合、ヴァルカンのストックが1回復します。
           </div>
         </div>
       `;
@@ -1013,6 +942,11 @@ export function renderHeroControlPanel({
         ${statsGridHtml}
       </div>
       ${featureCardHtml}
+      ${showDestroyButton ? `
+        <button type="button" class="action-card-btn" onclick="window.__onDestroyObject(${selectedPos.r}, ${selectedPos.c})" ${canControl && !isEnemy && hero.hp > 0 ? '' : 'disabled'}>
+          <span class="acb-title">💥 ${hero.name}を破壊する</span>
+        </button>
+      ` : ''}
     `;
     return;
   }
@@ -1034,59 +968,18 @@ export function renderHeroControlPanel({
   const roleTheme = (heroDef.roleClass || '').replace('role-', '');
   const hazardOnUnit = getHazardInfoAt(selectedPos.r, selectedPos.c);
 
-  let statusPillsHtml = '';
-  if (hero.buffs) {
-    if (hasBuff(hero, 'atk_up')) statusPillsHtml += `<span class="hch-pill buff" title="ATK+${hero.buffs.atk_up.val} (${hero.buffs.atk_up.turns}ターン)">🔥+${hero.buffs.atk_up.val} <small>${hero.buffs.atk_up.turns}T</small></span>`;
-    if (hasBuff(hero, 'shield')) statusPillsHtml += `<span class="hch-pill buff" title="シールド+${hero.buffs.shield.val} (${hero.buffs.shield.turns}ターン)">🛡️+${hero.buffs.shield.val} <small>${hero.buffs.shield.turns}T</small></span>`;
-    if (hasBuff(hero, 'shadow_drain')) statusPillsHtml += `<span class="hch-pill buff" title="シャドウ・ドレイン発動中: 与ダメージ分HP吸収 (${hero.buffs.shadow_drain.turns}ターン)">🩸ドレイン <small>${hero.buffs.shadow_drain.turns}T</small></span>`;
-  }
-  if (hero.debuffs) {
-    if (hasDebuff(hero, 'vulnerable')) {
-      const vTurns = hero.debuffs?.vulnerable?.turns;
-      const vLabel = vTurns > 0 ? `${vTurns}T` : '滞在中';
-      const vTitle = vTurns > 0 ? `弱体化: 被ダメ1.5倍 (${vTurns}ターン)` : '弱体化: 被ダメ1.5倍 (ディメンション・ゾーン滞在中)';
-      statusPillsHtml += `<span class="hch-pill debuff" title="${vTitle}">🎯弱体 <small>${vLabel}</small></span>`;
-    }
-    if (hasDebuff(hero, 'disarm')) statusPillsHtml += `<span class="hch-pill debuff" title="攻撃阻害: 通常攻撃不可 (${hero.debuffs.disarm.turns}ターン)">💢阻害 <small>${hero.debuffs.disarm.turns}T</small></span>`;
-    if (hasDebuff(hero, 'bind')) statusPillsHtml += `<span class="hch-pill debuff" title="行動阻害: 移動不可 (${hero.debuffs.bind.turns}ターン)">⛓️拘束 <small>${hero.debuffs.bind.turns}T</small></span>`;
-    if (hasDebuff(hero, 'silence')) statusPillsHtml += `<span class="hch-pill debuff" title="スキル阻害: スキル使用不可 (${hero.debuffs.silence.turns}ターン)">🤐沈黙 <small>${hero.debuffs.silence.turns}T</small></span>`;
-  }
-  if (!statusPillsHtml) {
-    statusPillsHtml = `<span class="hch-pill-none">なし (正常)</span>`;
-  }
+  const statusPillsHtml = getStatusEffects(hero).map(({ key, val, turns }) => {
+    const def = STATUS_EFFECT_DEFS[key];
+    const text = val === undefined ? def.name : `+${val}`;
+    return `<span class="hch-pill ${def.type}" title="${def.name}">${def.icon}${text}${turns > 0 ? ` <small>（${turns}T）</small>` : ''}</span>`;
+  }).join('') || '<span class="hch-pill-none">なし (正常)</span>';
 
   const passive = heroDef.passive;
   let passiveLiveHtml = '';
   if (passive) {
-    let isPassiveActive = false;
-    let badgeText = '常時発動';
-
-    if (typeof hero.isPassiveActive === 'function') {
-      const pTokens = getPlayerOrders(hero.owner);
-      const ctx = { board, playerOrders: { [hero.owner]: pTokens }, ROWS, COLS };
-      isPassiveActive = hero.isPassiveActive(ctx);
-      badgeText = (typeof hero.getPassiveStatusText === 'function') ? hero.getPassiveStatusText(ctx) : (isPassiveActive ? '発動中' : '未発動');
-    } else if (hero.typeKey === 'WARDEN' || hero.typeKey === 'SENTINEL') {
-      isPassiveActive = isWardenBunkerActive(hero);
-      badgeText = isPassiveActive ? '✨ 発動中 (ATK+5)' : '条件未達成';
-    } else if (hero.typeKey === 'VULCAN') {
-      isPassiveActive = isVulcanStockActive(hero);
-      badgeText = isPassiveActive ? '✨ 発動中 (ATK+10)' : 'ストックなし';
-    } else if (hero.typeKey === 'HIVE') {
-      let bitCount = 0;
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const u = board[r][c];
-          if (u && u.owner === hero.owner && u.typeKey === 'BIT') bitCount++;
-        }
-      }
-      isPassiveActive = (bitCount > 0);
-      badgeText = isPassiveActive ? `✨ 監視中 (${bitCount}機)` : 'ビット未展開';
-    } else if (hero.typeKey === 'BIT') {
-      const tokens = getPlayerOrders(hero.owner);
-      isPassiveActive = tokens.some(t => t.type === 'attack' && t.scope === hero.id && !t.used);
-      badgeText = isPassiveActive ? '✨ 自律攻撃可' : '消費済';
-    }
+    const ctx = { board, playerOrders: { [hero.owner]: getPlayerOrders(hero.owner) } };
+    const isPassiveActive = !isSilenced && hero.isPassiveActive(ctx);
+    const badgeText = isSilenced ? 'スキル阻害中' : hero.getPassiveStatusText(ctx);
 
     passiveLiveHtml = `
       <div class="passive-ability-card ${isPassiveActive ? 'pac-active-glow' : ''}">
@@ -1247,9 +1140,6 @@ export function addLog(text, type = 'system') {
 
   entry.innerHTML = `<span class="ar-log-kind">${badgeLabel}</span><p>${highlighted}</p>`;
   rowsWrap.prepend(entry);
-
-  const scroller = box.closest('.ar-log-scroll') || box;
-  scroller.scrollTop = 0;
 }
 
 // 勝利モーダル（Viewer-Relative: 自軍勝利=Yellow, 敵軍勝利=Red）
@@ -1373,7 +1263,7 @@ export function initHomeView() {
     </nav>
     <section class="hm-showcase" aria-label="看板ユニット">
       <div class="hm-reticle-bg" aria-hidden="true"><div class="hm-reticle-ring"></div></div>
-      <div class="hm-watermark" aria-hidden="true"><span>MONOLITH // LAPSE</span><strong></strong></div>
+      <div class="hm-watermark" aria-hidden="true"><span>MONOLITH</span><strong></strong></div>
       <div class="hm-hero-art-wrap"></div>
       <div class="hm-dialogue-dock">
         <div class="hm-glass hm-dialogue-card" aria-live="polite">
@@ -1399,7 +1289,7 @@ export function initHomeView() {
   function updateShowcase() {
     const key = SELECTABLE_HERO_KEYS[lobbyIndex];
     const unit = HERO_TYPES[key];
-    const art = characterArt(key, 'P1', unit.name);
+    const art = characterArt(key, unit.name);
     root.querySelector('.hm-hero-art-wrap').innerHTML = art;
     root.querySelector('.hm-avatar-ring').innerHTML = art;
     root.querySelector('.hm-watermark strong').textContent = key;
@@ -1423,67 +1313,158 @@ export function initHomeView() {
 const draftRoles = ['ASSAULT', 'SENTINEL', 'DISRUPTOR', 'SUPPORT'];
 let draftRole = 'ALL';
 let draftFocus = SELECTABLE_HERO_KEYS[0];
+const draftSlotMarkup = new WeakMap();
 
 export function resetDraftView() {
   draftRole = 'ALL';
   draftFocus = SELECTABLE_HERO_KEYS[0];
 }
 
-export function renderPickModal({ currentOwner = 'P1', selectedHeroes = [], myPickConfirmed = false, isOnline = false }) {
+export function renderPickModal({
+  currentOwner = 'P1',
+  selectedHeroes = [],
+  myPickConfirmed = false,
+  isOnline = false,
+  soloPickTeam = 'ALLY',
+  soloOrder = 'P1',
+  allyCount = 5,
+  enemyCount = 5
+}) {
   const root = document.getElementById('screen-pick');
   const cards = document.getElementById('pick-cards-grid');
   const slots = document.getElementById('draft-slots-container');
   const confirm = document.getElementById('pick-confirm-btn');
-  const visible = SELECTABLE_HERO_KEYS.filter(key => draftRole === 'ALL' || HERO_TYPES[key].role === draftRole);
   const count = selectedHeroes.length;
   const waiting = isOnline && myPickConfirmed;
+  const editingEnemy = !isOnline && soloPickTeam === 'ENEMY';
   const full = count === 5;
+  const canStart = isOnline ? full : (allyCount === 5 && enemyCount === 5);
+
+  root.dataset.pickTeam = editingEnemy ? 'ENEMY' : 'ALLY';
+  root.dataset.soloOrder = !isOnline ? soloOrder : currentOwner;
+
+  const headerBadge = document.getElementById('pick-header-badge');
+  const screenTitle = document.getElementById('pick-screen-title');
+  if (!isOnline) {
+    if (headerBadge) headerBadge.textContent = editingEnemy ? 'SOLO // ENEMY' : 'SOLO // ALLY';
+    if (screenTitle) screenTitle.textContent = editingEnemy ? '敵軍（AI）編成' : '出撃部隊編成';
+  } else if (screenTitle) {
+    screenTitle.textContent = '出撃部隊編成';
+  }
+
+  const teamTabs = document.getElementById('pick-team-tabs');
+  if (teamTabs) {
+    teamTabs.hidden = isOnline;
+    if (!isOnline) {
+      const allyBtn = teamTabs.querySelector('[data-pick-team="ALLY"]');
+      const enemyBtn = teamTabs.querySelector('[data-pick-team="ENEMY"]');
+      if (allyBtn) {
+        allyBtn.classList.toggle('is-active', !editingEnemy);
+        allyBtn.setAttribute('aria-pressed', String(!editingEnemy));
+        allyBtn.innerHTML = `自軍 <b>${allyCount}/5</b>`;
+      }
+      if (enemyBtn) {
+        enemyBtn.classList.toggle('is-active', editingEnemy);
+        enemyBtn.setAttribute('aria-pressed', String(editingEnemy));
+        enemyBtn.innerHTML = `敵軍 <b>${enemyCount}/5</b>`;
+      }
+    }
+  }
+
+  const orderTabs = document.getElementById('pick-order-tabs');
+  if (orderTabs) {
+    orderTabs.hidden = isOnline;
+    if (!isOnline) {
+      const firstBtn = orderTabs.querySelector('[data-pick-order="P1"]');
+      const secondBtn = orderTabs.querySelector('[data-pick-order="P2"]');
+      const isSecond = soloOrder === 'P2';
+      if (firstBtn) {
+        firstBtn.classList.toggle('is-active', !isSecond);
+        firstBtn.setAttribute('aria-pressed', String(!isSecond));
+      }
+      if (secondBtn) {
+        secondBtn.classList.toggle('is-active', isSecond);
+        secondBtn.setAttribute('aria-pressed', String(isSecond));
+      }
+    }
+  }
 
   const focusedControl = root.contains(document.activeElement) ? document.activeElement.dataset : null;
-  document.getElementById('draft-counter-badge').textContent = ` ${count} / 5`.trim();
-  document.getElementById('draft-counter-badge').classList.toggle('is-incomplete', !full);
-  confirm.disabled = !full || waiting;
+  const counterBadge = document.getElementById('draft-counter-badge');
+  counterBadge.hidden = !isOnline;
+  counterBadge.textContent = ` ${count} / 5`.trim();
+  counterBadge.classList.toggle('is-incomplete', !full);
+  confirm.disabled = !canStart || waiting;
   document.getElementById('deploy-main-text').textContent = waiting ? '相手の編成を待機中' : '出撃開始';
-  document.getElementById('deploy-sub-text').textContent = waiting ? 'WAITING FOR OPPONENT' : full ? '長押しで確定' : `あと ${5 - count} 体選択`;
+  let subText = '長押しで確定';
+  if (waiting) subText = 'WAITING FOR OPPONENT';
+  else if (!full) subText = `あと ${5 - count} 体選択`;
+  else if (!isOnline && allyCount !== 5) subText = `自軍あと ${5 - allyCount} 体`;
+  else if (!isOnline && enemyCount !== 5) subText = `敵軍あと ${5 - enemyCount} 体`;
+  document.getElementById('deploy-sub-text').textContent = subText;
   document.getElementById('pick-auto').disabled = waiting;
   document.getElementById('pick-clear').disabled = waiting || count === 0;
 
-  document.getElementById('pick-role-mix').innerHTML = draftRoles.map(role => {
-    const number = selectedHeroes.filter(key => HERO_TYPES[key].role === role).length;
-    return `<span class="sel-mix-chip ${number ? 'is-nonzero' : ''}">${role}<b>${number}</b></span>`;
-  }).join('');
+  const roleMix = document.getElementById('pick-role-mix');
+  if (!roleMix.children.length) {
+    roleMix.innerHTML = draftRoles.map(role => `<span class="sel-mix-chip" data-role="${role}">${role}<b></b></span>`).join('');
+  }
+  for (const chip of roleMix.children) {
+    const number = selectedHeroes.filter(key => HERO_TYPES[key].role === chip.dataset.role).length;
+    chip.classList.toggle('is-nonzero', number > 0);
+    if (chip.lastElementChild.textContent !== String(number)) chip.lastElementChild.textContent = number;
+  }
 
-  slots.innerHTML = Array.from({ length: 5 }, (_, index) => {
+  const slotMarkup = Array.from({ length: 5 }, (_, index) => {
     const key = selectedHeroes[index];
     const unit = HERO_TYPES[key];
     const label = `<span class="sel-slot-num">SLOT 0${index + 1}</span>`;
     if (!unit) return `<div class="sel-slot is-empty">${label}<div class="sel-slot-empty-copy"><strong>UNASSIGNED</strong><span>下のユニット一覧から選択</span></div></div>`;
-    return `<div class="sel-slot ${draftFocus === key ? 'is-focused' : ''}" data-role="${unit.role}">
+    return `<div class="sel-slot" data-role="${unit.role}">
       ${label}
       <button type="button" class="sel-slot-focus" data-pick-focus="${key}" aria-label="${unit.name}の詳細"></button>
       ${waiting ? '' : `<button type="button" class="sel-slot-remove" data-pick-toggle="${key}" aria-label="${unit.name}を編成から外す">×</button>`}
-      <div class="sel-slot-face">${characterArt(key, currentOwner, unit.name)}</div>
+      <div class="sel-slot-face">${characterArt(key, unit.name)}</div>
       <div class="sel-slot-info">
         <span class="sel-slot-role"><i class="sel-slot-role-dot"></i>${unit.roleName}</span>
         <strong class="sel-slot-name">${unit.name}</strong>
         <div class="sel-slot-stats"><b>HP ${unit.maxHp}</b><span>ATK ${unit.atk}</span></div>
       </div></div>`;
-  }).join('');
+  });
+  for (const [index, markup] of slotMarkup.entries()) {
+    let slot = slots.children[index];
+    if (draftSlotMarkup.get(slot) !== markup) {
+      const template = document.createElement('template');
+      template.innerHTML = markup;
+      const replacement = template.content.firstElementChild;
+      if (slot) slot.replaceWith(replacement);
+      else slots.appendChild(replacement);
+      slot = replacement;
+      draftSlotMarkup.set(slot, markup);
+    }
+    slot.classList.toggle('is-focused', selectedHeroes[index] === draftFocus);
+  }
 
-  document.getElementById('pick-role-filters').innerHTML = ['ALL', ...draftRoles].map(role => {
-    const number = role === 'ALL' ? SELECTABLE_HERO_KEYS.length : SELECTABLE_HERO_KEYS.filter(key => HERO_TYPES[key].role === role).length;
-    return `<button type="button" class="ar-filter-btn ${role === draftRole ? 'is-active' : ''}" aria-pressed="${role === draftRole}" data-pick-role="${role}">${role} (${number})</button>`;
-  }).join('');
+  const filters = document.getElementById('pick-role-filters');
+  if (!filters.children.length) {
+    filters.innerHTML = ['ALL', ...draftRoles].map(role => {
+      const number = role === 'ALL' ? SELECTABLE_HERO_KEYS.length : SELECTABLE_HERO_KEYS.filter(key => HERO_TYPES[key].role === role).length;
+      return `<button type="button" class="ar-filter-btn" data-pick-role="${role}">${role} (${number})</button>`;
+    }).join('');
+  }
+  for (const filter of filters.children) {
+    const active = filter.dataset.pickRole === draftRole;
+    filter.classList.toggle('is-active', active);
+    filter.setAttribute('aria-pressed', String(active));
+  }
 
-  cards.innerHTML = visible.map(key => {
+  if (!cards.children.length) cards.innerHTML = SELECTABLE_HERO_KEYS.map(key => {
     const unit = HERO_TYPES[key];
-    const assigned = selectedHeroes.includes(key);
-    const focused = key === draftFocus;
-    return `<article class="sel-unit-tile ${focused ? 'is-focused' : ''} ${assigned ? 'is-in-squad' : ''}">
+    return `<article class="sel-unit-tile" data-hero="${key}">
       <div class="sel-tile-top"><span class="sel-tile-role-lbl">${unit.roleName}</span></div>
-      <button type="button" class="sel-piece-stage" data-pick-focus="${key}" aria-label="${unit.name}の詳細" aria-pressed="${focused}">
+      <button type="button" class="sel-piece-stage" data-pick-focus="${key}" aria-label="${unit.name}の詳細" aria-pressed="false">
         <span class="piece unit ally" data-role="${unit.role}">
-          <span class="piece-face">${characterArt(key, currentOwner, unit.name)}</span>
+          <span class="piece-face">${characterArt(key, unit.name)}</span>
           <span class="piece-role">${icon(roleIcon({ typeKey: key, role: unit.role }))}</span>
           <span class="piece-readout">
             <svg class="piece-dock-svg" viewBox="0 0 80 35" preserveAspectRatio="none" aria-hidden="true"><path d="M 4,2 L 28,2 Q 30,2 30.8,4 L 33.2,15 Q 34,17 36,17 L 54,17 Q 56,17 56.8,15 L 58.8,5.5 Q 59.6,3.5 61.6,3.5 L 76,3.5 Q 79,3.5 79,6.5 L 79,30 Q 79,34 75,34 L 5,34 Q 1,34 1,30 L 1,5 Q 1,2 4,2 Z"/></svg>
@@ -1493,14 +1474,45 @@ export function renderPickModal({ currentOwner = 'P1', selectedHeroes = [], myPi
           </span>
         </span>
       </button>
-      <div class="sel-tile-foot"><button type="button" class="sel-tile-toggle ${assigned ? 'is-in' : ''}" data-pick-toggle="${key}" aria-label="${unit.name}を${assigned ? '編成から外す' : '編成に追加'}" aria-pressed="${assigned}" ${waiting || (full && !assigned) ? 'disabled' : ''}>${assigned ? '編成中' : '+ 編成'}</button></div>
+      <div class="sel-tile-foot"><button type="button" class="sel-tile-toggle" data-pick-toggle="${key}"></button></div>
     </article>`;
   }).join('');
 
+  for (const card of cards.children) {
+    const key = card.dataset.hero;
+    const unit = HERO_TYPES[key];
+    const assigned = selectedHeroes.includes(key);
+    const focused = key === draftFocus;
+    card.hidden = draftRole !== 'ALL' && unit.role !== draftRole;
+    card.classList.toggle('is-focused', focused);
+    card.classList.toggle('is-in-squad', assigned);
+    card.querySelector('.sel-piece-stage').setAttribute('aria-pressed', String(focused));
+    const pieceEl = card.querySelector('.piece');
+    if (pieceEl) {
+      pieceEl.classList.toggle('ally', !editingEnemy);
+      pieceEl.classList.toggle('enemy', editingEnemy);
+    }
+    const button = card.querySelector('.sel-tile-toggle');
+    button.classList.toggle('is-in', assigned);
+    button.setAttribute('aria-pressed', String(assigned));
+    button.setAttribute('aria-label', `${unit.name}を${assigned ? '編成から外す' : '編成に追加'}`);
+    button.disabled = waiting || (full && !assigned);
+    const text = assigned ? '編成中' : '+ 編成';
+    if (button.textContent !== text) button.textContent = text;
+  }
+
   root.onclick = event => {
-    const control = event.target.closest('[data-pick-role], [data-pick-focus], [data-pick-toggle]');
+    const control = event.target.closest('[data-pick-team], [data-pick-order], [data-pick-role], [data-pick-focus], [data-pick-toggle]');
     if (!control) return;
-    const { pickRole, pickFocus, pickToggle } = control.dataset;
+    const { pickTeam, pickOrder, pickRole, pickFocus, pickToggle } = control.dataset;
+    if (pickTeam) {
+      window.__onSwitchSoloPickTeam?.(pickTeam);
+      return;
+    }
+    if (pickOrder) {
+      window.__onSwitchSoloOrder?.(pickOrder);
+      return;
+    }
     if (pickToggle) {
       draftFocus = pickToggle;
       window.__onTogglePickHero(pickToggle);
@@ -1514,16 +1526,17 @@ export function renderPickModal({ currentOwner = 'P1', selectedHeroes = [], myPi
     } else {
       draftFocus = pickFocus;
     }
-    renderPickModal({ currentOwner, selectedHeroes, myPickConfirmed, isOnline });
+    renderPickModal({ currentOwner, selectedHeroes, myPickConfirmed, isOnline, soloPickTeam, soloOrder, allyCount, enemyCount });
   };
 
   if (focusedControl) {
-    const focus = [...root.querySelectorAll('[data-pick-role], [data-pick-focus], [data-pick-toggle]')].find(el =>
-      Object.keys(focusedControl).some(key => el.dataset[key] === focusedControl[key]));
+    const focus = [...root.querySelectorAll('[data-pick-team], [data-pick-order], [data-pick-role], [data-pick-focus], [data-pick-toggle]')].find(el =>
+      !el.closest('[hidden]') && Object.keys(focusedControl).some(key => el.dataset[key] === focusedControl[key]));
     focus?.focus({ preventScroll: true });
   }
   if (root.classList.contains('active')) {
-    document.getElementById('urban-tab-details').click();
+    const detailsTab = document.getElementById('urban-tab-details');
+    if (detailsTab && detailsTab.getAttribute('aria-selected') !== 'true') detailsTab.click();
     renderUrbanHero({ turn: currentOwner, draftKey: draftFocus, gamePhase: 'PICK' });
   }
 }

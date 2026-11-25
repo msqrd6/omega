@@ -1,5 +1,8 @@
-import { BOARD_MARK_DEFS, HERO_TYPES, ROWS, COLS, inBounds } from './config.js?v=lab-white-1';
-import { board, phantomZones, poisonZones, traps, getHazardInfoAt, getEffectiveAtk, getShieldVal, hasDebuff, isUnitInEnemyPhantomZone, isUltReady, isUnit, isObject, isAnchor, isLocalPlayer } from './board.js?v=lab-white-1';
+import { HERO_TYPES, STATUS_EFFECT_DEFS } from './config.js?v=lab-white-3';
+import { board, getHazardInfoAt, getEffectiveAtk, getShieldVal, getStatusEffects, getValidSkillTargets, hasDebuff, isUltReady, isUnit, isObject, isLocalPlayer } from './board.js?v=lab-white-3';
+import { getSkillImpact } from './battle-targets.js';
+import { playBattleSound } from './battle-audio.js?v=juice-1';
+import { waitForBattleEffect } from './battle-effects.js?v=juice-1';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -12,8 +15,7 @@ const aliases = {
   DISRUPTOR: 'glitch', GLITCH: 'glitch',
   MEDIC: 'iris', LILY: 'iris',
   HACKER: 'nexus', NEXUS: 'nexus',
-  TURRET: 'vulcan', VULCAN: 'vulcan',
-  BIT: 'hive', HIVE: 'hive',
+  VULCAN: 'vulcan', HIVE: 'hive',
   PRISM: 'cypher', HALO: 'aura',
   BARRICADE: 'barricade'
 };
@@ -94,18 +96,16 @@ export function roleIcon(unit) {
   return 'assault';
 }
 
-export function characterArt(key, owner = 'P1', name = '', extraClass = '') {
-  if (key === 'ANCHOR') {
-    const coreSlug = isLocalPlayer(owner) ? 'nexus' : 'cypher';
-    return `<img class="${extraClass} anime-art" src="tactics_3d/assets/${coreSlug}-urban-anime-v2.png" alt="${esc(name)}" draggable="false">`;
-  }
+function artSource(key) {
   const slug = aliases[key] || String(key).toLowerCase();
-  return `<img class="${extraClass} anime-art" src="tactics_3d/assets/${slug}-urban-anime-v2.png" alt="${esc(name)}" draggable="false">`;
+  const version = key === 'ANCHOR' ? 4 : 2;
+  return `assets/${slug}-urban-anime-v${version}.png`;
 }
 
-export function getBoardMarks(unit) {
-  const keys = new Set(Array.from(unit.marks.values(), mark => mark.key));
-  return Array.from(keys, key => BOARD_MARK_DEFS[key]).filter(Boolean);
+export function characterArt(key, name = '') {
+  const slug = aliases[key] || String(key).toLowerCase();
+  const equipment = ['ANCHOR', 'BARRICADE', 'TURRET', 'BIT'].includes(key);
+  return `<img class="anime-art${equipment ? ' equipment-art' : ''}" data-art-slug="${esc(slug)}" src="${artSource(key)}" alt="${esc(name)}" draggable="false">`;
 }
 
 const inspectorDockContour = 'M 0,2 L 166,2 Q 172,2 176,8 L 190,32 Q 194,38 200,38 L 292,38 Q 298,38 302,32 L 316,8 Q 320,2 326,2 L 426,2';
@@ -116,6 +116,34 @@ const inspectorDockCap = `
   </svg>
 `;
 
+const inspectorViews = new WeakMap();
+
+function updateInspector(panel, markup, preserveControls = false) {
+  const previous = inspectorViews.get(panel);
+  if (previous?.markup === markup && previous.firstChild === panel.firstElementChild) return;
+
+  const active = document.activeElement;
+  const focused = preserveControls && panel.contains(active) ? active.dataset.inspectorControl : null;
+  const scrollTop = preserveControls ? (panel.querySelector('.ar-skills')?.scrollTop ?? 0) : 0;
+  const template = document.createElement('template');
+  template.innerHTML = markup;
+  const portrait = panel.querySelector('.ar-banner img');
+  const nextPortrait = template.content.querySelector('.ar-banner img');
+  if (portrait && nextPortrait && portrait.getAttribute('src') === nextPortrait.getAttribute('src')) {
+    nextPortrait.replaceWith(portrait);
+  }
+
+  panel.replaceChildren(template.content);
+  inspectorViews.set(panel, { markup, firstChild: panel.firstElementChild });
+  const skills = panel.querySelector('.ar-skills');
+  if (skills) skills.scrollTop = scrollTop;
+  if (focused) {
+    const control = [...panel.querySelectorAll('[data-inspector-control]')]
+      .find(element => element.dataset.inspectorControl === focused && !element.disabled);
+    control?.focus({ preventScroll: true });
+  }
+}
+
 export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandMode, gamePhase, canControl = false, draftKey }) {
   const panel = document.getElementById('unit-detail-panel');
   const inspector = document.getElementById('inspector');
@@ -123,30 +151,27 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
 
   const draft = HERO_TYPES[draftKey];
   const hero = draft
-    ? { ...draft, typeKey: draftKey, owner: turn, hp: draft.maxHp, stockA: draft.skills.A.maxStock, marks: new Map() }
+    ? { ...draft, typeKey: draftKey, owner: turn, hp: draft.maxHp, stockA: draft.skills.A.maxStock }
     : selectedPos && board[selectedPos.r]?.[selectedPos.c];
   const pos = selectedPos;
   const inspectedKey = hero ? (draftKey || hero.id) : '';
-  const skillScroll = panel.dataset.inspectedKey === inspectedKey
-    ? panel.querySelector('.ar-skills')?.scrollTop || 0
-    : 0;
+  const sameSelection = panel.dataset.inspectedKey === inspectedKey;
   panel.dataset.inspectedKey = inspectedKey;
 
   if (!hero) {
     const hazard = selectedHazardPos && getHazardInfoAt(selectedHazardPos.r, selectedHazardPos.c);
     if (hazard) {
       const hzEnemy = !isLocalPlayer(hazard.owner || 'P1');
-      const hzType = hazard.type === 'poison' ? 'toxic' : hazard.type === 'phantom' ? 'dimension' : (hazard.type || 'mine');
-      const hzIcon = hzType === 'toxic' ? 'hz_toxic' : hzType === 'dimension' ? 'hz_dimension' : 'hz_mine';
+      const hzIcon = 'hz_toxic';
       if (inspector) {
         inspector.dataset.team = hzEnemy ? 'ENEMY' : 'ALLY';
-        inspector.dataset.role = hzType === 'toxic' ? 'SUPPORT' : hzType === 'dimension' ? 'DISRUPTOR' : 'ANCHOR';
+        inspector.dataset.role = 'SENTINEL';
         inspector.dataset.art = 'anime';
       }
       const teamLabel = hzEnemy ? 'ENEMY' : 'ALLY';
-      const setterLabel = hazard.setter || (hzType === 'toxic' ? 'スモッグ' : hzType === 'dimension' ? 'ヴェイル' : 'ブラスト');
+      const setterLabel = hazard.setter;
       const impactLabel = hazard.impact || hazard.name;
-      panel.innerHTML = `
+      updateInspector(panel, `
         <div class="ar-piece-hero">
           <div class="ar-banner">
             ${svgIcon(hzIcon, 'emblem', '1.8')}
@@ -178,7 +203,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
             </div>
           </div>
         </div>
-      `;
+      `);
       return;
     }
 
@@ -186,7 +211,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
       inspector.dataset.team = isLocalPlayer(turn) ? 'ALLY' : 'ENEMY';
       inspector.dataset.role = 'ASSAULT';
     }
-    panel.innerHTML = `<div class="battle-log-empty">SELECT UNIT<span>盤面のキャラクターを選択すると詳細とスキルが表示されます。</span></div>`;
+    updateInspector(panel, `<div class="battle-log-empty">SELECT UNIT<span>盤面のキャラクターを選択すると詳細とスキルが表示されます。</span></div>`);
     return;
   }
 
@@ -208,7 +233,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
   const effectiveAtk = unit && !draft ? getEffectiveAtk(hero) : (hero.atk || 0);
   const baseAtk = unit ? (def.atk ?? hero.atk ?? 0) : (hero.atk || 0);
   const hasAtk = effectiveAtk > 0;
-  const isAtkBuffed = Boolean(hasAtk && (hero.buffs?.atk_up?.turns > 0 || effectiveAtk > baseAtk));
+  const isAtkBuffed = Boolean(hasAtk && effectiveAtk > baseAtk);
   const atkText = hasAtk ? String(effectiveAtk) : '—';
 
   if (inspector) {
@@ -217,43 +242,18 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
     inspector.dataset.art = 'anime';
   }
 
-  const stateTags = [];
-  if (shield > 0) {
-    const shTurns = hero.buffs?.shield?.turns || 1;
-    stateTags.push(`<span class="ar-tag-b shield" title="SHIELD">${svgIcon('st_shield', 'ar-st-ic')}<b class="ar-st-val">+${shield}</b><em class="ar-st-turn">${shTurns}T</em></span>`);
-  }
-  if (hero.buffs?.atk_up?.turns > 0) {
-    stateTags.push(`<span class="ar-tag-b buff">${svgIcon('st_atk', 'ar-st-ic')}<b class="ar-st-val">+${hero.buffs.atk_up.val}</b><em class="ar-st-turn">${hero.buffs.atk_up.turns}T</em></span>`);
-  }
-  if (hero.buffs?.shadow_drain?.turns > 0) {
-    stateTags.push(`<span class="ar-tag-b buff">${svgIcon('skill', 'ar-st-ic')}<span>ドレイン発動中</span><em class="ar-st-turn">${hero.buffs.shadow_drain.turns}T</em></span>`);
-  }
-  const inEnemyDimension = !draft && isUnitInEnemyPhantomZone(hero);
-  if (inEnemyDimension && !(hero.debuffs?.vulnerable?.turns > 0)) {
-    stateTags.push(`<span class="ar-tag-b debuff">${svgIcon('st_debuff', 'ar-st-ic')}<span>弱体化</span><em class="ar-st-turn">滞在中</em></span>`);
-  }
-  if (hero.debuffs) {
-    const debuffNames = { vulnerable: '弱体化', disarm: '攻撃阻害', bind: '行動阻害', silence: 'スキル阻害' };
-    for (const [key, b] of Object.entries(hero.debuffs)) {
-      if (b?.turns > 0) {
-        const suffix = (key === 'vulnerable' && inEnemyDimension) ? `${b.turns}T / 滞在中` : `${b.turns}T`;
-        stateTags.push(`<span class="ar-tag-b debuff" title="${esc(key.toUpperCase())}">${svgIcon('st_debuff', 'ar-st-ic')}<span>${esc(debuffNames[key] || key)}</span><em class="ar-st-turn">${suffix}</em></span>`);
-      }
-    }
-  }
-
-  for (const mark of getBoardMarks(hero)) {
-    stateTags.push(`<span class="ar-tag-b mark" style="--mark-color:${mark.color}">${svgIcon(mark.icon, 'ar-st-ic')}<span>${mark.name}</span><em class="ar-st-turn">このターン</em></span>`);
-  }
+  const stateTags = draft ? [] : getStatusEffects(hero).map(({ key, val, turns }) => {
+    const def = STATUS_EFFECT_DEFS[key];
+    const iconName = key === 'shield' ? 'st_shield' : key === 'atk_up' ? 'st_atk' : 'st_debuff';
+    const tagClass = key === 'shield' ? 'shield' : def.type;
+    const suffix = turns > 0 ? `<em class="ar-st-turn">${turns}T</em>` : '';
+    const value = val === undefined ? `<span>${esc(def.name)}</span>` : `<b class="ar-st-val">+${val}</b>`;
+    return `<span class="ar-tag-b ${tagClass}" title="${esc(def.name)}">${svgIcon(iconName, 'ar-st-ic')}${value}${suffix}</span>`;
+  });
 
   const hazard = pos && getHazardInfoAt(pos.r, pos.c);
   if (hazard) {
-    const zoneLabel = hazard.name.includes('ディメンション')
-      ? 'ディメンション'
-      : hazard.name.includes('トキシック')
-        ? 'トキシック'
-        : hazard.name.replace(/・ゾーン$/, '');
-    stateTags.push(`<span class="ar-tag-b terrain">${svgIcon('st_zone', 'ar-st-ic')}<span>${esc(zoneLabel)}</span></span>`);
+    stateTags.push(`<span class="ar-tag-b terrain">${svgIcon('st_zone', 'ar-st-ic')}<span>トキシック</span></span>`);
   }
 
   const statesHtml = draft ? '' : stateTags.length
@@ -267,7 +267,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
         <div class="ar-sheet-eyebrow">PASSIVE</div>
         <div class="ar-passive-inline">
           <div class="ar-passive-head">
-            <strong>${esc(passive.name)}</strong>
+            <strong>${esc(passive.name)}</strong>${silenced ? '<span>スキル阻害中</span>' : ''}
           </div>
           <div class="ar-passive-desc">${esc(passive.desc)}</div>
         </div>
@@ -287,13 +287,7 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
       `
       : '';
 
-  const artHtml = hero.typeKey === 'ANCHOR'
-    ? svgIcon('core', 'emblem', '1.8')
-    : hero.typeKey === 'TURRET'
-      ? svgIcon('turret', 'emblem', '1.8')
-      : hero.typeKey === 'BARRICADE'
-        ? svgIcon('object', 'emblem', '1.8')
-        : characterArt(hero.typeKey, hero.owner, hero.name);
+  const artHtml = characterArt(hero.typeKey, hero.name);
 
   function renderSkillButton(slot, skillObj, isUlt) {
     if (!skillObj) return '';
@@ -304,19 +298,21 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
     else if (isUlt && hero.ultUsed) reason = '使用済';
     else if (isUlt && !isUltReady(hero)) reason = 'ULT不足';
     else if (!isUlt && hero.stockA <= 0) reason = '残数0';
+    else if (!getValidSkillTargets(pos.r, pos.c, isUlt ? 'ULT' : 'A').length) reason = '対象なし';
 
     const disabled = Boolean(reason) && !isArmed;
     const maxStock = isUlt ? 1 : (skillObj.maxStock || 2);
     const remStock = isUlt ? (hero.ultUsed ? 0 : 1) : (hero.stockA ?? maxStock);
-    const readyClass = isUlt && active && !hero.ultUsed && !silenced && isUltReady(hero) ? 'is-ready' : '';
+    const readyClass = isUlt && !reason ? 'is-ready' : '';
 
     let stateHint = '';
     if (isArmed) stateHint = 'ACTIVE';
     else if (silenced && active) stateHint = 'スキル阻害';
     else if (isUlt && active && !hero.ultUsed && !isUltReady(hero)) stateHint = 'ULT不足';
+    else if (reason === '対象なし') stateHint = reason;
 
     return `
-      <button class="ar-card ${isUlt ? 'ult' : ''} interactive ${readyClass} ${isArmed ? 'armed' : ''} ${disabled ? 'disabled' : ''}" onclick="setCommandMode('${slot}')" ${disabled ? 'disabled' : ''} aria-pressed="${isArmed}">
+      <button class="ar-card ${isUlt ? 'ult' : ''} interactive ${readyClass} ${isArmed ? 'armed' : ''} ${disabled ? 'disabled' : ''}" data-inspector-control="${slot}" onclick="setCommandMode('${slot}')" ${disabled ? 'disabled' : ''} aria-pressed="${isArmed}">
         ${isUlt ? '<span class="ar-ult-sheen" aria-hidden="true"></span>' : ''}
         <span class="ar-tag-tab"><span>${isUlt ? 'ULT' : 'SKILL'}</span></span>
         <div class="ar-card-body">
@@ -333,10 +329,10 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
     `;
   }
 
-  const canDestroyBarricade = hero.typeKey === 'BARRICADE' && isLocalPlayer(hero.owner) && friendly;
-  const hasSkillsSection = Boolean(skills.A || skills.ULT || canDestroyBarricade);
+  const showDestroyButton = gamePhase === 'BATTLE' && isObject(hero) && isLocalPlayer(hero.owner);
+  const hasSkillsSection = Boolean(skills.A || skills.ULT || showDestroyButton);
 
-  panel.innerHTML = `
+  updateInspector(panel, `
     <div class="ar-piece-hero">
       <div class="ar-banner">
         <span class="ar-banner-scan" aria-hidden="true"></span>
@@ -380,28 +376,32 @@ export function renderUrbanHero({ turn, selectedPos, selectedHazardPos, commandM
     </div>
 
     ${hasSkillsSection ? `
-      <div class="insp-scroll ar-skills" role="region" tabindex="0" aria-label="スキル・操作">
+      <div class="insp-scroll ar-skills" data-inspector-control="skills" role="region" tabindex="0" aria-label="スキル・操作">
         ${renderSkillButton('SKILL_A', skills.A, false)}
         ${renderSkillButton('SKILL_ULT', skills.ULT, true)}
-        ${canDestroyBarricade ? `
-          <button type="button" class="ar-destroy-btn" onclick="window.__onDestroyBarricade(${pos.r},${pos.c})" ${active ? '' : 'disabled'}><span>💥 防壁を撤去</span></button>
+        ${showDestroyButton ? `
+          <button type="button" class="ar-destroy-btn" data-inspector-control="destroy" onclick="window.__onDestroyObject(${pos.r},${pos.c})" ${active && hero.hp > 0 ? '' : 'disabled'}><span>💥 ${esc(hero.name)}を破壊する</span></button>
         ` : ''}
       </div>
     ` : ''}
-  `;
-  const skillsPanel = panel.querySelector('.ar-skills');
-  if (skillsPanel) skillsPanel.scrollTop = skillScroll;
+  `, sameSelection);
 }
 
 export function initUrbanUI() {
+  const stage = document.getElementById('battle-stage');
+  let lastScale;
+  let resizeFrame = 0;
   const fit = () => {
-    const scale = Math.min(window.innerWidth / 1600, window.innerHeight / 900);
-    document.documentElement.style.setProperty('--scale', scale);
-    const stage = document.getElementById('battle-stage');
-    if (stage) stage.style.setProperty('--battle-scale', scale);
+    resizeFrame = 0;
+    const { clientWidth, clientHeight } = document.documentElement;
+    const scale = Math.min(clientWidth / 1600, clientHeight / 900);
+    if (scale === lastScale) return;
+    lastScale = scale;
+    stage?.style.setProperty('--scale', scale);
   };
-  window.addEventListener('resize', fit);
-  window.visualViewport?.addEventListener('resize', fit);
+  window.addEventListener('resize', () => {
+    if (!resizeFrame) resizeFrame = requestAnimationFrame(fit);
+  });
   fit();
 
   document.querySelectorAll('[data-icon]').forEach(el => {
@@ -485,10 +485,10 @@ function bindHoldAction(buttonId, screenId, onComplete) {
     button.classList.remove('is-held-full');
   };
   const start = () => {
-    if (button.disabled || hold || !screen?.classList.contains('active')) return;
+    if (button.disabled || hold || !screen?.classList.contains('active') || screen.getAttribute('aria-busy') === 'true') return;
     hold = { started: performance.now(), frame: 0 };
     const tick = now => {
-      if (!hold || button.disabled || !screen.classList.contains('active')) {
+      if (!hold || button.disabled || !screen.classList.contains('active') || screen.getAttribute('aria-busy') === 'true') {
         cancel();
         return;
       }
@@ -546,28 +546,18 @@ export function createTurnFxQueue() {
   const effects = [];
   return {
     effects,
-    playBeamFX: (from, to, options) => effects.push(() => playBeamFX(from, to, options)),
-    playCombatPopupFX: (...args) => effects.push(() => playCombatPopupFX(...args)),
-    playPassivePopupFX: (pos, options) => effects.push(() => playPassivePopupFX(pos, options)),
-    playMarkFX: (pos, color) => effects.push(() => applyTileAnimClass(pos, 'is-mark-pulse', 720, { '--mark-pulse-color': color }))
+    playPassivePopupFX: (pos, options) => effects.push(() => playPassivePopupFX(pos, options))
   };
 }
 
-export function playTurnTransition(owner, turnNumber, endingEffects, startingEffects, onReady) {
+export function playTurnTransition(owner, turnNumber, startingEffects, onReady) {
   clearTurnCutin();
-  endingEffects.forEach(play => play());
-  const begin = () => {
-    showTurnCutin(owner, turnNumber);
-    turnCutinTimer = setTimeout(() => {
-      clearTurnCutin();
-      startingEffects.forEach(play => play());
-      if (onReady) {
-        turnCutinTimer = setTimeout(onReady, startingEffects.length ? 720 : 0);
-      }
-    }, 1350);
-  };
-  if (endingEffects.length) turnCutinTimer = setTimeout(begin, 940);
-  else begin();
+  showTurnCutin(owner, turnNumber);
+  turnCutinTimer = setTimeout(() => {
+    clearTurnCutin();
+    startingEffects.forEach(play => play());
+    if (onReady) turnCutinTimer = setTimeout(onReady, startingEffects.length ? 720 : 0);
+  }, 1350);
 }
 
 function showTurnCutin(owner, turnNumber) {
@@ -590,10 +580,8 @@ function showTurnCutin(owner, turnNumber) {
 
 export function floorShortName(hz) {
   if (!hz) return '';
-  if (hz.type === 'dimension' || hz.type === 'phantom') return 'ディメンション';
   if (hz.type === 'toxic' || hz.type === 'poison') return 'トキシック';
-  if (hz.type === 'mine') return 'マイン';
-  return String(hz.name || '').replace(/・?(ゾーン|トラップ)$/, '');
+  return String(hz.name || '').replace(/・?ゾーン$/, '');
 }
 
 export function floorGraphicHtml(hz) {
@@ -616,37 +604,34 @@ export function normalizeHeroKey(typeKey) {
   return canonicalKeys[typeKey] || typeKey;
 }
 
-const blastUlt = HERO_TYPES.BLAST.skills.ULT;
-const hiveUlt = HERO_TYPES.HIVE.skills.ULT;
-
-export const ULT_FX_META = {
-  KINESIS: { color: '#d8ff00', color2: '#66fff2', codename: 'KINESIS // LIGHTNING RUSH', sub: 'EX ATK ORDER +1', mode: 'self', pop: '+1 EX ATK', isDmg: false },
-  VEIL:   { color: '#b366ff', color2: '#f2b8ff', codename: 'VEIL // VOID DRAIN', sub: 'SHADOW DRAIN PROTOCOL ACTIVE', mode: 'self', pop: 'SHADOW DRAIN', isDmg: false },
-  BLAST:   { color: '#ff5a26', color2: '#ffd447', codename: 'BLAST // IGNITION', sub: `RADIUS-${blastUlt.range} // ${blastUlt.damage} DMG · SELF ${blastUlt.selfDamage} DMG`, mode: 'aoe2', pop: `-${blastUlt.damage} DMG`, selfPop: `-${blastUlt.selfDamage} DMG`, isDmg: true },
-  WARDEN:  { color: '#00e5ff', color2: '#c8ff80', codename: 'WARDEN // AEGIS BARRIER', sub: 'ALL ALLIES SHIELD +15', mode: 'allies', pop: '+15 SHIELD', isDmg: false },
-  VULCAN:  { color: '#ff7b24', color2: '#ffd447', codename: 'VULCAN // FORTRESS', sub: 'TURRET RADIUS-2 AIRSTRIKE // 25 DMG', mode: 'turret_aoe2', pop: '-25 DMG', isDmg: true },
-  SMOG:   { color: '#2ee59d', color2: '#c4ff4d', codename: 'SMOG // BIOHAZARD', sub: '3x3 TOXIC HAZARD DEPLOYED', mode: 'around', pop: 'TOXIC ZONE', isDmg: false },
-  GLITCH:  { color: '#ff3ec8', color2: '#8d7bff', codename: 'GLITCH // OVERRIDE', sub: 'WARP // VULNERABLE & DISARM', mode: 'warp_charge', pop: 'WARP CHARGE!', isDmg: true },
-  PRISM:  { color: '#8d7bff', color2: '#ff3ec8', codename: 'PRISM // BLACKOUT', sub: 'TRACED ENEMIES // BIND & 20 DMG', mode: 'enemies', pop: 'BLACKOUT!', isDmg: true },
-  HIVE:    { color: '#b366ff', color2: '#66fff2', codename: 'HIVE // SWARM DRIVE', sub: `DEPLOY BIT // SHIELD +${hiveUlt.shieldVal} & ATK +${hiveUlt.atkBonus}`, mode: 'bits', pop: 'SWARM DRIVE', isDmg: false, isShield: true },
-  LILY:    { color: '#38f6b4', color2: '#ffe169', codename: 'LILY // HALO SYNC', sub: 'ALLIED UNITS HP +15 // ULT +30', mode: 'allies', isHeal: true },
-  NEXUS:   { color: '#38bdf8', color2: '#38f6b4', codename: 'NEXUS // OVERCLOCK LINK', sub: 'LINKED ALLIES SHIELD +25', mode: 'marked', pop: '+25 SHIELD', isDmg: false, isShield: true },
-  HALO:    { color: '#38f6b4', color2: '#e066ff', codename: 'HALO // RESCUE WARP', sub: 'WARP & SANCTUARY HEAL +20 HP', mode: 'around_target', pop: '+20 HP', isDmg: false, isShield: true }
+const ULT_FX_META = {
+  KINESIS: { color: '#d8ff00', color2: '#66fff2', pop: '+1 EX ATK' },
+  VEIL: { color: '#b366ff', color2: '#f2b8ff' },
+  BLAST: { color: '#ff5a26', color2: '#ffd447' },
+  WARDEN: { color: '#00e5ff', color2: '#c8ff80' },
+  VULCAN: { color: '#ff7b24', color2: '#ffd447' },
+  SMOG: { color: '#2ee59d', color2: '#c4ff4d' },
+  GLITCH: { color: '#ff3ec8', color2: '#8d7bff' },
+  PRISM: { color: '#8d7bff', color2: '#ff3ec8' },
+  HIVE: { color: '#b366ff', color2: '#66fff2' },
+  LILY: { color: '#38f6b4', color2: '#ffe169', isHeal: true },
+  NEXUS: { color: '#38bdf8', color2: '#38f6b4' },
+  HALO: { color: '#38f6b4', color2: '#e066ff', isHeal: true }
 };
 
 export const SKILL_FX_META = {
   KINESIS: { color: '#d8ff00', color2: '#b8ff99', pop: 'EX MOVE +1', selfCast: true },
   VEIL:   { color: '#b366ff', color2: '#ecc4ff', pop: 'TELEPORT', selfCast: false },
-  BLAST:   { color: '#ff7b24', color2: '#ffe07d', pop: 'MINE SET', selfCast: false, hideTargetFromEnemy: true },
+  BLAST:   { color: '#ff7b24', color2: '#ffe07d', pop: 'SHELLING' },
   BIT:     { color: '#ff7b24', color2: '#ffe07d', pop: 'SELF DESTRUCT', selfCast: true },
   WARDEN:  { color: '#00e5ff', color2: '#b8f8ff', pop: 'BARRICADE', selfCast: false },
   VULCAN:  { color: '#00d8ff', color2: '#b8f8ff', pop: 'TURRET SET', selfCast: false },
-  SMOG:   { color: '#2ee59d', color2: '#b9ffe0', pop: 'TOXIC MINE', selfCast: false, hideTargetFromEnemy: true },
-  GLITCH:  { color: '#ff3ec8', color2: '#c9b8ff', pop: 'WARP!', selfCast: false },
-  PRISM:  { color: '#b366ff', color2: '#ffd447', pop: 'JAMMING!', selfCast: true },
+  SMOG:   { color: '#2ee59d', color2: '#b9ffe0', pop: 'TOXIC ZONE' },
+  GLITCH:  { color: '#ff3ec8', color2: '#c9b8ff', pop: 'SWAP', selfCast: false },
+  PRISM:  { color: '#b366ff', color2: '#ffd447', pop: 'JAMMING!' },
   HIVE:    { color: '#00d2ff', color2: '#e0b8ff', pop: 'BIT DEPLOY', selfCast: false },
   LILY:    { color: '#2ee59d', color2: '#b9ffe4', isHeal: true },
-  NEXUS:   { color: '#38bdf8', color2: '#b7f5ff', pop: 'LINK AEGIS!', selfCast: true },
+  NEXUS:   { color: '#38bdf8', color2: '#b7f5ff', pop: 'AEGIS LINK' },
   HALO:    { color: '#2ee59d', color2: '#e0b8ff', isHeal: true }
 };
 
@@ -656,158 +641,38 @@ export function isHealSkillHero(unit) {
   return k === 'LILY' || k === 'HALO';
 }
 
-export function getSkillPreviewTargets(casterPos, unit, hoveredTarget = null) {
+function previewTargets(casterPos, unit, slot, target) {
   if (!casterPos || !unit) return [];
-  const k = normalizeHeroKey(unit.typeKey);
-  const out = [];
-  const added = new Set();
-  const pushUnique = (r, c, hitPiece, kind) => {
-    const key = `${r},${c}`;
-    if (added.has(key)) return;
-    added.add(key);
-    out.push({ r, c, hitPiece, kind });
-  };
+  const key = unit.typeKey;
+  const selfCast = slot === 'ULT'
+    ? ['KINESIS', 'VEIL', 'WARDEN', 'SMOG', 'LILY'].includes(key)
+    : ['KINESIS', 'BIT', 'HALO'].includes(key);
+  const center = target || (selfCast ? casterPos : null);
+  const { cells, targets } = getSkillImpact(unit, slot, center, board);
+  const kind = isHealSkillHero(unit) ? 'heal'
+    : key === 'SMOG' ? 'toxic'
+    : ['GLITCH', 'PRISM'].includes(key) ? 'debuff' : 'beam';
 
-  if (k === 'HALO') {
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        const nr = casterPos.r + dr, nc = casterPos.c + dc;
-        if (!inBounds(nr, nc)) continue;
-        const cell = board[nr]?.[nc];
-        pushUnique(nr, nc, Boolean(cell && cell.owner === unit.owner && isUnit(cell)), 'heal');
-      }
-    }
-  } else if (k === 'KINESIS' || k === 'BIT') {
-    pushUnique(casterPos.r, casterPos.c, true, k === 'BIT' ? 'debuff' : 'beam');
-  } else if (k === 'GLITCH') {
-    if (hoveredTarget) {
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          const nr = hoveredTarget.r + dr, nc = hoveredTarget.c + dc;
-          if (!inBounds(nr, nc)) continue;
-          const cell = board[nr]?.[nc];
-          pushUnique(nr, nc, Boolean(cell && cell.owner !== unit.owner && isUnit(cell)), 'debuff');
-        }
-      }
-    }
-  } else if (k === 'SMOG' && hoveredTarget) {
-    pushUnique(hoveredTarget.r, hoveredTarget.c, false, 'toxic');
-  } else if ((k === 'LILY' || k === 'BLAST' || k === 'VEIL' || k === 'WARDEN' || k === 'VULCAN' || k === 'HIVE') && hoveredTarget) {
-    const cell = board[hoveredTarget.r]?.[hoveredTarget.c];
-    const kind = k === 'LILY' ? 'heal' : (k === 'BLAST' ? 'debuff' : 'beam');
-    pushUnique(hoveredTarget.r, hoveredTarget.c, Boolean(cell && isUnit(cell)), kind);
-  } else if (unit.getMarkedTargets) {
-    const kind = k === 'PRISM' ? 'debuff' : 'beam';
-    for (const piece of unit.getMarkedTargets(board, 'A')) {
-      pushUnique(piece.r, piece.c, true, kind);
-    }
-  }
-
-  return out;
+  if (center && ['GLITCH', 'HIVE', 'HALO'].includes(key) &&
+      !cells.some(({ r, c }) => r === center.r && c === center.c)) cells.push(center);
+  return cells.map(({ r, c }) => {
+    const swapTarget = key === 'GLITCH' && slot === 'A' && r === center?.r && c === center?.c;
+    return { r, c, hitPiece: swapTarget || targets.includes(board[r][c]), kind };
+  });
 }
 
-export function getUltPreviewTargets(casterPos, unit, clickedTarget = null, isHoverTargeting = false) {
-  if (!casterPos || !unit) return [];
-  const meta = ULT_FX_META[normalizeHeroKey(unit.typeKey)] || ULT_FX_META.KINESIS;
-  const out = [];
-  const added = new Set();
-  const pushUnique = (r, c, hitPiece) => {
-    const key = `${r},${c}`;
-    if (added.has(key)) return;
-    added.add(key);
-    out.push({ r, c, hitPiece });
-  };
-
-  if (unit.getMarkedTargets) {
-    for (const piece of unit.getMarkedTargets(board, 'ULT')) pushUnique(piece.r, piece.c, true);
-  } else if (meta.mode === 'turret_aoe2') {
-    const turrets = [];
-    if (clickedTarget && inBounds(clickedTarget.r, clickedTarget.c)) {
-      const cell = board[clickedTarget.r]?.[clickedTarget.c];
-      if (cell && cell.owner === unit.owner && cell.typeKey === 'TURRET') {
-        turrets.push({ r: clickedTarget.r, c: clickedTarget.c });
-      }
-    }
-    if (turrets.length === 0) {
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const cell = board[r]?.[c];
-          if (cell && cell.owner === unit.owner && cell.typeKey === 'TURRET') {
-            turrets.push({ r, c });
-          }
-        }
-      }
-    }
-    turrets.forEach(tp => {
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          if (Math.max(Math.abs(r - tp.r), Math.abs(c - tp.c)) <= 2) {
-            const cell = board[r]?.[c];
-            pushUnique(r, c, Boolean(cell && cell.owner !== unit.owner && !isAnchor(cell) && (isUnit(cell) || isObject(cell))));
-          }
-        }
-      }
-    });
-  } else if (meta.mode === 'aoe2_target' || meta.mode === 'around_target' || meta.mode === 'warp_charge') {
-    if (isHoverTargeting && !clickedTarget) {
-      return [];
-    }
-    const center = clickedTarget || casterPos;
-    const rad = meta.mode === 'aoe2_target' ? 2 : 1;
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        if (Math.max(Math.abs(r - center.r), Math.abs(c - center.c)) <= rad) {
-          const cell = board[r]?.[c];
-          let hit = false;
-          if (meta.mode === 'aoe2_target') {
-            const hasAllyUnit = Boolean(cell && cell.owner === unit.owner && isUnit(cell));
-            const hasEnemyObj = Boolean(cell && cell.owner !== unit.owner && isObject(cell));
-            const hasVisibleEnemyHazard =
-              phantomZones.some(z => z.r === r && z.c === c && z.owner !== unit.owner) ||
-              poisonZones.some(z => z.r === r && z.c === c && z.owner !== unit.owner);
-            hit = hasAllyUnit || hasEnemyObj || hasVisibleEnemyHazard;
-          } else if (meta.mode === 'around_target') {
-            const isLanding = (r === center.r && c === center.c);
-            const hasAllyUnit = Boolean(cell && cell.owner === unit.owner && isUnit(cell) && (r !== casterPos.r || c !== casterPos.c));
-            hit = isLanding || hasAllyUnit;
-          } else if (meta.mode === 'warp_charge') {
-            const isLanding = (r === center.r && c === center.c);
-            hit = isLanding || Boolean(cell && cell.owner !== unit.owner && isUnit(cell));
-          }
-          pushUnique(r, c, hit);
-        }
-      }
-    }
-  } else {
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const dr = Math.abs(r - casterPos.r);
-        const dc = Math.abs(c - casterPos.c);
-        const dist = Math.max(dr, dc);
-        const cell = board[r]?.[c];
-        if (meta.mode === 'aoe2' && dist <= 2) {
-          pushUnique(r, c, Boolean(cell && (cell === unit || cell.owner !== unit.owner)));
-        } else if (meta.mode === 'around' && dist <= 1) {
-          pushUnique(r, c, Boolean(cell && cell.owner !== unit.owner && !isAnchor(cell)));
-        } else if (meta.mode === 'allies' && cell && cell.owner === unit.owner && (normalizeHeroKey(unit.typeKey) === 'WARDEN' || isUnit(cell))) {
-          pushUnique(r, c, true);
-        } else if (meta.mode === 'bits' && cell && cell.owner === unit.owner && cell.typeKey === 'BIT') {
-          pushUnique(r, c, true);
-        } else if ((meta.mode === 'enemy' || meta.mode === 'enemies') && cell && cell.owner !== unit.owner && isUnit(cell)) {
-          pushUnique(r, c, true);
-        }
-      }
-    }
-  }
-  if (meta.mode === 'bits' && clickedTarget) pushUnique(clickedTarget.r, clickedTarget.c, true);
-  if (meta.mode === 'self' || (!isHoverTargeting && out.length === 0)) {
-    pushUnique(casterPos.r, casterPos.c, false);
-  }
-  return out;
+export function getSkillPreviewTargets(casterPos, unit, hoveredTarget) {
+  return previewTargets(casterPos, unit, 'A', hoveredTarget);
 }
 
-let ultTimers = [];
+export function getUltPreviewTargets(casterPos, unit, hoveredTarget) {
+  return previewTargets(casterPos, unit, 'ULT', hoveredTarget);
+}
+
 let finisherTimers = [];
+let finisherFrame;
+let ultNodes = [];
+let ultPlayback;
 let fxTimers = [];
 
 function scheduleFxTimeout(fn, delayMs) {
@@ -841,6 +706,7 @@ function applyTileAnimClass(pos, className, durationMs, cssProps = null) {
 }
 
 export function clearFinisherFxState() {
+  cancelAnimationFrame(finisherFrame);
   finisherTimers.forEach(clearTimeout);
   finisherTimers = [];
   const stage = document.getElementById('battle-stage');
@@ -863,29 +729,36 @@ export function clearFinisherFxState() {
   if (motesEl) motesEl.innerHTML = '';
 }
 
-export function clearUltFxState() {
-  ultTimers.forEach(clearTimeout);
-  ultTimers = [];
-  fxTimers.forEach(clearTimeout);
-  fxTimers = [];
-  clearFinisherFxState();
+function clearUltCutin() {
+  ultPlayback?.abort();
+  ultPlayback = null;
+  ultNodes.forEach(node => node.remove());
+  ultNodes = [];
   const stage = document.getElementById('battle-stage');
   const cutin = document.getElementById('ult-cutin-overlay');
-  const fxLayer = document.getElementById('board-fx-layer');
   if (stage) {
     stage.classList.remove('is-ult-impact');
     stage.querySelectorAll('.piece.is-ult-casting').forEach(el => el.classList.remove('is-ult-casting'));
-    stage.querySelectorAll('.tile.is-ult-hit, .tile.is-passive-cast, .tile.is-turret-fire').forEach(el => {
-      el.classList.remove('is-ult-hit', 'is-passive-cast', 'is-turret-fire');
+    stage.querySelectorAll('.tile.is-ult-hit').forEach(el => {
+      el.classList.remove('is-ult-hit');
     });
   }
-  document.getElementById('core-bar-ally')?.classList.remove('is-ult-discharging', 'is-ult-charging');
-  document.getElementById('core-bar-enemy')?.classList.remove('is-ult-discharging', 'is-ult-charging');
+  document.getElementById('core-bar-ally')?.classList.remove('is-ult-discharging');
+  document.getElementById('core-bar-enemy')?.classList.remove('is-ult-discharging');
   if (cutin) {
     cutin.classList.remove('is-active');
     cutin.hidden = true;
   }
-  if (fxLayer) fxLayer.innerHTML = '';
+}
+
+export function clearBattlePresentation() {
+  clearUltCutin();
+  clearFinisherFxState();
+  fxTimers.forEach(clearTimeout);
+  fxTimers = [];
+  document.getElementById('core-bar-ally')?.classList.remove('is-ult-charging');
+  document.getElementById('core-bar-enemy')?.classList.remove('is-ult-charging');
+  document.getElementById('board-fx-layer')?.replaceChildren();
 }
 
 function resolveVisualPos(pos, boardFlipped) {
@@ -929,6 +802,7 @@ function spawnCasterBurst(fxLayer, casterPos, meta, boardFlipped) {
     ${sparksHtml}
   `;
   fxLayer.appendChild(node);
+  ultNodes.push(node);
 }
 
 function spawnTargetWave(fxLayer, target, casterPos, meta, boardFlipped) {
@@ -945,14 +819,13 @@ function spawnTargetWave(fxLayer, target, casterPos, meta, boardFlipped) {
 
   const atCaster = target.r === casterPos.r && target.c === casterPos.c;
   const showRing = target.hitPiece || atCaster;
-  const showPop = target.hitPiece || meta.mode === 'self' || (meta.mode === 'around' && atCaster);
-  const pop = atCaster ? (meta.selfPop ?? meta.pop) : meta.pop;
   node.innerHTML = `
     <span class="fx-target-pulse"></span>
     ${showRing ? `<span class="fx-ring" style="--ring-scale:1.55;--ring-dur:0.65s;--ring-delay:${delayMs}ms"></span>` : ''}
-    ${showPop ? `<span class="fx-pop ${meta.isDmg ? 'is-dmg' : meta.isShield ? 'is-shield' : ''}">${esc(pop)}</span>` : ''}
+    ${atCaster && meta.pop ? `<span class="fx-pop">${esc(meta.pop)}</span>` : ''}
   `;
   fxLayer.appendChild(node);
+  ultNodes.push(node);
 
   if (target.hitPiece) {
     const hitTile = document.querySelector(`#board .tile[data-r="${target.r}"][data-c="${target.c}"]`);
@@ -963,80 +836,12 @@ function spawnTargetWave(fxLayer, target, casterPos, meta, boardFlipped) {
   }
 }
 
-export function playCombatPopupFX(kind, targetPos, amount, attackerPos, boardFlipped, options = {}) {
-  if (!targetPos) return;
-  const {
-    delayMs = 0,
-    label = null,
-    color = null,
-    color2 = null,
-    skipLunge = false
-  } = options;
-
-  const run = () => {
-    const fxLayer = document.getElementById('board-fx-layer');
-    if (!fxLayer) return;
-    const vpTarget = resolveVisualPos(targetPos, boardFlipped);
-
-    if (kind === 'dmg' && attackerPos && !skipLunge) {
-      const sign = vpTarget.flipped ? -1 : 1;
-      const dx = sign * Math.sign(targetPos.c - attackerPos.c) * 16;
-      const dy = sign * Math.sign(targetPos.r - attackerPos.r) * 16;
-      applyTileAnimClass(attackerPos, 'is-atk-lunge', 360, {
-        '--lunge-x': `${dx}px`,
-        '--lunge-y': `${dy}px`
-      });
-    }
-
-    const hitCls = kind === 'heal' ? 'is-heal-hit' : 'is-dmg-hit';
-    applyTileAnimClass(targetPos, hitCls, 620);
-
-    const node = document.createElement('div');
-    node.className = 'ult-fx-node';
-    node.style.left = `${((vpTarget.c + 0.5) / 7) * 100}%`;
-    node.style.top = `${((vpTarget.r + 0.5) / 7) * 100}%`;
-
-    if (kind === 'heal') {
-      node.style.setProperty('--fx-c', color || '#2ee59d');
-      node.style.setProperty('--fx-c2', color2 || '#b9ffe4');
-      const plusHtml = [
-        { x: -24, y: 10, d: 0 },
-        { x: 22, y: 14, d: 70 },
-        { x: -12, y: -12, d: 130 },
-        { x: 18, y: -16, d: 180 }
-      ].map(p => `<span class="fx-heal-plus" style="left:${p.x}px;top:${p.y}px;--hp-delay:${p.d}ms">+</span>`).join('');
-      const popText = label ?? `+${amount} HP`;
-      node.innerHTML = `
-        <span class="fx-heal-aura"></span>
-        <span class="fx-ring" style="--ring-scale:1.45;--ring-dur:0.64s;--ring-delay:0s"></span>
-        ${plusHtml}
-        <span class="fx-pop is-heal is-big">${esc(popText)}</span>
-      `;
-    } else {
-      const blocked = !label && Number(amount) <= 0;
-      node.style.setProperty('--fx-c', color || (blocked ? '#38e8ff' : '#ff4625'));
-      node.style.setProperty('--fx-c2', color2 || (blocked ? '#d0faff' : '#ffd0b8'));
-      let sparksHtml = '';
-      for (let i = 0; i < 6; i++) {
-        const ang = 25 + i * 58;
-        sparksHtml += `<span class="fx-spark" style="--sp-ang:${ang}deg;--sp-dist:76px;--sp-sc:0.85;--sp-delay:0ms"></span>`;
-      }
-      const popText = label ?? (blocked ? '🛡️ SHIELD!' : `-${amount} DMG`);
-      const popVariant = blocked ? 'is-shield' : 'is-dmg';
-      node.innerHTML = `
-        <span class="fx-slash"></span>
-        <span class="fx-slash is-cross"></span>
-        <span class="fx-ring" style="--ring-scale:1.45;--ring-dur:0.54s;--ring-delay:0s"></span>
-        ${sparksHtml}
-        <span class="fx-pop ${popVariant} is-big">${esc(popText)}</span>
-      `;
-    }
-
-    fxLayer.appendChild(node);
-    setTimeout(() => node.remove(), 1120);
-  };
-
-  scheduleFxTimeout(run, delayMs);
+export function playAttackLunge(attackerPos, targetPos) {
+  const sign = resolveVisualPos(targetPos).flipped ? -1 : 1;
+  applyTileAnimClass(attackerPos, 'is-atk-lunge', 360, {
+    '--lunge-x': `${sign * Math.sign(targetPos.c - attackerPos.c) * 16}px`,
+    '--lunge-y': `${sign * Math.sign(targetPos.r - attackerPos.r) * 16}px`
+  });
 }
 
 /**
@@ -1161,30 +966,6 @@ export function playPassivePopupFX(casterPos, options = {}) {
   scheduleFxTimeout(run, delayMs);
 }
 
-/**
- * 盤面上のマーカー（リンク / トレース）付与・発動パルス演出を再生する
- */
-export function playMarkPulseFX(pos, color, delayMs = 0) {
-  if (!pos) return;
-  scheduleFxTimeout(() => applyTileAnimClass(pos, 'is-mark-pulse', 720, { '--mark-pulse-color': color }), delayMs);
-}
-
-/**
- * チームウルトゲージへの直接チャージ演出を再生する
- */
-export function playUltChargeFX(owner, amount = 10, delayMs = 0) {
-  if (!owner || amount <= 0) return;
-  const run = () => {
-    const barEl = document.getElementById(isLocalPlayer(owner) ? 'core-bar-ally' : 'core-bar-enemy');
-    if (!barEl) return;
-    barEl.classList.remove('is-ult-charging');
-    void barEl.offsetWidth;
-    barEl.classList.add('is-ult-charging');
-    scheduleFxTimeout(() => barEl.classList.remove('is-ult-charging'), 820);
-  };
-  scheduleFxTimeout(run, delayMs);
-}
-
 export function playSkillPopupFX(casterPos, targetPos, casterUnit, boardFlipped) {
   const fxLayer = document.getElementById('board-fx-layer');
   if (!fxLayer || !casterUnit || !casterPos) return;
@@ -1203,8 +984,7 @@ export function playSkillPopupFX(casterPos, targetPos, casterUnit, boardFlipped)
 
   if (meta.isHeal) return;
 
-  const hideTarget = Boolean(meta.hideTargetFromEnemy && !isLocalPlayer(casterUnit.owner));
-  const fxPos = (meta.selfCast || hideTarget || !targetPos) ? casterPos : targetPos;
+  const fxPos = (meta.selfCast || !targetPos) ? casterPos : targetPos;
   const vp = resolveVisualPos(fxPos, boardFlipped);
   const node = document.createElement('div');
   node.className = 'ult-fx-node';
@@ -1231,19 +1011,20 @@ export function playSkillPopupFX(casterPos, targetPos, casterUnit, boardFlipped)
   setTimeout(() => node.remove(), 1120);
 }
 
-export function playUltCutinFX(casterPos, casterUnit, clickedTarget, boardFlipped) {
-  if (!casterUnit || !casterPos) return;
-  clearUltFxState();
-
+export function playUltCutinFX(casterPos, casterUnit, clickedTarget, signal) {
   const def = HERO_TYPES[casterUnit.typeKey] || {};
   const meta = ULT_FX_META[normalizeHeroKey(casterUnit.typeKey)] || ULT_FX_META.KINESIS;
   const stage = document.getElementById('battle-stage');
   const cutin = document.getElementById('ult-cutin-overlay');
   const fxLayer = document.getElementById('board-fx-layer');
-  if (!stage || !cutin || !fxLayer) return;
+  if (!stage || !cutin || !fxLayer || signal?.aborted) return {};
+  clearUltCutin();
+  ultPlayback = new AbortController();
+  const playback = ultPlayback.signal;
+  signal?.addEventListener('abort', clearUltCutin, { once: true, signal: playback });
+  playBattleSound('ult');
 
-  const slug = aliases[casterUnit.typeKey] || String(casterUnit.typeKey || 'kinesis').toLowerCase();
-  const artSrc = `tactics_3d/assets/${slug}-urban-anime-v2.png`;
+  const artSrc = artSource(casterUnit.typeKey || 'KINESIS');
   const roleLabel = def.roleName || def.classType || '';
 
   const wmEl = document.getElementById('uci-wm-text');
@@ -1254,11 +1035,11 @@ export function playUltCutinFX(casterPos, casterUnit, clickedTarget, boardFlippe
   const artEl = document.getElementById('uci-art-img');
   const ghostEl = document.getElementById('uci-art-ghost-img');
 
-  if (wmEl) wmEl.textContent = `${meta.codename.split(' ')[0]} // ULTIMATE`;
+  if (wmEl) wmEl.textContent = `${normalizeHeroKey(casterUnit.typeKey)} // ULTIMATE`;
   if (badgeEl) badgeEl.textContent = isLocalPlayer(casterUnit.owner) ? 'DECIBEL MAX // ULTIMATE' : 'ENEMY // OVERDRIVE';
   if (unitTagEl) unitTagEl.textContent = `${def.name || casterUnit.name}${roleLabel ? ` · ${roleLabel}` : ''}`;
   if (titleEl) titleEl.textContent = def.skills?.ULT?.name || 'ULTIMATE';
-  if (subEl) subEl.textContent = meta.sub;
+  if (subEl) subEl.textContent = def.skills?.ULT?.desc || '';
   if (artEl) artEl.src = artSrc;
   if (ghostEl) ghostEl.src = artSrc;
 
@@ -1279,44 +1060,40 @@ export function playUltCutinFX(casterPos, casterUnit, clickedTarget, boardFlippe
   void cutin.offsetWidth;
   cutin.classList.add('is-active');
 
-  const targets = (meta.mode === 'enemy' && clickedTarget && board[clickedTarget.r]?.[clickedTarget.c] && board[clickedTarget.r][clickedTarget.c].owner !== casterUnit.owner)
-    ? [{ r: clickedTarget.r, c: clickedTarget.c, hitPiece: true }]
-    : getUltPreviewTargets(casterPos, casterUnit, clickedTarget);
-  const healTargets = meta.isHeal ? targets.flatMap(pos => {
-    const ally = board[pos.r]?.[pos.c];
-    const amount = ally && Math.min(def.skills.ULT.heal, ally.maxHp - ally.hp);
-    return amount > 0 ? [{ ...pos, amount }] : [];
-  }) : [];
-
-  ultTimers.push(setTimeout(() => {
-    stage.style.setProperty('--ult-fx-color', meta.color);
-    stage.style.setProperty('--ult-fx-color-2', meta.color2);
-    stage.classList.remove('is-ult-impact');
-    void stage.offsetWidth;
-    stage.classList.add('is-ult-impact');
-
-    const barEl = document.getElementById(isLocalPlayer(casterUnit.owner) ? 'core-bar-ally' : 'core-bar-enemy');
-    if (barEl) barEl.classList.add('is-ult-discharging');
-
-    const casterPiece = document.querySelector(`#board .tile[data-r="${casterPos.r}"][data-c="${casterPos.c}"] .piece`);
-    if (casterPiece) casterPiece.classList.add('is-ult-casting');
-
-    spawnCasterBurst(fxLayer, casterPos, meta, boardFlipped);
-    if (meta.isHeal) {
-      healTargets.forEach(target => playCombatPopupFX('heal', target, target.amount, null, boardFlipped));
-    } else {
-      targets.forEach(target => spawnTargetWave(fxLayer, target, casterPos, meta, boardFlipped));
-    }
-  }, 860));
-
-  ultTimers.push(setTimeout(() => {
+  const targets = getUltPreviewTargets(casterPos, casterUnit, clickedTarget);
+  const impact = waitForBattleEffect(860, playback).then(() => {
+    if (playback.aborted) return;
+    // Apply the board pulse after the action has rendered the impact state.
+    requestAnimationFrame(() => {
+      if (!playback.aborted) showUltImpact(casterPos, casterUnit, stage, fxLayer, meta, targets);
+    });
+  });
+  const finished = waitForBattleEffect(1250, playback).then(() => {
+    if (playback.aborted) return;
     cutin.classList.remove('is-active');
     cutin.hidden = true;
-  }, 1250));
+  });
+  void waitForBattleEffect(2250, playback).then(() => {
+    if (!playback.aborted) clearUltCutin();
+  });
+  return { impact, finished };
+}
 
-  ultTimers.push(setTimeout(() => {
-    clearUltFxState();
-  }, 2250));
+function showUltImpact(casterPos, casterUnit, stage, fxLayer, meta, targets) {
+  stage.style.setProperty('--ult-fx-color', meta.color);
+  stage.style.setProperty('--ult-fx-color-2', meta.color2);
+  stage.classList.remove('is-ult-impact');
+  void stage.offsetWidth;
+  stage.classList.add('is-ult-impact');
+
+  const barEl = document.getElementById(isLocalPlayer(casterUnit.owner) ? 'core-bar-ally' : 'core-bar-enemy');
+  if (barEl) barEl.classList.add('is-ult-discharging');
+
+  const casterPiece = document.querySelector(`#board .tile[data-r="${casterPos.r}"][data-c="${casterPos.c}"] .piece`);
+  if (casterPiece) casterPiece.classList.add('is-ult-casting');
+
+  spawnCasterBurst(fxLayer, casterPos, meta);
+  if (!meta.isHeal) targets.forEach(target => spawnTargetWave(fxLayer, target, casterPos, meta));
 }
 
 function buildFinisherGhostPiece(unit) {
@@ -1324,11 +1101,7 @@ function buildFinisherGhostPiece(unit) {
   const isStructure = unit.typeKey === 'ANCHOR' || unit.typeKey === 'TURRET' || unit.typeKey === 'BARRICADE';
   const rk = roleKey(unit);
   const rIcon = roleIcon(unit);
-  const faceHtml = unit.typeKey === 'ANCHOR'
-    ? icon('core')
-    : unit.typeKey === 'TURRET'
-      ? icon('turret')
-      : characterArt(unit.typeKey, unit.owner, unit.name);
+  const faceHtml = characterArt(unit.typeKey, unit.name);
   const hasAtk = Number(unit.atk) > 0;
 
   const piece = document.createElement('div');
@@ -1363,15 +1136,13 @@ export function playFinisherFX({
   onPlayAgain,
   onTitle
 }) {
-  const cutin = document.getElementById('ult-cutin-overlay');
-  const waitMs = (cutin && !cutin.hidden && cutin.classList.contains('is-active')) ? 1180 : 0;
-
   const startSequence = () => {
-    clearUltFxState();
+    clearBattlePresentation();
     const stage = document.getElementById('battle-stage');
     const overlay = document.getElementById('finisher-overlay');
     const fxLayer = document.getElementById('board-fx-layer');
     if (!stage || !overlay || !fxLayer) return;
+    if (reason === 'anchor') playBattleSound('anchor');
 
     const isWipeout = (reason === 'wipeout');
     const isViewerWin = myRole ? (winner === myRole) : isLocalPlayer(winner);
@@ -1562,12 +1333,11 @@ export function playFinisherFX({
 
     finisherTimers.push(setTimeout(() => {
       overlay.classList.add('is-actions-in', 'is-interactive');
+      ghostWrap.remove();
+      node.remove();
+      overlay.focus({ preventScroll: true });
     }, 2160));
   };
 
-  if (waitMs > 0) {
-    finisherTimers.push(setTimeout(startSequence, waitMs));
-  } else {
-    requestAnimationFrame(startSequence);
-  }
+  finisherFrame = requestAnimationFrame(startSequence);
 }

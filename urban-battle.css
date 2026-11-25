@@ -641,6 +641,14 @@
   transform-origin: 50% 15%;
 }
 
+.piece-face > img.equipment-art {
+  object-fit: contain;
+  object-position: center center;
+  border-radius: 0;
+  transform-origin: center center;
+  transform: translateY(-6%) scale(1.22);
+}
+
 .piece.structure .piece-face,
 .piece.core .piece-face {
   border-radius: 13px;
@@ -1152,21 +1160,42 @@
 #battle-stage #log-box[data-filter="turn"] .ar-log-group:not(:has(.ar-log-row[data-kind="system"], .ar-log-row[data-kind="endturn"])) { display: none; }
 
 #battle-stage .battle-log-empty {
-  margin-top: 80px;
-  padding: 0 20px;
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  margin-top: 0;
+  padding: 48px 36px;
   text-align: center;
-  font: italic 22px var(--piece-num-font);
-  letter-spacing: 0.08em;
-  color: #495266;
+  font: 700 34px/1.15 var(--piece-num-font);
+  letter-spacing: 0.14em;
+  color: #f4f4f5;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
 }
 
 #battle-stage .battle-log-empty span {
-  font: 700 12px var(--jp);
-  letter-spacing: 0;
-  color: var(--muted);
+  max-width: 290px;
+  font: 500 14.5px/1.75 var(--jp);
+  letter-spacing: 0.02em;
+  color: #b4b4bb;
+}
+
+#battle-stage #urban-log-empty:not([hidden]) {
+  min-height: 100%;
+  padding: 48px 32px;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 28px;
+}
+
+#battle-stage .ar-log-scroll:has(> #urban-log-empty:not([hidden])) > #log-box {
+  display: none;
 }
 
 /* ==========================================================================
@@ -5701,6 +5730,18 @@
 #battle-stage .piece.structure .piece-face {
   border-radius: 13px;
 }
+#battle-stage .piece-face > img.equipment-art[data-art-slug="barricade"] {
+  transform: translateY(-6%) scale(1.24);
+}
+#battle-stage .piece-face > img.equipment-art[data-art-slug="bit"] {
+  transform: translate(4.5%, -6%) scale(1.28);
+}
+#battle-stage .piece-face > img.equipment-art[data-art-slug="turret"] {
+  transform: translateY(-5%) scale(1.18);
+}
+#battle-stage .piece-face > img.equipment-art[data-art-slug="anchor"] {
+  transform: translateY(-6%) scale(1.20);
+}
 #battle-stage .piece .piece-face > .icon {
   color: var(--accent);
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 55%, transparent));
@@ -6121,6 +6162,44 @@
   mask-image: linear-gradient(to bottom, #000 0%, #000 72%, rgba(0, 0, 0, 0.38) 86%, transparent 97%);
 }
 
+#battle-stage .ar-banner img.equipment-art {
+  right: 2px;
+  bottom: 8px;
+  width: 178px;
+  height: 178px;
+  object-fit: contain;
+  transform: none;
+  filter:
+    drop-shadow(-8px 7px 6px rgba(10, 14, 24, 0.45))
+    drop-shadow(0 0 11px rgba(var(--holo-c-rgb), 0.34));
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 78%, rgba(0, 0, 0, 0.48) 91%, transparent 99%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 78%, rgba(0, 0, 0, 0.48) 91%, transparent 99%);
+}
+#battle-stage .ar-banner img.equipment-art[data-art-slug="barricade"] {
+  right: 2px;
+  bottom: 8px;
+  width: 178px;
+  height: 178px;
+}
+#battle-stage .ar-banner img.equipment-art[data-art-slug="bit"] {
+  right: -4px;
+  bottom: 8px;
+  width: 172px;
+  height: 172px;
+}
+#battle-stage .ar-banner img.equipment-art[data-art-slug="turret"] {
+  right: 0;
+  bottom: 8px;
+  width: 184px;
+  height: 184px;
+}
+#battle-stage .ar-banner img.equipment-art[data-art-slug="anchor"] {
+  right: 4px;
+  bottom: 12px;
+  width: 176px;
+  height: 176px;
+}
+
 /* キャラ下部ドック＋シート：426px幅向け対称くぼみノッチ付きの光学ガラス統合 */
 #battle-stage .ar-piece-dock {
   margin: -48px 0 0;
@@ -6309,8 +6388,8 @@
 #battle-stage .ar-card:not(.ult).armed,
 #battle-stage .ar-card:not(.ult).armed:hover {
   background: linear-gradient(135deg, rgba(14, 165, 233, 0.90) 0%, rgba(12, 116, 186, 0.84) 100%);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1.5px solid #7eeeff;
   color: #ffffff;
   transform: translateY(-2px);
@@ -6321,8 +6400,8 @@
 #battle-stage .ar-card.ult.armed,
 #battle-stage .ar-card.ult.armed:hover {
   background: linear-gradient(135deg, rgba(225, 29, 72, 0.92) 0%, rgba(159, 18, 57, 0.86) 100%);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1.5px solid #ffa4b8;
   color: #ffffff;
   transform: translateY(-2px);
@@ -6522,9 +6601,9 @@
 }
 
 #battle-stage .deploy-control-bar {
-  background: linear-gradient(135deg, rgba(14, 14, 16, 0.78) 0%, rgba(22, 22, 25, 0.64) 100%);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: linear-gradient(135deg, rgba(14, 14, 18, 0.88) 0%, rgba(22, 22, 27, 0.80) 100%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(250, 204, 21, 0.44);
   border-top: 2px solid #facc15;
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
@@ -6744,25 +6823,25 @@
    ====================================================================== */
 #battle-stage .icon-button {
   border-radius: 2px !important;
-  background: linear-gradient(135deg, rgba(14, 14, 16, 0.68) 0%, rgba(22, 22, 25, 0.54) 100%) !important;
-  backdrop-filter: blur(7px) !important;
-  -webkit-backdrop-filter: blur(7px) !important;
+  background: linear-gradient(135deg, rgba(14, 14, 18, 0.82) 0%, rgba(22, 22, 27, 0.72) 100%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.16) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.34) !important;
   color: #f4f4f5 !important;
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24) !important;
 }
 #battle-stage .icon-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(26, 26, 30, 0.80) 0%, rgba(36, 36, 42, 0.68) 100%) !important;
+  background: linear-gradient(135deg, rgba(26, 26, 30, 0.88) 0%, rgba(36, 36, 42, 0.78) 100%) !important;
   border-color: rgba(255, 255, 255, 0.48) !important;
   color: #ffffff !important;
 }
 
 #battle-stage .turn-display {
   border-radius: 2px !important;
-  background: linear-gradient(135deg, rgba(14, 14, 16, 0.76) 0%, rgba(22, 22, 25, 0.62) 100%) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
+  background: linear-gradient(135deg, rgba(14, 14, 18, 0.86) 0%, rgba(22, 22, 27, 0.76) 100%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.18) !important;
   border-top: 1.5px solid rgba(255, 255, 255, 0.42) !important;
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28) !important;
@@ -6792,9 +6871,9 @@
 
 #battle-stage .turn-token {
   border-radius: 2px !important;
-  background: linear-gradient(135deg, rgba(14, 14, 16, 0.70) 0%, rgba(22, 22, 25, 0.54) 100%) !important;
-  backdrop-filter: blur(7px) !important;
-  -webkit-backdrop-filter: blur(7px) !important;
+  background: linear-gradient(135deg, rgba(14, 14, 18, 0.82) 0%, rgba(22, 22, 27, 0.72) 100%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.32) !important;
   color: #fafafa !important;
@@ -6835,9 +6914,9 @@
 #battle-stage :is(.hold-turn, .btn-end-turn) {
   border-radius: 2px !important;
   padding: 0 22px !important;
-  background: linear-gradient(135deg, rgba(14, 14, 16, 0.72) 0%, rgba(22, 22, 25, 0.56) 100%) !important;
-  backdrop-filter: blur(7px) !important;
-  -webkit-backdrop-filter: blur(7px) !important;
+  background: linear-gradient(135deg, rgba(14, 14, 18, 0.84) 0%, rgba(22, 22, 27, 0.74) 100%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.16) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.34) !important;
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.26) !important;
@@ -6880,18 +6959,18 @@
   background: transparent !important;
   border: none !important;
 }
-#battle-stage .hold-turn.is-enemy {
+#battle-stage .hold-turn.is-enemy:is(:disabled, .unusable) {
   background: linear-gradient(135deg, rgba(14, 14, 16, 0.54) 0%, rgba(22, 22, 25, 0.40) 100%) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.22) !important;
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.20) !important;
   opacity: 0.54 !important;
 }
-#battle-stage .hold-turn.is-enemy .hold-content strong,
-#battle-stage .hold-turn.is-enemy .hold-icon {
+#battle-stage .hold-turn.is-enemy:is(:disabled, .unusable) .hold-content strong,
+#battle-stage .hold-turn.is-enemy:is(:disabled, .unusable) .hold-icon {
   color: #d4d4d8 !important;
 }
-#battle-stage .hold-turn.is-enemy .hold-content small {
+#battle-stage .hold-turn.is-enemy:is(:disabled, .unusable) .hold-content small {
   background: transparent !important;
   border: none !important;
   color: #a1a1aa !important;
@@ -6900,8 +6979,8 @@
 /* 右側 INFO / BATTLE LOG タブ & カード類（黒透明スモークガラス） */
 #battle-stage .ar-tab {
   border-radius: 2px !important;
-  backdrop-filter: blur(7px) !important;
-  -webkit-backdrop-filter: blur(7px) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 #battle-stage .ar-tab:not([aria-selected="true"]) {
   background: rgba(14, 14, 16, 0.52) !important;
@@ -6930,8 +7009,8 @@
 #battle-stage .ar-piece-hero {
   border-radius: 2px !important;
   background: transparent !important;
-  backdrop-filter: blur(7px) !important;
-  -webkit-backdrop-filter: blur(7px) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.16) !important;
   border-top: 1.5px solid rgba(255, 255, 255, 0.42) !important;
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.30) !important;
@@ -7065,9 +7144,24 @@
   border-color: rgba(250, 204, 21, 0.50) !important;
   color: #fef08a !important;
 }
+#battle-stage .ar-tag-b {
+  height: 23px !important;
+  padding: 0 8px 0 6px !important;
+  gap: 4px !important;
+}
+#battle-stage .ar-st-val {
+  font-size: 12.5px !important;
+}
 #battle-stage .ar-st-turn {
-  background: rgba(255, 255, 255, 0.16) !important;
-  color: #ffffff !important;
+  padding: 0 0 0 5px !important;
+  margin-left: 1px !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.24) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  color: rgba(255, 255, 255, 0.84) !important;
 }
 #battle-stage .ar-sheet-sec.passive-sec {
   border-top: none !important;
@@ -7085,9 +7179,9 @@
   border-radius: 18px !important;
   padding: 13px 18px 14px !important;
   overflow: hidden !important;
-  background: linear-gradient(135deg, rgba(14, 14, 16, 0.70) 0%, rgba(22, 22, 25, 0.54) 100%) !important;
-  backdrop-filter: blur(7px) !important;
-  -webkit-backdrop-filter: blur(7px) !important;
+  background: linear-gradient(135deg, rgba(14, 14, 18, 0.84) 0%, rgba(22, 22, 27, 0.74) 100%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.16) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.34) !important;
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.26) !important;
@@ -7159,9 +7253,9 @@
 /* 未選択時スタンバイ & BATTLE LOG（黒透明スモーク） */
 #battle-stage :is(.ar-standby-hero.battle-log-empty, .ar-standby-card, .ar-log-toolbar, .ar-log-scroll, .battle-log-empty) {
   border-radius: 2px !important;
-  background: linear-gradient(135deg, rgba(14, 14, 16, 0.70) 0%, rgba(22, 22, 25, 0.54) 100%) !important;
-  backdrop-filter: blur(7px) !important;
-  -webkit-backdrop-filter: blur(7px) !important;
+  background: linear-gradient(135deg, rgba(14, 14, 18, 0.84) 0%, rgba(22, 22, 27, 0.74) 100%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.16) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.34) !important;
   color: #e4e4e7 !important;
@@ -7401,6 +7495,49 @@
   border-color: #a855f7 !important;
   border-top: 1.5px solid #d8b4fe !important;
 }
+#battle-stage:not([data-screen="select"]) #inspector .ar-card:is(:disabled, .disabled) {
+  opacity: 1 !important;
+  filter: none !important;
+  background: linear-gradient(135deg, rgba(9, 9, 12, 0.90) 0%, rgba(14, 14, 18, 0.86) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-top-color: rgba(255, 255, 255, 0.10) !important;
+  box-shadow: none !important;
+}
+#battle-stage:not([data-screen="select"]) #inspector .ar-card:is(:disabled, .disabled) .ar-tag-tab {
+  background: #27272a !important;
+  border-color: #3f3f46 !important;
+  box-shadow: none !important;
+}
+#battle-stage:not([data-screen="select"]) #inspector .ar-card:is(:disabled, .disabled) .ar-tag-tab span {
+  color: #a1a1aa !important;
+}
+#battle-stage:not([data-screen="select"]) #inspector .ar-card:is(:disabled, .disabled) .ar-dot:not(.used) {
+  background: #52525b !important;
+  box-shadow: none !important;
+}
+#battle-stage:not([data-screen="select"]) #inspector .ar-card:is(:disabled, .disabled) .ar-card-top strong {
+  color: #d4d4d8 !important;
+}
+#battle-stage:not([data-screen="select"]) #inspector .ar-card:is(:disabled, .disabled) .ar-card-desc {
+  color: #a1a1aa !important;
+}
+#battle-stage[data-screen="select"] #inspector .ar-card.disabled {
+  opacity: 1 !important;
+  filter: none !important;
+  background: linear-gradient(135deg, rgba(14, 14, 18, 0.84) 0%, rgba(22, 22, 27, 0.74) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.34) !important;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.26) !important;
+}
+#battle-stage[data-screen="select"] #inspector .ar-card.disabled .ar-tag-tab {
+  opacity: 1 !important;
+}
+#battle-stage[data-screen="select"] #inspector .ar-card.disabled .ar-card-top strong {
+  color: #ffffff !important;
+}
+#battle-stage[data-screen="select"] #inspector .ar-card.disabled .ar-card-desc {
+  color: #d4d4d8 !important;
+}
 #battle-stage .ar-standby-eyebrow,
 #battle-stage .ar-st-hz b {
   color: #facc15 !important;
@@ -7425,9 +7562,9 @@
   top: 11px !important;
   gap: 0 !important;
   box-sizing: content-box !important;
-  background: linear-gradient(145deg, rgba(14, 14, 16, 0.82) 0%, rgba(22, 22, 25, 0.74) 100%) !important;
-  backdrop-filter: blur(12px) saturate(1.05) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(1.05) !important;
+  background: linear-gradient(145deg, rgba(14, 14, 18, 0.88) 0%, rgba(22, 22, 27, 0.82) 100%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.18) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.30) !important;
   border-radius: 8px !important;
@@ -7663,9 +7800,9 @@
 #battle-stage .fx-pop {
   padding: 6px 14px !important;
   border-radius: 8px !important;
-  background: linear-gradient(135deg, rgba(10, 13, 20, 0.90) 0%, rgba(18, 24, 36, 0.82) 100%) !important;
-  backdrop-filter: blur(10px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(10px) saturate(1.2) !important;
+  background: linear-gradient(135deg, rgba(10, 13, 20, 0.94) 0%, rgba(18, 24, 36, 0.88) 100%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border: 1.5px solid var(--fx-c, #facc15) !important;
   color: #fef9c3 !important;
   font-family: var(--piece-num-font), var(--jp) !important;
@@ -8709,9 +8846,7 @@
 }
 
 .select-panel {
-  background: linear-gradient(145deg, rgba(14, 14, 16, 0.80) 0%, rgba(22, 22, 26, 0.66) 100%);
-  backdrop-filter: blur(12px) saturate(1.08);
-  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+  background: linear-gradient(145deg, rgba(14, 14, 18, 0.88) 0%, rgba(22, 22, 27, 0.80) 100%);
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-top: 1.5px solid rgba(255, 255, 255, 0.36);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
@@ -8732,13 +8867,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 .sel-head-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
   min-width: 0;
+  flex: none;
 }
 .sel-back-btn {
   height: 30px;
@@ -8780,7 +8916,7 @@
 }
 .sel-title {
   margin: 0;
-  font: normal 700 17px/1 var(--jp);
+  font: normal 700 15.5px/1 var(--jp);
   color: #ffffff;
   letter-spacing: 0.03em;
   white-space: nowrap;
@@ -8810,11 +8946,11 @@
 .sel-role-mix {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   margin-right: 2px;
 }
 .sel-mix-chip {
-  padding: 4px 8px;
+  padding: 4px 7px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.34);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -9292,21 +9428,42 @@
 #battle-stage #log-box[data-filter="turn"] .ar-log-group:not(:has(.ar-log-row[data-kind="system"], .ar-log-row[data-kind="endturn"])) { display: none; }
 
 #battle-stage .battle-log-empty {
-  margin-top: 80px;
-  padding: 0 20px;
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  margin-top: 0;
+  padding: 48px 36px;
   text-align: center;
-  font: italic 22px var(--piece-num-font);
-  letter-spacing: 0.08em;
-  color: #495266;
+  font: 700 34px/1.15 var(--piece-num-font);
+  letter-spacing: 0.14em;
+  color: #f4f4f5;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
 }
 
 #battle-stage .battle-log-empty span {
-  font: 700 12px var(--jp);
-  letter-spacing: 0;
-  color: var(--muted);
+  max-width: 290px;
+  font: 500 14.5px/1.75 var(--jp);
+  letter-spacing: 0.02em;
+  color: #b4b4bb;
+}
+
+#battle-stage #urban-log-empty:not([hidden]) {
+  min-height: 100%;
+  padding: 48px 32px;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 28px;
+}
+
+#battle-stage .ar-log-scroll:has(> #urban-log-empty:not([hidden])) > #log-box {
+  display: none;
 }
 
 
@@ -9481,4 +9638,520 @@
   .fx-beam-core,
   #battle-stage .tile:is(.is-passive-cast, .is-turret-fire) .piece,
   #battle-stage .tile.is-mark-pulse .piece-mark-icon { animation: none; }
+}
+
+/* SOLO モード: 自軍 / 敵軍 編成切替タブ & 敵軍編成テーマ */
+.sel-team-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(8, 8, 12, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  flex: none;
+}
+.sel-team-tabs[hidden] {
+  display: none;
+}
+.sel-team-tab {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #a1a1aa;
+  font: normal 700 11px/1 var(--jp);
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.sel-team-tab b {
+  font: normal 700 10.5px/1 var(--piece-num-font);
+  opacity: 0.88;
+}
+.sel-team-tab:hover:not(.is-active) {
+  color: #f4f4f5;
+  background: rgba(255, 255, 255, 0.08);
+}
+.sel-team-tab.is-ally.is-active {
+  background: #facc15;
+  border-color: #fde047;
+  color: #11151d;
+  box-shadow: 0 2px 10px rgba(250, 204, 21, 0.28);
+}
+.sel-team-tab.is-enemy.is-active {
+  background: #a855f7;
+  border-color: #c084fc;
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(168, 85, 247, 0.34);
+}
+#screen-pick[data-pick-team="ENEMY"] #pick-header-badge {
+  color: #c084fc;
+}
+#screen-pick[data-pick-team="ENEMY"] #draft-counter-badge:not(.is-incomplete) {
+  background: #a855f7;
+  color: #ffffff;
+}
+#screen-pick[data-pick-team="ENEMY"] #draft-counter-badge.is-incomplete {
+  color: #e9d5ff;
+  border-color: rgba(168, 85, 247, 0.55);
+}
+#screen-pick[data-pick-team="ENEMY"] .sel-slot.is-focused {
+  background: rgba(44, 20, 66, 0.62);
+  border-color: #c084fc;
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.28);
+}
+#screen-pick[data-pick-team="ENEMY"] .sel-slot.is-focused .sel-slot-num {
+  color: #e9d5ff;
+}
+#screen-pick[data-pick-team="ENEMY"] .sel-slot-face {
+  box-shadow: 0 0 0 2px #a855f7;
+  background: radial-gradient(circle at 50% 35%, rgba(168, 85, 247, 0.24) 0%, #121214 82%);
+}
+#screen-pick[data-pick-team="ENEMY"] .sel-slot-role {
+  color: #e9d5ff;
+}
+#battle-stage #screen-pick[data-pick-team="ENEMY"] .sel-unit-tile:is(.is-in-squad, .is-focused) {
+  border-color: #c084fc;
+}
+#battle-stage #screen-pick[data-pick-team="ENEMY"] .sel-unit-tile.is-in-squad:not(.is-focused) {
+  border-color: rgba(192, 132, 252, 0.72);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.24);
+}
+#battle-stage #screen-pick[data-pick-team="ENEMY"] .sel-unit-tile.is-focused {
+  border-color: #e9d5ff;
+  box-shadow: inset 0 0 0 1px rgba(192, 132, 252, 0.55), 0 0 18px rgba(168, 85, 247, 0.34);
+}
+#battle-stage #screen-pick[data-pick-team="ENEMY"] .sel-unit-tile:focus-within {
+  border-color: #e9d5ff;
+}
+#battle-stage #screen-pick[data-pick-team="ENEMY"] .sel-tile-toggle:hover {
+  background: rgba(168, 85, 247, 0.18);
+  border-color: #c084fc;
+  color: #e9d5ff;
+}
+#battle-stage #screen-pick[data-pick-team="ENEMY"] .sel-tile-toggle.is-in {
+  background: #a855f7;
+  border-color: #c084fc;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.30);
+}
+#battle-stage #screen-pick[data-pick-team="ENEMY"] .sel-tile-toggle.is-in:hover {
+  background: #c084fc;
+  border-color: #e9d5ff;
+  color: #11151d;
+}
+#battle-stage #screen-pick[data-pick-team="ENEMY"] .ar-filter-btn.is-active {
+  background: #a855f7 !important;
+  border-color: #c084fc !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 10px rgba(168, 85, 247, 0.34) !important;
+}
+
+/* SOLO モード: 先攻 / 後攻 切替ピル */
+.sel-order-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(8, 8, 12, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  flex: none;
+}
+.sel-order-tabs[hidden] {
+  display: none;
+}
+.sel-order-tab {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #a1a1aa;
+  font: normal 700 11px/1 var(--jp);
+  letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.sel-order-tab:hover:not(.is-active) {
+  color: #f4f4f5;
+  background: rgba(255, 255, 255, 0.08);
+}
+.sel-order-tab.is-active {
+  background: #f4f4f5;
+  border-color: #ffffff;
+  color: #11151d;
+  box-shadow: 0 2px 10px rgba(255, 255, 255, 0.20);
+}
+
+/* ======================================================================
+   BATTLE SCREEN LAYOUT: 盤面最大化 + 左右垂直 ULT バー + 左UIコンパクト化
+   - 左 HUD / SYNC ORDERS を幅 202px (盤面側余白確保) へ調整
+   - 上下 ULT バー (#core-bar-ally / #core-bar-enemy) を盤面の左右へ配置
+   - 7x7 盤面 (#board-frame) を 876px 角へ最大化（本番のカラー/クラスを維持）
+   ====================================================================== */
+#battle-stage[data-screen="battle"] .top-left-hud {
+  left: 12px !important;
+  top: 12px !important;
+  width: 202px !important;
+  gap: 8px !important;
+}
+#battle-stage[data-screen="battle"] .hud-buttons {
+  height: 38px !important;
+  gap: 8px !important;
+}
+#battle-stage[data-screen="battle"] .icon-button {
+  height: 38px !important;
+}
+#battle-stage[data-screen="battle"] .turn-display {
+  height: 112px !important;
+  padding: 10px 12px !important;
+  gap: 6px !important;
+}
+#battle-stage[data-screen="battle"] .turn-display > span {
+  font-size: 12px !important;
+  letter-spacing: 0.34em !important;
+  padding-left: 0.34em !important;
+}
+#battle-stage[data-screen="battle"] .turn-display strong {
+  font-size: 62px !important;
+  line-height: 0.88 !important;
+}
+#battle-stage[data-screen="battle"] .top-left-hud::after {
+  top: 756px !important;
+  width: 162px !important;
+  right: auto !important;
+  font-size: 7.5px !important;
+  letter-spacing: 0.08em !important;
+}
+#battle-stage[data-screen="battle"] #game-content::before {
+  left: 12px !important;
+  bottom: 56px !important;
+  font-size: 8px !important;
+  letter-spacing: 0.13em !important;
+}
+#battle-stage[data-screen="battle"] #game-content::after {
+  left: 12px !important;
+  bottom: 16px !important;
+  font-size: 25px !important;
+}
+
+#battle-stage[data-screen="battle"] .battlefield {
+  left: 178px !important;
+  top: 12px !important;
+  width: 972px !important;
+  height: 876px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+#battle-stage[data-screen="battle"] .battlefield::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 972 876'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%230e0e12' stop-opacity='0.88'/%3E%3Cstop offset='100%25' stop-color='%2316161b' stop-opacity='0.82'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M 66,0 L 950,0 A 22,22 0 0 1 972,22 L 972,416 C 972,456 924,458 924,496 L 924,858 A 18,18 0 0 1 906,876 L 22,876 A 22,22 0 0 1 0,854 L 0,460 C 0,420 48,418 48,380 L 48,18 A 18,18 0 0 1 66,0 Z' fill='url(%23g)' stroke='rgba(255,255,255,0.18)' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat center / 100% 100% !important;
+  filter: drop-shadow(0 16px 30px rgba(0, 0, 0, 0.44)) !important;
+}
+#battle-stage[data-screen="battle"] .battlefield > :is(.board-frame, .core-bar) {
+  position: relative !important;
+  z-index: 1 !important;
+}
+#battle-stage[data-screen="battle"] .battlefield > :is(.token-bar, .deploy-control-bar) {
+  z-index: 2 !important;
+}
+
+#battle-stage[data-screen="battle"] .token-bar,
+#battle-stage[data-screen="battle"] .deploy-control-bar {
+  left: -166px !important;
+  top: 184px !important;
+  width: 202px !important;
+  gap: 9px !important;
+}
+#battle-stage[data-screen="battle"] .token-bar-label {
+  font-size: 9.5px !important;
+  letter-spacing: 0.14em !important;
+  gap: 6px !important;
+}
+#battle-stage[data-screen="battle"] .turn-tokens {
+  gap: 8px !important;
+  align-items: flex-start !important;
+}
+#battle-stage[data-screen="battle"] .turn-token {
+  width: 100% !important;
+  min-height: 46px !important;
+  padding: 6px 11px !important;
+  gap: 10px !important;
+}
+#battle-stage[data-screen="battle"] .tk-def-ico {
+  width: 26px !important;
+  height: 26px !important;
+}
+#battle-stage[data-screen="battle"] .turn-token .tk-def-ico .icon {
+  width: 15px !important;
+  height: 15px !important;
+}
+#battle-stage[data-screen="battle"] .tk-def-lbl {
+  font-size: 13.5px !important;
+  letter-spacing: 0.08em !important;
+  white-space: nowrap !important;
+}
+#battle-stage[data-screen="battle"] .turn-token.special {
+  width: 162px !important;
+  min-height: 46px !important;
+  padding: 6px 8px !important;
+  gap: 6px !important;
+}
+#battle-stage[data-screen="battle"] .turn-token.special .tk-def-ico {
+  width: 24px !important;
+  height: 24px !important;
+}
+#battle-stage[data-screen="battle"] .turn-token.special .tk-def-ico .icon {
+  width: 14px !important;
+  height: 14px !important;
+}
+#battle-stage[data-screen="battle"] .turn-token.special .tk-def-lbl {
+  flex: 0 0 auto !important;
+  font-size: 11.5px !important;
+  letter-spacing: 0.02em !important;
+}
+#battle-stage[data-screen="battle"] .turn-token.special small {
+  margin-left: auto !important;
+  padding: 2px 5px !important;
+  font-size: 9.5px !important;
+  letter-spacing: 0.02em !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+}
+#battle-stage[data-screen="battle"] .deploy-control-bar {
+  padding: 12px 11px !important;
+}
+#battle-stage[data-screen="battle"] .deploy-bar-label {
+  font-size: 11px !important;
+  letter-spacing: 0.08em !important;
+  white-space: nowrap !important;
+  padding-bottom: 5px !important;
+}
+#battle-stage[data-screen="battle"] .deploy-bar-instruction {
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+}
+
+/* 盤面サイズ最大化 & シンプル化: 876px角 / 座標(A-G, 7-1)あり / 一体型シャシー */
+#battle-stage[data-screen="battle"] .board-frame,
+#battle-stage[data-screen="battle"] .board-wrapper {
+  order: 2 !important;
+  flex: none !important;
+  width: 876px !important;
+  height: 876px !important;
+  padding: 10px 14px 14px 8px !important;
+  grid-template-columns: 20px 1fr !important;
+  grid-template-rows: 20px 1fr !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+#battle-stage[data-screen="battle"] :is(.coord-cols, .coord-rows) {
+  display: grid !important;
+}
+#battle-stage[data-screen="battle"] :is(.coord-cols, .coord-rows) span {
+  font-size: 11px !important;
+}
+#battle-stage[data-screen="battle"] :is(.board-grid, .board) {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  gap: 7px !important;
+}
+#battle-stage[data-screen="battle"] .piece.ally .piece-face,
+#battle-stage[data-screen="battle"] .piece.enemy .piece-face {
+  width: 76px !important;
+  height: 76px !important;
+  top: 6px !important;
+}
+#battle-stage[data-screen="battle"] .piece .piece-values > b {
+  font-size: 19px !important;
+}
+#battle-stage[data-screen="battle"] .piece .piece-values > span {
+  font-size: 15.5px !important;
+}
+#battle-stage[data-screen="battle"] .piece .piece-readout .piece-name,
+#battle-stage[data-screen="battle"] .piece.enemy .piece-readout .piece-name {
+  font-size: 11px !important;
+}
+
+/* 左右段違いハーフULTバー (盤面と1つの塊に統合) */
+#battle-stage[data-screen="battle"] #core-bar-ally {
+  order: 1 !important;
+  align-self: flex-end !important;
+}
+#battle-stage[data-screen="battle"] #core-bar-enemy {
+  order: 3 !important;
+  align-self: flex-start !important;
+}
+#battle-stage[data-screen="battle"] .core-bar,
+#battle-stage[data-screen="battle"] .core-bar.ally,
+#battle-stage[data-screen="battle"] .core-bar.enemy {
+  width: 48px !important;
+  height: 416px !important;
+  flex: none !important;
+  padding: 14px 3px 12px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  box-sizing: border-box !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.ally {
+  flex-direction: column-reverse !important;
+  padding: 12px 3px 14px !important;
+  box-shadow: none !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.enemy {
+  box-shadow: none !important;
+}
+#battle-stage[data-screen="battle"] .core-bar .core-tag {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  word-spacing: normal !important;
+  font: 800 13.5px/1 var(--piece-num-font), var(--mono) !important;
+  letter-spacing: 0.08em !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.ally :is(.core-tag, .core-metric.ult-metric strong) {
+  padding-left: 6px !important;
+  box-sizing: border-box !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.enemy :is(.core-tag, .core-metric.ult-metric strong) {
+  padding-right: 6px !important;
+  box-sizing: border-box !important;
+}
+#battle-stage[data-screen="battle"] .core-bar .core-metric.ult-metric {
+  flex: 1 !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.ally .core-metric.ult-metric {
+  flex-direction: column-reverse !important;
+}
+#battle-stage[data-screen="battle"] .core-bar .core-gauge.ult-gauge {
+  flex: 1 !important;
+  width: 22px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  position: relative !important;
+  border-radius: 999px !important;
+  overflow: hidden !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.ally .core-gauge.ult-gauge {
+  margin-left: 6px !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.enemy .core-gauge.ult-gauge {
+  margin-right: 6px !important;
+}
+#battle-stage[data-screen="battle"] .core-bar .ult-gauge i {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  top: auto !important;
+  width: 100% !important;
+  border-radius: 999px !important;
+  transition: height 0.28s var(--mono-ease), box-shadow 0.24s ease !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.ally .ult-gauge i {
+  background: linear-gradient(0deg, #eab308 0%, #fde047 100%) !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.ally.is-ult-full .ult-gauge i {
+  background: linear-gradient(0deg, #eab308 0%, #fde047 62%, #7eeeff 100%) !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.enemy .ult-gauge i {
+  background: linear-gradient(0deg, #7e22ce 0%, #c084fc 100%) !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.enemy.is-ult-full .ult-gauge i {
+  background: linear-gradient(0deg, #7e22ce 0%, #c084fc 62%, #fb7185 100%) !important;
+}
+#battle-stage[data-screen="battle"] .core-bar .ult-gauge::after {
+  top: 50% !important;
+  bottom: auto !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: auto !important;
+  height: 2px !important;
+  transform: translateY(-50%) !important;
+}
+#battle-stage[data-screen="battle"] .core-bar.is-ult-full .ult-gauge::before {
+  top: auto !important;
+  bottom: -26% !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: auto !important;
+  height: 24% !important;
+  background: linear-gradient(0deg, transparent 0%, rgba(255, 255, 255, 0.72) 50%, transparent 100%) !important;
+  animation: ultGaugeSheenSweepVertical 2.4s cubic-bezier(0.25, 0.75, 0.3, 1) infinite !important;
+}
+@keyframes ultGaugeSheenSweepVertical {
+  0% { transform: translate3d(0, 0, 0) skewY(-18deg); opacity: 0; }
+  8% { opacity: 1; }
+  48% { transform: translate3d(0, -540%, 0) skewY(-18deg); opacity: 1; }
+  56% { opacity: 0; }
+  100% { transform: translate3d(0, -540%, 0) skewY(-18deg); opacity: 0; }
+}
+#battle-stage[data-screen="battle"] .core-bar .core-metric.ult-metric strong {
+  min-width: 0 !important;
+  width: 100% !important;
+  justify-content: center !important;
+  text-align: center !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.04em !important;
+}
+
+/* 右側インスペクター & END TURN */
+#battle-stage[data-screen="battle"] .holo-surface-fx::before {
+  display: none !important;
+  content: none !important;
+  border: none !important;
+}
+#battle-stage[data-screen="battle"] .inspector {
+  left: 1170px !important;
+  width: 418px !important;
+}
+#battle-stage[data-screen="battle"] :is(.hold-turn, .btn-end-turn) {
+  left: 1170px !important;
+  width: 418px !important;
 }

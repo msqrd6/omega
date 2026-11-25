@@ -1,0 +1,1827 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TACTICS 3D // SLANTED BATTLE HUD</title>
+
+  <!-- Google Fonts: Anton, Dela Gothic One, JetBrains Mono, Noto Sans JP -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Dela+Gothic+One&family=JetBrains+Mono:ital,wght@0,500;0,700;0,800;1,700&family=Noto+Sans+JP:wght@500;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       TACTICS 3D: REFINED NEO-BRUTALIST SLANTED HUD
+       Inspired by matchachoco010's HTML-in-Canvas Dashboard (#/memory & r2-* system)
+       ========================================================================== */
+    :root {
+      --font-anton: "Anton", sans-serif;
+      --font-dela: "Dela Gothic One", "Noto Sans JP", sans-serif;
+      --font-mono: "JetBrains Mono", monospace;
+      --font-jp: "Noto Sans JP", system-ui, sans-serif;
+
+      /* Core Palette (matchachoco010 reference) */
+      --k: #b5ead7;          /* Mint Accent */
+      --k2: #8fd3bb;         /* Mid Mint */
+      --kd: #1d4a42;         /* Deep Teal */
+      --ink: #111816;        /* Heavy Ink Black */
+      --ink2: #3a4441;       /* Slate Ink */
+      --ink3: #74807c;       /* Muted Steel */
+      --paper: #f3f5f4;      /* Warm Paper Background */
+      --paper-grid: #e2e7e5; /* Subtle Grid */
+      --white: #fdfefd;      /* Crisp Card White */
+      --red: #f04c38;        /* Hazard / Enemy / Ult Red */
+      --cyan: #00bbf9;       /* Shield / Special Cyan */
+      --amber: #f59e0b;      /* Debuff / Warning Amber */
+      --purple: #9333ea;     /* Bind / Zone Purple */
+      --line: rgba(17, 24, 22, 0.15);
+      --line2: rgba(17, 24, 22, 0.3);
+
+      /* Slant / Skew Angles */
+      --hud-tilt: -1.4deg;
+      --hud-skew: -4deg;
+      --card-tilt: 0.7deg;
+      --comp-skew: -14deg;
+      --gauge-skew: -24deg;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--paper);
+      background-image:
+        linear-gradient(var(--paper-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--paper-grid) 1px, transparent 1px);
+      background-size: 28px 28px;
+      color: var(--ink);
+      font-family: var(--font-jp);
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      position: relative;
+    }
+
+    /* Top Hazard Caution Bar */
+    .top-caution-stripe {
+      height: 5px;
+      width: 100%;
+      background: repeating-linear-gradient(-45deg, var(--ink) 0 10px, var(--k) 10px 20px);
+      border-bottom: 1.5px solid var(--ink);
+      position: relative;
+      z-index: 100;
+    }
+
+    .battle-hud-root {
+      position: relative;
+      width: 100%;
+      height: calc(100vh - 5px);
+      padding: 12px 20px;
+      pointer-events: none;
+    }
+
+    .interactive-ui {
+      pointer-events: auto;
+    }
+
+    /* ==========================================================================
+       1. CENTRAL 3D BOARD VIEWPORT (Shifted Left at 40% for Wide Right Sheet)
+       ========================================================================== */
+    .center-board-viewport {
+      position: absolute;
+      left: 40%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(650px, 42vw);
+      height: min(650px, 76vh);
+      border: 2px dashed rgba(17, 24, 22, 0.2);
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 12px;
+      z-index: 1;
+    }
+
+    .vp-corner {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border: 3px solid var(--ink);
+    }
+    .vp-corner.tl { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
+    .vp-corner.tr { top: -2px; right: -2px; border-left: 0; border-bottom: 0; }
+    .vp-corner.bl { bottom: -2px; left: -2px; border-right: 0; border-top: 0; }
+    .vp-corner.br { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
+
+    .vp-reticle {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 48px;
+      height: 48px;
+      border: 1px dashed rgba(17, 24, 22, 0.25);
+      border-radius: 50%;
+    }
+    .vp-reticle::before, .vp-reticle::after {
+      content: "";
+      position: absolute;
+      background: var(--ink3);
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .vp-reticle::before { width: 10px; height: 1px; }
+    .vp-reticle::after { width: 1px; height: 10px; }
+
+    /* ==========================================================================
+       2. TOP LEFT: TURN INDICATOR (Minimal & Punchy)
+       ========================================================================== */
+    .top-left-turn {
+      position: absolute;
+      left: 20px;
+      top: 14px;
+      display: inline-flex;
+      align-items: stretch;
+      transform: rotate(var(--hud-tilt)) skew(var(--comp-skew));
+      box-shadow: 4px 4px 0 var(--ink);
+      z-index: 30;
+      transition: transform 0.25s ease;
+    }
+    .turn-team-tag {
+      background: var(--k);
+      color: var(--ink);
+      border: 2px solid var(--ink);
+      border-right: 0;
+      padding: 4px 12px;
+      font-family: var(--font-anton);
+      font-size: 16px;
+      letter-spacing: 0.08em;
+      display: flex;
+      align-items: center;
+    }
+    .turn-num-box {
+      background: var(--ink);
+      color: var(--white);
+      border: 2px solid var(--ink);
+      padding: 4px 16px;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .turn-num-box > *, .turn-team-tag > * {
+      transform: skew(calc(-1 * var(--comp-skew)));
+    }
+    .turn-label {
+      font-family: var(--font-anton);
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      color: var(--k);
+    }
+    .turn-val {
+      font-family: var(--font-anton);
+      font-style: italic;
+      font-size: 28px;
+      line-height: 1;
+      color: var(--white);
+    }
+
+    /* ==========================================================================
+       3. TOP & BOTTOM ULT GAUGES (No Core HP - Clean Team ULT Only)
+       ========================================================================== */
+    .team-ult-bar {
+      position: absolute;
+      left: 40%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--white);
+      border: 2px solid var(--ink);
+      box-shadow: 4px 4px 0 var(--ink);
+      padding: 5px 16px;
+      z-index: 30;
+      transition: transform 0.25s ease;
+    }
+    .team-ult-bar.enemy {
+      top: 14px;
+      transform: translateX(-50%) rotate(calc(-1 * var(--hud-tilt))) skew(var(--comp-skew));
+    }
+    .team-ult-bar.ally {
+      bottom: 14px;
+      transform: translateX(-50%) rotate(var(--hud-tilt)) skew(var(--comp-skew));
+    }
+    .team-ult-bar > * {
+      transform: skew(calc(-1 * var(--comp-skew)));
+    }
+    .ult-bar-tag {
+      font-family: var(--font-anton);
+      font-size: 13px;
+      letter-spacing: 0.1em;
+      padding: 1px 8px;
+      color: var(--white);
+      background: var(--ink);
+    }
+    .team-ult-bar.enemy .ult-bar-tag { background: var(--red); }
+    .team-ult-bar.ally .ult-bar-tag { background: var(--kd); color: var(--k); }
+
+    .ult-bar-pct {
+      font-family: var(--font-anton);
+      font-style: italic;
+      font-size: 20px;
+      line-height: 1;
+      min-width: 42px;
+      text-align: right;
+    }
+
+    /* Segmented Skewed Gauge (r2-gauge from reference) */
+    .r2-gauge {
+      position: relative;
+      display: block;
+      height: 11px;
+      background: rgba(17, 24, 22, 0.12);
+      transform: skew(var(--gauge-skew));
+      box-shadow: inset 0 0 0 1.5px var(--ink);
+      overflow: hidden;
+    }
+    .r2-gauge i {
+      position: absolute;
+      inset: 0 auto 0 0;
+      background: var(--k);
+      transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .r2-gauge i.shield-overlay {
+      background: var(--cyan);
+      opacity: 0.85;
+      z-index: 2;
+    }
+    .r2-gauge[data-tone="red"] i { background: var(--red); }
+    .r2-gauge[data-tone="ink"] i { background: var(--ink); }
+    .r2-gauge[data-tone="cyan"] i { background: var(--cyan); }
+    .r2-gauge[data-seg]::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: repeating-linear-gradient(
+        90deg,
+        transparent 0 calc(10% - 1.5px),
+        rgba(17, 24, 22, 0.35) calc(10% - 1.5px) 10%
+      );
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    /* ==========================================================================
+       4. LEFT SIDE: DEMO ENTITY SELECTOR (Units / Objects / Hazards / Traps)
+       ========================================================================== */
+    .demo-selector-panel {
+      position: absolute;
+      left: 20px;
+      top: 76px;
+      width: 245px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transform: rotate(var(--hud-tilt));
+      z-index: 40;
+    }
+    .selector-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .selector-group-label {
+      font-family: var(--font-anton);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      color: var(--ink2);
+      border-bottom: 2px solid var(--ink);
+      padding-bottom: 2px;
+      margin-bottom: 2px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .r2-chip {
+      border: 2px solid var(--ink);
+      background: var(--white);
+      color: var(--ink);
+      padding: 5px 10px;
+      font-family: var(--font-jp);
+      font-size: 12px;
+      font-weight: 900;
+      text-align: left;
+      cursor: pointer;
+      transform: skew(var(--comp-skew));
+      box-shadow: 2px 2px 0 var(--ink);
+      transition: all 0.1s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      white-space: nowrap;
+    }
+    .r2-chip > * {
+      transform: skew(calc(-1 * var(--comp-skew)));
+    }
+    .r2-chip small {
+      font-family: var(--font-anton);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      color: var(--ink3);
+      font-weight: 400;
+    }
+    .r2-chip:hover {
+      background: #e9f7f2;
+      transform: skew(var(--comp-skew)) translateX(3px);
+    }
+    .r2-chip.active {
+      background: var(--k);
+      box-shadow: 4px 4px 0 var(--ink);
+      transform: skew(var(--comp-skew)) translateX(5px);
+    }
+    .r2-chip.active small {
+      color: var(--ink);
+    }
+
+    /* Tilt & Sound Quick Controls (Bottom Left) */
+    .bottom-left-tools {
+      position: absolute;
+      left: 20px;
+      bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transform: rotate(calc(-1 * var(--hud-tilt)));
+      z-index: 30;
+    }
+    .tool-strip {
+      display: inline-flex;
+      background: var(--white);
+      border: 2px solid var(--ink);
+      box-shadow: 3px 3px 0 var(--ink);
+      transform: skew(var(--comp-skew));
+    }
+    .tool-btn {
+      border: 0;
+      border-right: 1.5px solid var(--ink);
+      background: transparent;
+      padding: 4px 10px;
+      font-family: var(--font-anton);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      color: var(--ink2);
+    }
+    .tool-btn:last-child { border-right: 0; }
+    .tool-btn.active {
+      background: var(--ink);
+      color: var(--k);
+    }
+
+    /* ==========================================================================
+       5. RIGHT TACTICAL DOCK: TOKENS + CHARACTER/ENTITY SHEET + PHASE END
+       ========================================================================== */
+    .right-tactical-dock {
+      position: absolute;
+      right: 24px;
+      top: 14px;
+      bottom: 14px;
+      width: 460px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 8px;
+      z-index: 50;
+
+      /* ★ SLANTED 2.5D PERSPECTIVE ★ */
+      transform: perspective(1150px) rotateY(-5deg) rotateX(1.5deg) rotate(var(--card-tilt));
+      transform-origin: right center;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* --- 5A. DYNAMIC ACTION TOKENS TRAY (Clean, Large MOVE / ATK Tokens) --- */
+    .tokens-panel {
+      background: var(--white);
+      border: 2.5px solid var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      padding: 9px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex: none;
+    }
+
+    /* Flexible wrapping grid for expandable tokens */
+    .tokens-wrap-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      flex: 1;
+    }
+
+    .token-pill {
+      position: relative;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 5px 14px;
+      border: 2.5px solid var(--ink);
+      background: var(--k);
+      color: var(--ink);
+      transform: skew(var(--comp-skew));
+      box-shadow: 3px 3px 0 var(--ink);
+      cursor: pointer;
+      transition: all 0.1s ease;
+    }
+    .token-pill > * {
+      transform: skew(calc(-1 * var(--comp-skew)));
+    }
+    .token-pill .tok-main {
+      font-family: var(--font-anton);
+      font-style: italic;
+      font-size: 20px;
+      line-height: 1;
+      letter-spacing: 0.06em;
+    }
+    .token-pill .tok-sub {
+      font-family: var(--font-jp);
+      font-size: 11.5px;
+      font-weight: 900;
+      opacity: 0.9;
+    }
+    .token-pill.atk {
+      background: #ffdad5;
+    }
+    .token-pill.special {
+      background: #d8f3ff;
+      border-color: var(--ink);
+    }
+    .token-pill.used {
+      background: var(--paper);
+      color: var(--ink3);
+      border-style: dashed;
+      box-shadow: none;
+      opacity: 0.45;
+      text-decoration: line-through;
+    }
+    .token-pill:hover:not(.used) {
+      transform: skew(var(--comp-skew)) translate(-1px, -1px);
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .token-demo-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: none;
+    }
+    .mini-act-btn {
+      font-family: var(--font-jp);
+      font-size: 10px;
+      font-weight: 900;
+      padding: 2px 7px;
+      background: var(--paper);
+      color: var(--ink2);
+      border: 1.5px solid var(--ink);
+      cursor: pointer;
+      transform: skew(var(--comp-skew));
+    }
+    .mini-act-btn:hover { background: var(--k); color: var(--ink); }
+
+    /* --- 5B. MAIN CHARACTER / ENTITY SHEET --- */
+    .entity-sheet-card {
+      background: var(--white);
+      border: 2.5px solid var(--ink);
+      box-shadow: 6px 6px 0 var(--ink);
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      position: relative;
+    }
+    /* Theme border accents based on Entity Category */
+    .entity-sheet-card[data-category="OBJECT"] {
+      box-shadow: 6px 6px 0 var(--kd);
+    }
+    .entity-sheet-card[data-category="HAZARD"],
+    .entity-sheet-card[data-category="TRAP"] {
+      box-shadow: 6px 6px 0 var(--red);
+    }
+
+    /* Top Portrait & Identity Header */
+    .sheet-hero-header {
+      position: relative;
+      height: 150px;
+      background: #0d1312;
+      border-bottom: 2.5px solid var(--ink);
+      overflow: hidden;
+      flex: none;
+    }
+    .sheet-portrait-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 18%;
+      filter: contrast(1.06);
+      transition: transform 0.25s ease;
+    }
+    .sheet-hero-header:hover .sheet-portrait-img {
+      transform: scale(1.03);
+    }
+
+    /* Top-left floating tags on portrait (Class & Role) */
+    .sheet-tags-bar {
+      position: absolute;
+      top: 8px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .tag-group-left {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .r2-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 9px;
+      font-size: 11.5px;
+      font-weight: 900;
+      border: 2px solid var(--ink);
+      transform: skew(var(--comp-skew));
+      box-shadow: 2px 2px 0 var(--ink);
+    }
+    .r2-tag > * {
+      transform: skew(calc(-1 * var(--comp-skew)));
+    }
+    /* Class tag colors */
+    .r2-tag.class-unit { background: var(--ink); color: var(--k); }
+    .r2-tag.class-object { background: var(--kd); color: var(--white); }
+    .r2-tag.class-hazard { background: var(--purple); color: var(--white); }
+    .r2-tag.class-trap { background: var(--red); color: var(--white); }
+
+    /* Role tag colors */
+    .r2-tag.role-badge {
+      background: var(--white);
+      color: var(--ink);
+    }
+    .r2-tag.team-badge {
+      font-family: var(--font-anton);
+      letter-spacing: 0.08em;
+      font-size: 12px;
+      background: var(--k);
+      color: var(--ink);
+    }
+    .r2-tag.team-badge.red {
+      background: var(--red);
+      color: var(--white);
+    }
+
+    /* Bottom-left Name Overlay on Portrait */
+    .sheet-name-overlay {
+      position: absolute;
+      inset: auto 0 0 0;
+      padding: 18px 14px 8px;
+      background: linear-gradient(0deg, rgba(17, 24, 22, 0.94) 0%, rgba(17, 24, 22, 0.55) 65%, transparent 100%);
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      z-index: 2;
+    }
+    .sheet-unit-name {
+      font-family: var(--font-dela);
+      font-size: 26px;
+      line-height: 1;
+      color: var(--white);
+      text-shadow: 2px 2px 0 var(--ink);
+      letter-spacing: 0.02em;
+    }
+
+    /* --- 5C. STATS STRIP: HP (+SHIELD) / ATK (.r2-stats style) --- */
+    .sheet-stats-strip {
+      display: grid;
+      grid-template-columns: 1.75fr 0.85fr;
+      border-bottom: 2px solid var(--ink);
+      background: var(--white);
+      flex: none;
+    }
+    .stat-cell {
+      padding: 7px 14px 8px;
+      border-left: 2px solid var(--ink);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+    }
+    .stat-cell:first-child {
+      border-left: 0;
+    }
+    .stat-cell.shield-active {
+      background: #f0faff;
+    }
+    .stat-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .stat-label {
+      font-family: var(--font-anton);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      color: var(--ink3);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .r2-num {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 4px;
+      font-style: italic;
+    }
+    .r2-num b {
+      font-family: var(--font-anton);
+      font-size: 30px;
+      line-height: 0.95;
+      color: var(--ink);
+    }
+    .r2-num small {
+      font-family: var(--font-mono);
+      font-style: normal;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--ink3);
+    }
+    .r2-num.cyan b { color: #0096c7; }
+    .r2-num.buffed b { color: var(--red); }
+
+    /* Stacked Shield Bar above HP Bar */
+    .hp-shield-bars-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .r2-gauge.shield-top-bar {
+      height: 8px;
+      background: rgba(0, 180, 216, 0.16);
+    }
+    .r2-gauge.shield-top-bar i {
+      background: var(--cyan);
+    }
+
+    /* Main HP Gauge Colors (High Contrast: Clear distinction when depleted) */
+    .r2-gauge.hp-gauge-main {
+      background: #24312d; /* 削れた部分: 明確なダークスレートインク */
+    }
+    .r2-gauge.hp-gauge-main i {
+      background: #00d084; /* 残りHP: 鮮やかでコントラストの高いエメラルドグリーン */
+    }
+    .r2-gauge.hp-gauge-main[data-seg]::after {
+      background-image: repeating-linear-gradient(
+        90deg,
+        transparent 0 calc(10% - 1.5px),
+        rgba(17, 24, 22, 0.45) calc(10% - 1.5px) 10%
+      );
+    }
+
+    /* --- 5D. STATUS EFFECTS / ABNORMAL STATES BAR (異常状態・バフ・足元) --- */
+    .sheet-status-bar {
+      padding: 6px 14px;
+      border-bottom: 2px solid var(--ink);
+      background: var(--paper);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      flex: none;
+    }
+    .status-bar-label {
+      font-family: var(--font-anton);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--ink3);
+      margin-right: 2px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 900;
+      border: 1.5px solid var(--ink);
+      transform: skew(var(--comp-skew));
+      box-shadow: 2px 2px 0 var(--ink);
+    }
+    .status-badge > * {
+      transform: skew(calc(-1 * var(--comp-skew)));
+    }
+    .status-badge.buff {
+      background: var(--k);
+      color: var(--ink);
+    }
+    .status-badge.shield {
+      background: #caf0f8;
+      color: var(--ink);
+    }
+    .status-badge.debuff {
+      background: var(--red);
+      color: var(--white);
+    }
+    .status-badge.hazard-foot {
+      background: #fef08a;
+      color: var(--ink);
+      border-style: solid;
+    }
+    .status-none {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink3);
+    }
+
+    /* --- 5E. SHEET BODY: PASSIVE (FLAT TEXT) + SKILLS / ENTITY DETAILS --- */
+    .sheet-body-content {
+      padding: 12px 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    /* Passive / Object / Hazard Description (Unboxed flat layout under STATE) */
+    .passive-block {
+      padding: 2px 2px 8px;
+      border-bottom: 1.5px dashed var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .entity-sheet-card[data-category="HAZARD"] .passive-block,
+    .entity-sheet-card[data-category="TRAP"] .passive-block {
+      border-bottom: 0;
+      padding-top: 4px;
+    }
+    .passive-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .passive-title {
+      font-size: 15.5px;
+      font-weight: 900;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .passive-tag {
+      font-family: var(--font-anton);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      background: var(--ink);
+      color: var(--k);
+      padding: 1px 7px;
+      transform: skew(var(--comp-skew));
+    }
+    .passive-desc {
+      font-size: 14px;
+      color: var(--ink);
+      line-height: 1.5;
+      font-weight: 700;
+    }
+
+    /* Skill & Ultimate Command Buttons */
+    .commands-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      justify-content: flex-start;
+    }
+
+    .cmd-card-btn {
+      position: relative;
+      width: 100%;
+      border: 2px solid var(--ink);
+      background: var(--white);
+      box-shadow: 4px 4px 0 var(--ink);
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.1s ease;
+    }
+    .cmd-card-btn:hover {
+      transform: translate(-1px, -1px);
+      box-shadow: 5px 5px 0 var(--ink);
+      background: #f6fcf9;
+    }
+    .cmd-card-btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0 var(--ink);
+    }
+    .cmd-card-btn.ult-btn {
+      background: #fff8f6;
+      box-shadow: 4px 4px 0 var(--red);
+    }
+    .cmd-card-btn.ult-btn:hover {
+      background: #ffece8;
+      box-shadow: 5px 5px 0 var(--red);
+    }
+
+    .cmd-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .cmd-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cmd-type-badge {
+      font-family: var(--font-anton);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      padding: 1px 8px;
+      background: var(--ink);
+      color: var(--white);
+      transform: skew(var(--comp-skew));
+    }
+    .cmd-type-badge.ult {
+      background: var(--red);
+      color: var(--white);
+    }
+    .cmd-name {
+      font-family: var(--font-dela);
+      font-size: 16.5px;
+      color: var(--ink);
+    }
+    .cmd-card-btn.ult-btn .cmd-name {
+      color: var(--red);
+    }
+
+    /* Stock Dots (Circle Icons Only) */
+    .cmd-stock-box {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--paper);
+      border: 1.5px solid var(--ink);
+      padding: 2px 9px;
+      transform: skew(var(--comp-skew));
+    }
+    .cmd-stock-box > * {
+      transform: skew(calc(-1 * var(--comp-skew)));
+    }
+    .stock-dots {
+      font-size: 15px;
+      line-height: 1;
+      color: var(--kd);
+      letter-spacing: 3px;
+    }
+    .stock-dots.ult-dots {
+      color: var(--red);
+    }
+    .cmd-desc {
+      font-size: 13.5px;
+      color: var(--ink);
+      line-height: 1.48;
+      font-weight: 700;
+    }
+
+    /* Reference .r2-kv Key-Value Table for Objects / Hazards / Traps */
+    .r2-kv {
+      display: grid;
+      gap: 0;
+      font-size: 12px;
+      border-top: 2px solid var(--ink);
+      margin-top: 2px;
+    }
+    .r2-kv > div {
+      display: grid;
+      grid-template-columns: 7.5em 1fr;
+      gap: 10px;
+      padding: 6px 4px;
+      border-bottom: 1px solid var(--line2);
+      align-items: center;
+    }
+    .r2-kv dt {
+      font-family: var(--font-anton);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--ink3);
+    }
+    .r2-kv dd {
+      font-weight: 800;
+      color: var(--ink);
+    }
+
+    /* --- 5F. PHASE END BUTTON --- */
+    .btn-phase-end-slanted {
+      position: relative;
+      width: 100%;
+      flex: none;
+      background: var(--ink);
+      color: var(--white);
+      border: 2.5px solid var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      overflow: hidden;
+      transform: skew(var(--comp-skew));
+      transition: all 0.1s ease;
+    }
+    .btn-phase-end-slanted > * {
+      transform: skew(calc(-1 * var(--comp-skew)));
+    }
+    .btn-phase-end-slanted:hover {
+      background: #1c2724;
+      box-shadow: 6px 6px 0 var(--k);
+    }
+    .pe-fill-layer {
+      position: absolute;
+      inset: 0;
+      background: var(--red);
+      transform: scaleX(0);
+      transform-origin: left;
+      z-index: 1;
+    }
+    .pe-content-wrap {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+    .pe-title {
+      font-family: var(--font-anton);
+      font-style: italic;
+      font-size: 24px;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      color: var(--white);
+    }
+    .pe-sub {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--k);
+    }
+
+    /* ==========================================================================
+       6. FULL-SCREEN SLANTED ULTIMATE CUT-IN OVERLAY (.r2-cutin)
+       ========================================================================== */
+    .r2-cutin-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 22, 0.78);
+      backdrop-filter: blur(4px);
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease;
+    }
+    .r2-cutin-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .r2-cutin-bar {
+      width: 120%;
+      background: var(--white);
+      border-top: 5px solid var(--ink);
+      border-bottom: 5px solid var(--ink);
+      box-shadow: 0 16px 0 var(--red);
+      padding: 18px 80px;
+      transform: rotate(-3deg) scaleY(0);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .r2-cutin-overlay.active .r2-cutin-bar {
+      transform: rotate(-3deg) scaleY(1);
+    }
+    .r2-cutin-role {
+      font-family: var(--font-anton);
+      font-size: 84px;
+      line-height: 1;
+      color: transparent;
+      -webkit-text-stroke: 2px var(--ink);
+    }
+    .r2-cutin-en {
+      font-family: var(--font-anton);
+      font-style: italic;
+      font-size: 76px;
+      line-height: 1;
+      color: var(--ink);
+    }
+    .r2-cutin-ja {
+      font-family: var(--font-dela);
+      font-size: 32px;
+      color: var(--white);
+      background: var(--ink);
+      padding: 6px 18px;
+      box-shadow: 6px 6px 0 var(--red);
+      transform: skew(-12deg);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-caution-stripe"></div>
+
+  <!-- 1. CENTRAL 3D BOARD VIEWPORT (Shifted Left) -->
+  <div class="center-board-viewport">
+    <div class="vp-corner tl"></div>
+    <div class="vp-corner tr"></div>
+    <div class="vp-corner bl"></div>
+    <div class="vp-corner br"></div>
+    <div class="vp-reticle"></div>
+  </div>
+
+  <!-- 2. BATTLE HUD OVERLAY -->
+  <div class="battle-hud-root">
+
+    <!-- Top-Left: Turn Badge -->
+    <div class="top-left-turn interactive-ui">
+      <div class="turn-team-tag" id="hud-team-tag"><span>BLUE TURN</span></div>
+      <div class="turn-num-box">
+        <span class="turn-label">TURN</span>
+        <span class="turn-val" id="hud-turn-num">03</span>
+      </div>
+    </div>
+
+    <!-- Top-Center: Enemy ULT Bar (No Core HP) -->
+    <div class="team-ult-bar enemy interactive-ui">
+      <span class="ult-bar-tag">ENEMY ULT</span>
+      <div class="r2-gauge" data-tone="red" data-seg style="width: 220px;">
+        <i id="enemy-ult-fill" style="width: 60%;"></i>
+      </div>
+      <span class="ult-bar-pct" style="color:var(--red);" id="enemy-ult-pct">60%</span>
+    </div>
+
+    <!-- Bottom-Center: Ally ULT Bar (No Core HP) -->
+    <div class="team-ult-bar ally interactive-ui">
+      <span class="ult-bar-tag">ALLY ULT</span>
+      <div class="r2-gauge" data-seg style="width: 240px;">
+        <i id="ally-ult-fill" style="width: 100%;"></i>
+      </div>
+      <span class="ult-bar-pct" style="color:var(--kd);" id="ally-ult-pct">MAX</span>
+    </div>
+
+    <!-- Left: Entity Type Selector (For Demo Verification of Unit / Object / Hazard / Trap) -->
+    <aside class="demo-selector-panel interactive-ui">
+      <div class="selector-group">
+        <div class="selector-group-label"><span>01 // UNIT (ユニット)</span><span>ROLE</span></div>
+        <button class="r2-chip active" data-key="kinesis" onclick="selectEntity('kinesis')">
+          <span>⚡ キネシス</span><small>ASSAULT</small>
+        </button>
+        <button class="r2-chip" data-key="phase" onclick="selectEntity('phase')">
+          <span>👤 フェイズ (状態異常)</span><small>ASSAULT</small>
+        </button>
+        <button class="r2-chip" data-key="hive" onclick="selectEntity('hive')">
+          <span>🛸 ハイヴ (シールド/多トークン)</span><small>DISRUPTOR</small>
+        </button>
+        <button class="r2-chip" data-key="iris" onclick="selectEntity('iris')">
+          <span>💉 アイリス</span><small>SUPPORT</small>
+        </button>
+      </div>
+
+      <div class="selector-group">
+        <div class="selector-group-label"><span>02 // OBJECT (オブジェクト)</span><span>TYPE</span></div>
+        <button class="r2-chip" data-key="barricade" onclick="selectEntity('barricade')">
+          <span>🧱 防壁 (バリケード)</span><small>OBJECT</small>
+        </button>
+        <button class="r2-chip" data-key="turret" onclick="selectEntity('turret')">
+          <span>🗼 自動タレット</span><small>OBJECT</small>
+        </button>
+      </div>
+
+      <div class="selector-group">
+        <div class="selector-group-label"><span>03 // HAZARD & TRAP</span><span>ZONE</span></div>
+        <button class="r2-chip" data-key="toxic_zone" onclick="selectEntity('toxic_zone')">
+          <span>☣️ トキシック・ゾーン</span><small>HAZARD</small>
+        </button>
+        <button class="r2-chip" data-key="dim_zone" onclick="selectEntity('dim_zone')">
+          <span>🌀 ディメンション・ゾーン</span><small>HAZARD</small>
+        </button>
+        <button class="r2-chip" data-key="mine_trap" onclick="selectEntity('mine_trap')">
+          <span>💣 マイン (地雷)</span><small>TRAP</small>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Bottom-Left: Tilt Switcher -->
+    <div class="bottom-left-tools interactive-ui">
+      <div class="tool-strip">
+        <button class="tool-btn active" id="tilt-slight" onclick="setTilt('slight')">TILT -1.4°</button>
+        <button class="tool-btn" id="tilt-dynamic" onclick="setTilt('dynamic')">TILT -3.0°</button>
+        <button class="tool-btn" id="tilt-flat" onclick="setTilt('flat')">FLAT 0°</button>
+      </div>
+    </div>
+
+    <!-- ======================================================================
+         RIGHT TACTICAL DOCK (Tokens + Character/Entity Sheet + Phase End)
+         ====================================================================== -->
+    <aside class="right-tactical-dock interactive-ui">
+
+      <!-- 1. ACTION TOKENS PANEL (Clean MOVE / ATK Pills, No Header Clutter) -->
+      <section class="tokens-panel">
+        <div class="tokens-wrap-grid" id="tokens-grid">
+          <!-- Populated dynamically -->
+        </div>
+        <div class="token-demo-btns">
+          <button class="mini-act-btn" onclick="addExtraToken()" title="スキルやパッシブでトークンが増えた状態をテスト"><span>+ 追加</span></button>
+          <button class="mini-act-btn" onclick="resetTokens()"><span>リセット</span></button>
+        </div>
+      </section>
+
+      <!-- 2. CHARACTER / ENTITY SHEET CARD -->
+      <article class="entity-sheet-card" id="entity-sheet" data-category="UNIT">
+
+        <!-- Portrait + Tags + Name -->
+        <div class="sheet-hero-header">
+          <img id="sheet-img" class="sheet-portrait-img" src="assets/kinesis.jpg" alt="Portrait">
+
+          <!-- Top Tags: Class, Role, Team -->
+          <div class="sheet-tags-bar">
+            <div class="tag-group-left">
+              <span class="r2-tag class-unit" id="sheet-class-tag"><span>ユニット</span></span>
+              <span class="r2-tag role-badge" id="sheet-role-tag"><span>⚡ アサルト</span></span>
+            </div>
+            <span class="r2-tag team-badge" id="sheet-team-tag"><span>BLUE</span></span>
+          </div>
+
+          <!-- Bottom Name -->
+          <div class="sheet-name-overlay">
+            <h1 class="sheet-unit-name" id="sheet-name">キネシス</h1>
+          </div>
+        </div>
+
+        <!-- Core Stats Row: HP (+SHIELD naturally added) / ATK (naturally added) -->
+        <div class="sheet-stats-strip" id="sheet-stats-strip">
+          <!-- Cell 1: HP & Shield Unified -->
+          <div class="stat-cell" id="cell-hp">
+            <div class="stat-head">
+              <span class="stat-label" id="label-stat-1">HP</span>
+              <span class="r2-num" id="num-hp">
+                <b id="val-hp">95</b><small id="val-maxhp">/ 95</small>
+              </span>
+            </div>
+            <div class="hp-shield-bars-stack" id="hp-gauge-box">
+              <!-- Extra Shield Bar above HP Bar when shield > 0 -->
+              <div class="r2-gauge shield-top-bar" data-seg id="shield-bar-wrap" style="display:none;">
+                <i id="bar-shield" style="width: 0%;"></i>
+              </div>
+              <!-- Main HP Bar -->
+              <div class="r2-gauge hp-gauge-main" data-seg>
+                <i id="bar-hp" style="width: 100%;"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cell 2: ATK -->
+          <div class="stat-cell" id="cell-atk">
+            <div class="stat-head">
+              <span class="stat-label" id="label-stat-3">ATK</span>
+              <span class="r2-num" id="num-atk"><b id="val-atk">30</b></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status Effects / Abnormal States Bar (Shown for UNIT, hidden for OBJECT/HAZARD/TRAP) -->
+        <div class="sheet-status-bar" id="sheet-status-bar">
+          <span class="status-bar-label">STATE //</span>
+          <div id="status-badges-container" style="display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Sheet Body: Passive + Skills (or Entity Desc for Object/Hazard/Trap) -->
+        <div class="sheet-body-content">
+
+          <!-- Passive / Effect Block -->
+          <div class="passive-block" id="passive-block">
+            <div class="passive-header">
+              <span class="passive-title" id="passive-name">⚡ ライトニング・ステップ</span>
+              <span class="passive-tag" id="passive-tag-label">PASSIVE</span>
+            </div>
+            <p class="passive-desc" id="passive-desc">
+              毎自軍ターン開始時、キネシス専用の【追加移動トークン (+1 MOVE)】を獲得。
+            </p>
+          </div>
+
+          <!-- Dynamic Action Area (Skills & Ult for Units, Self-destruct for Barricade) -->
+          <div class="commands-stack" id="commands-stack">
+            <!-- Populated dynamically -->
+          </div>
+
+        </div>
+
+      </article>
+
+      <!-- 3. PHASE END BUTTON -->
+      <button class="btn-phase-end-slanted" id="btn-end-turn" onmousedown="startHoldEndTurn()" onmouseup="cancelHoldEndTurn()" onmouseleave="cancelHoldEndTurn()">
+        <div class="pe-fill-layer" id="pe-fill-layer"></div>
+        <div class="pe-content-wrap">
+          <span class="pe-title">PHASE END</span>
+          <span class="pe-sub" id="pe-sub-text">HOLD 0.4s ▶▶</span>
+        </div>
+      </button>
+
+    </aside>
+
+  </div>
+
+  <!-- Full-Screen Slanted Cut-in Overlay -->
+  <div class="r2-cutin-overlay" id="cutin-overlay" onclick="closeCutin()">
+    <div class="r2-cutin-bar">
+      <span class="r2-cutin-role" id="cutin-role">ULT</span>
+      <span class="r2-cutin-en" id="cutin-en">LIGHTNING RUSH</span>
+      <span class="r2-cutin-ja" id="cutin-ja">ライトニング・ラッシュ</span>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       ENTITY DATA DEFINITIONS (Units, Objects, Hazards, Traps)
+       Matches tactics_3d/js/config.js rules & specifications
+       ========================================================================== */
+    const ENTITIES = {
+      // 1. UNITS
+      kinesis: {
+        category: 'UNIT',
+        classLabel: 'ユニット',
+        classCss: 'class-unit',
+        roleLabel: '⚡ アサルト',
+        team: 'BLUE',
+        name: 'キネシス',
+        img: 'assets/kinesis.jpg',
+        hp: 95, maxHp: 95,
+        shield: 0, shieldTurns: 0,
+        baseAtk: 25, atk: 30,
+        statuses: [
+          { label: '🔥 攻撃力増強 +5 (1T)', type: 'buff' }
+        ],
+        tokens: [
+          { main: 'MOVE', sub: '', type: 'move', used: false },
+          { main: 'ATK', sub: '', type: 'atk', used: false },
+          { main: 'MOVE', sub: 'キネシス', type: 'special', used: false }
+        ],
+        passive: {
+          tag: 'PASSIVE',
+          name: 'ライトニング・ステップ',
+          desc: '毎自軍ターン開始時、キネシス専用の【追加移動トークン (+1 MOVE)】を獲得（共通移動枠を消費せず移動可能）。'
+        },
+        skill: {
+          name: 'オーバードライブ',
+          stock: 2, maxStock: 2,
+          desc: '自身に【攻撃力増強 (+5 / このターン中)】を付与する（ATK 25 ➔ 30）。'
+        },
+        ult: {
+          name: 'ライトニング・ラッシュ',
+          en: 'LIGHTNING RUSH',
+          stock: 1, maxStock: 1,
+          desc: '自身にキネシス専用の【追加攻撃トークン (+1 ATTACK)】を即座に1枚付与する！'
+        }
+      },
+
+      phase: {
+        category: 'UNIT',
+        classLabel: 'ユニット',
+        classCss: 'class-unit',
+        roleLabel: '👤 アサルト',
+        team: 'BLUE',
+        name: 'フェイズ',
+        img: 'assets/phase.jpg',
+        hp: 52, maxHp: 80,
+        shield: 0, shieldTurns: 0,
+        baseAtk: 30, atk: 30,
+        statuses: [
+          { label: '🎯 弱体化: 被ダメ1.5倍 (1T)', type: 'debuff' },
+          { label: '⛓️ 行動阻害: 移動不可 (1T)', type: 'debuff' },
+          { label: '⚠️ 足元: ディメンション・ゾーン', type: 'hazard-foot' }
+        ],
+        tokens: [
+          { main: 'MOVE', sub: '', type: 'move', used: true },
+          { main: 'ATK', sub: '', type: 'atk', used: false }
+        ],
+        passive: {
+          tag: 'PASSIVE',
+          name: 'シャドウ・オリジン',
+          desc: 'バトル開始時、初期配置マスに「ディメンション・ゾーン（侵入した敵に弱体化付与）」を自動展開。'
+        },
+        skill: {
+          name: 'テレポート',
+          stock: 1, maxStock: 2,
+          desc: '自軍ディメンション・ゾーン（空きマス）へ即座にテレポート移動する（移動トークン消費なし）。'
+        },
+        ult: {
+          name: 'シャドウ・ドレイン',
+          en: 'SHADOW DRAIN',
+          stock: 0, maxStock: 1,
+          desc: 'この自軍ターン中に自身が敵に与えた合計ダメージ分、自身のHPを即座に回復（吸収）する！'
+        }
+      },
+
+      hive: {
+        category: 'UNIT',
+        classLabel: 'ユニット',
+        classCss: 'class-unit',
+        roleLabel: '🛸 ディスラプター',
+        team: 'BLUE',
+        name: 'ハイヴ',
+        img: 'assets/hive.jpg',
+        hp: 90, maxHp: 90,
+        shield: 30, shieldTurns: 2,
+        baseAtk: 15, atk: 25,
+        statuses: [
+          { label: '🛡️ シールド +30 (2T)', type: 'shield' },
+          { label: '🔥 攻撃力増強 +10 (2T)', type: 'buff' }
+        ],
+        tokens: [
+          { main: 'MOVE', sub: '', type: 'move', used: false },
+          { main: 'ATK', sub: '', type: 'atk', used: false },
+          { main: 'ATK', sub: 'ビット#1', type: 'special', used: false },
+          { main: 'ATK', sub: 'ビット#2', type: 'special', used: false },
+          { main: 'ATK', sub: 'ビット#3', type: 'special', used: true }
+        ],
+        passive: {
+          tag: 'PASSIVE',
+          name: 'ニューロ・カウンター',
+          desc: '自身が召喚したビットを破壊した敵ユニットに【弱体化 (2T)】および【スキル阻害 (2T)】を付与する。'
+        },
+        skill: {
+          name: 'ビット・デプロイ',
+          stock: 2, maxStock: 3,
+          desc: '自軍アサルトの周囲8マスの空きマスに自律戦闘子機「ビット（HP 20 / ATK 5）」を1体召喚する。'
+        },
+        ult: {
+          name: 'スウォーム・オーバードライブ',
+          en: 'SWARM OVERDRIVE',
+          stock: 1, maxStock: 1,
+          desc: '召喚したすべてのビットに【シールド増強 (+30 / 2T)】および【攻撃力増強 (+10 / 2T)】を一斉付与！'
+        }
+      },
+
+      iris: {
+        category: 'UNIT',
+        classLabel: 'ユニット',
+        classCss: 'class-unit',
+        roleLabel: '💉 サポート',
+        team: 'BLUE',
+        name: 'アイリス',
+        img: 'assets/iris.jpg',
+        hp: 90, maxHp: 90,
+        shield: 15, shieldTurns: 2,
+        baseAtk: 14, atk: 14,
+        statuses: [
+          { label: '🛡️ シールド +15 (2T)', type: 'shield' }
+        ],
+        tokens: [
+          { main: 'MOVE', sub: '', type: 'move', used: false },
+          { main: 'ATK', sub: '', type: 'atk', used: false }
+        ],
+        passive: {
+          tag: 'PASSIVE',
+          name: 'ナノ・エンハンスメント',
+          desc: '毎自軍ターン終了時、前方一直線にいる最も近い負傷した味方ユニット1体のHPを 5 自動回復。'
+        },
+        skill: {
+          name: 'ライフ・リペア',
+          stock: 2, maxStock: 2,
+          desc: '半径3マス以内の味方ユニット1体を指定し、HPを 30 大回復する。'
+        },
+        ult: {
+          name: 'オーバーチャージ・オーラ',
+          en: 'OVERCHARGE AURA',
+          stock: 1, maxStock: 1,
+          desc: '自軍の全ユニットおよび防衛コアに【シールド増強 (+15 / 2T)】を一斉付与！'
+        }
+      },
+
+      // 2. OBJECTS
+      barricade: {
+        category: 'OBJECT',
+        classLabel: 'オブジェクト',
+        classCss: 'class-object',
+        roleLabel: '🧱 遮蔽防壁',
+        team: 'BLUE',
+        name: '防壁 (バリケード)',
+        img: 'assets/barricade.jpg',
+        hp: 30, maxHp: 30,
+        shield: 0, shieldTurns: 0,
+        baseAtk: 0, atk: 0,
+        tokens: [
+          { main: 'MOVE', sub: '', type: 'move', used: false },
+          { main: 'ATK', sub: '', type: 'atk', used: false }
+        ],
+        passive: {
+          tag: 'PASSIVE',
+          name: '戦術遮蔽オブジェクト',
+          desc: 'ベクターが設置した防護壁。敵味方ともに通行不能。隣接するベクターの攻撃力を +10 増強する。'
+        },
+        objectAction: {
+          badge: 'ACTION',
+          name: '防壁を撤去（自壊）',
+          desc: '行動トークンを消費せずにこの防壁を即座に撤去し、味方の進路や射線を空けます。'
+        }
+      },
+
+      turret: {
+        category: 'OBJECT',
+        classLabel: 'オブジェクト',
+        classCss: 'class-object',
+        roleLabel: '🗼 自動迎撃砲',
+        team: 'BLUE',
+        name: '自動タレット',
+        img: 'assets/vulcan.jpg',
+        hp: 20, maxHp: 20,
+        shield: 0, shieldTurns: 0,
+        baseAtk: 10, atk: 10,
+        tokens: [
+          { main: 'MOVE', sub: '', type: 'move', used: false },
+          { main: 'ATK', sub: '', type: 'atk', used: false }
+        ],
+        passive: {
+          tag: 'PASSIVE',
+          name: 'セントリー自動射撃',
+          desc: '毎自軍ターン終了時、周囲8マス以内のすべての敵ユニットへ 10 ダメージを自動射撃する。破壊されるとヴァルカンのスキルストックが 1 回復する。'
+        }
+      },
+
+      // 3. HAZARDS & TRAPS
+      toxic_zone: {
+        category: 'HAZARD',
+        classLabel: 'ハザード',
+        classCss: 'class-hazard',
+        roleLabel: '☣️ 汚染領域',
+        team: 'RED',
+        name: 'トキシック・ゾーン',
+        img: 'assets/toxin.jpg',
+        tokens: [
+          { main: 'MOVE', sub: '', type: 'move', used: false },
+          { main: 'ATK', sub: '', type: 'atk', used: false }
+        ],
+        passive: {
+          tag: 'HAZARD',
+          name: '神経毒素フィールド',
+          desc: 'このマスに侵入、またはターン終了時に滞在している敵ユニットに 10 ダメージを与える（トキシン自身は無効）。ゾーン内の敵に対するトキシンの通常攻撃ダメージが +10 増加する。'
+        }
+      },
+
+      dim_zone: {
+        category: 'HAZARD',
+        classLabel: 'ハザード',
+        classCss: 'class-hazard',
+        roleLabel: '🌀 異次元領域',
+        team: 'BLUE',
+        name: 'ディメンション・ゾーン',
+        img: 'assets/phase.jpg',
+        tokens: [
+          { main: 'MOVE', sub: '', type: 'move', used: false },
+          { main: 'ATK', sub: '', type: 'atk', used: false }
+        ],
+        passive: {
+          tag: 'HAZARD',
+          name: 'シャドウ・アンカー',
+          desc: '侵入した敵ユニットに【弱体化（被ダメージ1.5倍 / 1T）】を付与する。フェイズはスキル『テレポート』でこのマスへ距離無制限に帰還できる。'
+        }
+      },
+
+      mine_trap: {
+        category: 'TRAP',
+        classLabel: 'トラップ',
+        classCss: 'class-trap',
+        roleLabel: '💣 ステルス地雷',
+        team: 'BLUE',
+        name: 'マイン (地雷)',
+        img: 'assets/nitro.jpg',
+        tokens: [
+          { main: 'MOVE', sub: '', type: 'move', used: false },
+          { main: 'ATK', sub: '', type: 'atk', used: false }
+        ],
+        passive: {
+          tag: 'TRAP',
+          name: '指向性クレイモア起爆',
+          desc: '敵プレイヤーからは視認できない隠密トラップ。敵ユニットがこのマスに進入した瞬間に自動起爆し、20 ダメージを与えて消滅する。'
+        }
+      }
+    };
+
+    let currentKey = 'kinesis';
+    let currentTokens = [];
+    let holdTimer = null;
+    let holdStart = 0;
+
+    // Web Audio Synth for crisp tactile UI feedback
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+    function beep(freq = 900, type = 'sine', dur = 0.06) {
+      try {
+        if (!audioCtx) audioCtx = new AudioCtx();
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+        o.connect(g);
+        g.connect(audioCtx.destination);
+        o.start();
+        o.stop(audioCtx.currentTime + dur);
+      } catch (e) {}
+    }
+
+    function renderTokens() {
+      const grid = document.getElementById('tokens-grid');
+      grid.innerHTML = '';
+      currentTokens.forEach((t) => {
+        const pill = document.createElement('div');
+        pill.className = `token-pill ${t.type} ${t.used ? 'used' : ''}`;
+        pill.innerHTML = `<span class="tok-main">${t.main}</span>${t.sub ? `<span class="tok-sub">${t.sub}</span>` : ''}`;
+        pill.title = 'クリックで使用済み／未使用を切り替え';
+        pill.onclick = () => {
+          t.used = !t.used;
+          beep(t.used ? 440 : 960, 'square', 0.05);
+          renderTokens();
+        };
+        grid.appendChild(pill);
+      });
+    }
+
+    function addExtraToken() {
+      beep(1180, 'sine', 0.06);
+      const bonusTypes = [
+        { main: 'ATK', sub: 'キネシス', type: 'special', used: false },
+        { main: 'MOVE', sub: 'キネシス', type: 'special', used: false },
+        { main: 'ATK', sub: 'ビット', type: 'special', used: false }
+      ];
+      const pick = bonusTypes[currentTokens.length % bonusTypes.length];
+      currentTokens.push({ ...pick });
+      renderTokens();
+    }
+
+    function resetTokens() {
+      beep(680, 'sine', 0.05);
+      currentTokens = JSON.parse(JSON.stringify(ENTITIES[currentKey].tokens));
+      renderTokens();
+    }
+
+    function selectEntity(key) {
+      currentKey = key;
+      const d = ENTITIES[key];
+      beep(1040, 'sine', 0.05);
+
+      // Highlight left selector chip
+      document.querySelectorAll('.r2-chip').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.key === key);
+      });
+
+      // Sync tokens
+      currentTokens = JSON.parse(JSON.stringify(d.tokens));
+      renderTokens();
+
+      // Sheet root category
+      const sheet = document.getElementById('entity-sheet');
+      sheet.dataset.category = d.category;
+
+      // Header & Portrait
+      document.getElementById('sheet-img').src = d.img;
+      document.getElementById('sheet-name').innerText = d.name;
+
+      const classTag = document.getElementById('sheet-class-tag');
+      classTag.className = `r2-tag ${d.classCss}`;
+      classTag.innerHTML = `<span>${d.classLabel}</span>`;
+
+      document.getElementById('sheet-role-tag').innerHTML = `<span>${d.roleLabel}</span>`;
+
+      const teamTag = document.getElementById('sheet-team-tag');
+      teamTag.className = `r2-tag team-badge ${d.team === 'RED' ? 'red' : ''}`;
+      teamTag.innerHTML = `<span>${d.team}</span>`;
+
+      // Stats Strip: Shown for UNIT & OBJECT, Hidden for HAZARD & TRAP
+      const statsStrip = document.getElementById('sheet-stats-strip');
+      const cellHp = document.getElementById('cell-hp');
+      const numHp = document.getElementById('num-hp');
+      const shieldBarWrap = document.getElementById('shield-bar-wrap');
+      const numAtk = document.getElementById('num-atk');
+
+      if (d.category === 'UNIT' || d.category === 'OBJECT') {
+        statsStrip.style.display = 'grid';
+
+        // HP & Shield: Naturally add shield to current HP and color blue when shield > 0
+        const totalCurrentHp = d.hp + (d.shield || 0);
+        document.getElementById('val-hp').innerText = totalCurrentHp;
+        document.getElementById('val-maxhp').innerText = `/ ${d.maxHp}`;
+        document.getElementById('bar-hp').style.width = `${(d.hp / d.maxHp) * 100}%`;
+
+        if (d.shield > 0) {
+          cellHp.classList.add('shield-active');
+          numHp.className = 'r2-num cyan';
+          shieldBarWrap.style.display = 'block';
+          document.getElementById('bar-shield').style.width = `${Math.min(100, (d.shield / d.maxHp) * 100)}%`;
+        } else {
+          cellHp.classList.remove('shield-active');
+          numHp.className = 'r2-num';
+          shieldBarWrap.style.display = 'none';
+          document.getElementById('bar-shield').style.width = '0%';
+        }
+
+        // ATK: Naturally display total ATK (highlight if buffed above baseAtk)
+        numAtk.className = `r2-num ${d.atk > d.baseAtk ? 'buffed' : ''}`;
+        document.getElementById('val-atk').innerText = d.atk;
+      } else {
+        // Hazard / Trap: Remove stats strip completely
+        statsStrip.style.display = 'none';
+      }
+
+      // Status Bar: Shown ONLY for UNIT, Hidden for OBJECT / HAZARD / TRAP
+      const statusBar = document.getElementById('sheet-status-bar');
+      const stContainer = document.getElementById('status-badges-container');
+      if (d.category === 'UNIT') {
+        statusBar.style.display = 'flex';
+        stContainer.innerHTML = '';
+        if (d.statuses && d.statuses.length > 0) {
+          d.statuses.forEach(st => {
+            const b = document.createElement('span');
+            b.className = `status-badge ${st.type}`;
+            b.innerHTML = `<span>${st.label}</span>`;
+            stContainer.appendChild(b);
+          });
+        } else {
+          stContainer.innerHTML = `<span class="status-none">状態異常なし</span>`;
+        }
+      } else {
+        statusBar.style.display = 'none';
+      }
+
+      // Passive / Effect Block
+      document.getElementById('passive-tag-label').innerText = d.passive.tag;
+      document.getElementById('passive-name').innerText = d.passive.name;
+      document.getElementById('passive-desc').innerText = d.passive.desc;
+
+      // Commands Stack
+      const cmdStack = document.getElementById('commands-stack');
+      cmdStack.innerHTML = '';
+
+      if (d.category === 'UNIT') {
+        const skillDots = '●'.repeat(d.skill.stock) + '○'.repeat(Math.max(0, d.skill.maxStock - d.skill.stock));
+        const ultDots = '●'.repeat(d.ult.stock) + '○'.repeat(Math.max(0, d.ult.maxStock - d.ult.stock));
+        cmdStack.innerHTML = `
+          <button class="cmd-card-btn" onclick="triggerSkill()">
+            <div class="cmd-top-row">
+              <div class="cmd-title-group">
+                <span class="cmd-type-badge">SKILL</span>
+                <span class="cmd-name">${d.skill.name}</span>
+              </div>
+              <div class="cmd-stock-box" title="スキルストック">
+                <span class="stock-dots">${skillDots}</span>
+              </div>
+            </div>
+            <div class="cmd-desc">${d.skill.desc}</div>
+          </button>
+
+          <button class="cmd-card-btn ult-btn" onclick="triggerUlt()">
+            <div class="cmd-top-row">
+              <div class="cmd-title-group">
+                <span class="cmd-type-badge ult">ULT</span>
+                <span class="cmd-name">${d.ult.name}</span>
+              </div>
+              <div class="cmd-stock-box" title="ウルトストック">
+                <span class="stock-dots ult-dots">${ultDots}</span>
+              </div>
+            </div>
+            <div class="cmd-desc">${d.ult.desc}</div>
+          </button>
+        `;
+      } else if (d.category === 'OBJECT' && d.objectAction) {
+        cmdStack.innerHTML = `
+          <button class="cmd-card-btn" onclick="beep(700, 'triangle', 0.1)">
+            <div class="cmd-top-row">
+              <div class="cmd-title-group">
+                <span class="cmd-type-badge">${d.objectAction.badge}</span>
+                <span class="cmd-name">${d.objectAction.name}</span>
+              </div>
+            </div>
+            <div class="cmd-desc">${d.objectAction.desc}</div>
+          </button>
+        `;
+      }
+    }
+
+    function triggerSkill() {
+      const d = ENTITIES[currentKey];
+      if (!d || !d.skill) return;
+      if (d.skill.stock > 0) {
+        d.skill.stock--;
+      } else {
+        d.skill.stock = d.skill.maxStock;
+      }
+      beep(1320, 'sine', 0.09);
+      selectEntity(currentKey);
+    }
+
+    function triggerUlt() {
+      const d = ENTITIES[currentKey];
+      if (!d || !d.ult) return;
+      if (d.ult.stock > 0) {
+        d.ult.stock = 0;
+        beep(160, 'sawtooth', 0.3);
+        document.getElementById('cutin-en').innerText = d.ult.en;
+        document.getElementById('cutin-ja').innerText = d.ult.name;
+        const overlay = document.getElementById('cutin-overlay');
+        overlay.classList.add('active');
+        setTimeout(() => closeCutin(), 1500);
+      } else {
+        d.ult.stock = d.ult.maxStock;
+        beep(880, 'sine', 0.08);
+      }
+      selectEntity(currentKey);
+    }
+
+    function closeCutin() {
+      document.getElementById('cutin-overlay').classList.remove('active');
+    }
+
+    function startHoldEndTurn() {
+      beep(600, 'triangle', 0.08);
+      holdStart = performance.now();
+      const fill = document.getElementById('pe-fill-layer');
+      function step(now) {
+        const p = Math.min(1, (now - holdStart) / 400);
+        fill.style.transform = `scaleX(${p})`;
+        if (p >= 1) {
+          cancelHoldEndTurn();
+          beep(180, 'sawtooth', 0.25);
+          const numEl = document.getElementById('hud-turn-num');
+          const next = (parseInt(numEl.innerText, 10) % 9) + 1;
+          numEl.innerText = `0${next}`;
+          return;
+        }
+        holdTimer = requestAnimationFrame(step);
+      }
+      holdTimer = requestAnimationFrame(step);
+    }
+
+    function cancelHoldEndTurn() {
+      if (holdTimer) cancelAnimationFrame(holdTimer);
+      holdTimer = null;
+      document.getElementById('pe-fill-layer').style.transform = 'scaleX(0)';
+    }
+
+    function setTilt(mode) {
+      beep(1000, 'sine', 0.05);
+      document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+      const root = document.documentElement;
+      if (mode === 'slight') {
+        document.getElementById('tilt-slight').classList.add('active');
+        root.style.setProperty('--hud-tilt', '-1.4deg');
+        root.style.setProperty('--card-tilt', '0.7deg');
+        root.style.setProperty('--comp-skew', '-14deg');
+      } else if (mode === 'dynamic') {
+        document.getElementById('tilt-dynamic').classList.add('active');
+        root.style.setProperty('--hud-tilt', '-2.8deg');
+        root.style.setProperty('--card-tilt', '1.6deg');
+        root.style.setProperty('--comp-skew', '-18deg');
+      } else {
+        document.getElementById('tilt-flat').classList.add('active');
+        root.style.setProperty('--hud-tilt', '0deg');
+        root.style.setProperty('--card-tilt', '0deg');
+        root.style.setProperty('--comp-skew', '0deg');
+      }
+    }
+
+    // Initialize default selection
+    selectEntity('kinesis');
+  </script>
+</body>
+</html>

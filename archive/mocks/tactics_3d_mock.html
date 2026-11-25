@@ -1,0 +1,2704 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CYBER TACTICS // 3D TACTICAL MOCK</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700;900&family=Orbitron:wght@700;800;900&family=Rajdhani:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Three.js & Postprocessing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="assets_data.js"></script>
+
+  <style>
+    :root {
+      --bg-base: #f2f6fb;
+      --surface-white: #ffffff;
+      --surface-sub: #f8fafc;
+      --border-light: #e2e8f0;
+      --border-mid: #cbd5e1;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+
+      --ally-blue: #0096fa;
+      --ally-cyan: #00bbf9;
+      --ally-bg: #eff8ff;
+
+      --enemy-red: #ff2e63;
+      --enemy-bg: #fff1f4;
+
+      --ult-gold: #f59e0b;
+      --ult-yellow: #fbbf24;
+      --ult-bg: #fffbeb;
+
+      --hp-green: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+      color: var(--text-primary);
+      font-family: 'Noto Sans JP', sans-serif;
+    }
+
+    /* ==============================================================
+       1. SMARTPHONE LANDSCAPE LETTERBOX CONTAINER (16:9 FIXED ASPECT)
+       ============================================================== */
+    .game-frame {
+      width: 1600px;
+      height: 900px;
+      position: relative;
+      overflow: hidden;
+      background: #000000;
+      transform-origin: center center;
+      flex-shrink: 0;
+      box-shadow: 0 0 50px rgba(0, 0, 0, 0.95);
+    }
+
+    .battle-workspace {
+      width: 1600px;
+      height: 900px;
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+
+    /* Fullscreen 3D Viewport Area */
+    .board-viewport {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #dce4ee;
+    }
+
+    #webgl-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* ==============================================================
+       TOP-LEFT TURN HUD (BLACK FRAME / DARK THEME)
+       ============================================================== */
+    .top-left-turn-hud {
+      position: absolute;
+      top: 22px;
+      left: 24px;
+      z-index: 15;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(14px);
+      border: 2px solid #0f172a;
+      border-left: 5px solid var(--ally-cyan);
+      border-radius: 12px;
+      padding: 10px 18px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 3px;
+    }
+
+    .tl-turn-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #ffffff;
+      line-height: 1.1;
+    }
+
+    .tl-team-badge {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .tl-team-badge.blue {
+      background: rgba(0, 210, 255, 0.16);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+
+    .tl-team-badge.red {
+      background: rgba(255, 46, 99, 0.16);
+      color: #fb7185;
+      border: 1px solid rgba(251, 113, 133, 0.4);
+    }
+
+    /* Horizontal Tokens Row above Unit Details (右詰め・ミニマルダークネイビー) */
+    .tokens-horizontal-bar {
+      pointer-events: auto;
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      flex-wrap: wrap;
+      width: auto;
+      max-width: 100%;
+      align-self: flex-end;
+    }
+
+    .token-capsule {
+      flex: 0 0 auto;
+      width: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 11px;
+      border-radius: 8px;
+      transition: all 0.22s ease;
+      white-space: nowrap;
+      background: #0b1120;
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      color: #e2e8f0;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .tok-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .tok-name {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      color: #cbd5e1;
+    }
+
+    .tok-val {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11.5px;
+      font-weight: 900;
+      padding-left: 2px;
+    }
+
+    .token-capsule.atk {
+      border-bottom: 2px solid rgba(255, 46, 99, 0.65);
+    }
+    .token-capsule.atk .tok-dot {
+      background: #ff2e63;
+      box-shadow: 0 0 8px #ff2e63;
+    }
+    .token-capsule.atk .tok-val {
+      color: #fb7185;
+    }
+
+    .token-capsule.move {
+      border-bottom: 2px solid rgba(0, 210, 255, 0.65);
+    }
+    .token-capsule.move .tok-dot {
+      background: #00d2ff;
+      box-shadow: 0 0 8px #00d2ff;
+    }
+    .token-capsule.move .tok-val {
+      color: #38bdf8;
+    }
+
+    .token-capsule.special {
+      border-bottom: 2px solid rgba(245, 158, 11, 0.65);
+    }
+    .token-capsule.special .tok-dot {
+      background: #f59e0b;
+      box-shadow: 0 0 8px #f59e0b;
+    }
+    .token-capsule.special .tok-val {
+      color: #fbbf24;
+    }
+
+    .token-capsule.used {
+      opacity: 0.32;
+      filter: grayscale(1);
+      transform: translateY(1px);
+    }
+    .token-capsule.used .tok-dot {
+      box-shadow: none;
+    }
+
+    .holo-demo-link {
+      position: absolute;
+      bottom: 22px;
+      left: 22px;
+      z-index: 15;
+      background: rgba(15, 23, 42, 0.88);
+      border: 1.5px solid #38bdf8;
+      border-radius: 8px;
+      padding: 8px 14px;
+      color: #ffffff;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-decoration: none;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .holo-demo-link:hover {
+      background: #0284c7;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4);
+    }
+
+    /* ==============================================================
+       BOARD 3D ATTACHED ULT GAUGES (コア追従型カプセルUI)
+       ============================================================== */
+    .board-ult-hud {
+      position: absolute;
+      z-index: 15;
+      width: 360px;
+      height: 24px;
+      background: rgba(15, 23, 42, 0.94);
+      border: 2px solid #ffffff;
+      border-radius: 999px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    /* Enemy Team-Shared ULT Gauge (敵コアの駒の上 / RED SIDE) */
+    .enemy-ult-hud {
+      transform: translate(-50%, -100%);
+    }
+
+    /* Ally Team-Shared ULT Gauge (味方CoreHPの下 / BLUE SIDE) */
+    .ally-ult-hud {
+      position: relative;
+      width: 540px;
+      margin-top: 36px;
+      transform: none;
+    }
+
+    /* Progress Fills inside Capsule */
+    .board-ult-hud .ult-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      border-radius: 999px;
+      transition: width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+      z-index: 1;
+    }
+
+    .enemy-ult-hud .ult-fill {
+      background: linear-gradient(90deg, #991b1b 0%, #e11d48 50%, #ff4d79 100%);
+      box-shadow: 0 0 10px rgba(255, 46, 99, 0.6);
+    }
+
+    .ally-ult-hud .ult-fill {
+      background: linear-gradient(90deg, #0284c7 0%, #0096fa 50%, #00e5ff 100%);
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
+    }
+
+    .ally-ult-hud.ready .ult-fill {
+      background: linear-gradient(90deg, #0096fa 0%, #00e5ff 45%, #fde047 100%);
+      box-shadow: 0 0 12px rgba(253, 224, 71, 0.7);
+    }
+
+    /* Integrated Text Layer inside Capsule */
+    .board-ult-hud .ult-content {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 14px;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .board-ult-hud .ult-name {
+      font-size: 11px;
+      letter-spacing: 1.2px;
+      color: #ffffff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 5px rgba(0, 0, 0, 0.8);
+    }
+
+    .board-ult-hud .ult-num {
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      color: #ffffff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 5px rgba(0, 0, 0, 0.8);
+    }
+
+    .ally-ult-hud.ready .ult-num {
+      color: #ffffff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 8px rgba(253, 224, 71, 0.8);
+    }
+
+    /* Ready & Warning animations */
+    .ally-ult-hud.ready {
+      border-color: #fde047;
+      box-shadow: 0 0 0 1.5px rgba(251, 191, 36, 0.5), 0 4px 14px rgba(0, 0, 0, 0.4);
+      animation: allyUltPulse 2s infinite ease-in-out;
+    }
+
+    @keyframes allyUltPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 1.5px rgba(251, 191, 36, 0.5), 0 4px 14px rgba(0, 0, 0, 0.4);
+      }
+      50% {
+        box-shadow: 0 0 0 2.5px rgba(251, 191, 36, 0.8), 0 6px 18px rgba(251, 191, 36, 0.35);
+      }
+    }
+
+    .enemy-ult-hud.warning-ready {
+      border-color: #ff4d79;
+      box-shadow: 0 0 0 1.5px rgba(255, 46, 99, 0.5), 0 4px 14px rgba(0, 0, 0, 0.4);
+      animation: enemyUltPulse 1.6s infinite ease-in-out;
+    }
+
+    @keyframes enemyUltPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 1.5px rgba(255, 46, 99, 0.5), 0 4px 14px rgba(0, 0, 0, 0.4);
+      }
+      50% {
+        box-shadow: 0 0 0 2.5px rgba(255, 46, 99, 0.8), 0 6px 18px rgba(255, 46, 99, 0.4);
+      }
+    }
+
+    /* ==============================================================
+       EMPHASIZED ON-BOARD 3D PIECE & CORE HP GAUGES
+       ============================================================== */
+    #piece-labels-container {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+      overflow: hidden;
+    }
+
+    .piece-micro-hud {
+      position: absolute;
+      transform: translate(-50%, 0);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .micro-top-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1.5px solid var(--ally-cyan);
+      padding: 2px 9px;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+    }
+
+    .piece-micro-hud.red .micro-top-row {
+      border-color: var(--enemy-red);
+    }
+
+    .piece-micro-hud.selected .micro-top-row {
+      border-color: var(--ult-yellow);
+      background: #0f172a;
+      box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.5), 0 6px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    .micro-name {
+      font-size: 11px;
+      font-weight: 900;
+      color: #ffffff;
+      white-space: nowrap;
+    }
+
+    .micro-hp-num {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10.5px;
+      font-weight: 900;
+      color: #38bdf8;
+    }
+
+    .piece-micro-hud.red .micro-hp-num {
+      color: #fb7185;
+    }
+
+    .micro-ult-tag {
+      background: var(--ult-yellow);
+      color: #0f172a;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 8px;
+      font-weight: 900;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    /* Emphasized Unit HP Bar */
+    .micro-hp-track {
+      width: 74px;
+      height: 8px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1.5px solid #ffffff;
+      border-radius: 999px;
+      overflow: hidden;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.28);
+    }
+
+    .micro-hp-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0077ff, #00e5ff);
+      transition: width 0.3s ease;
+    }
+
+    .piece-micro-hud.red .micro-hp-fill {
+      background: linear-gradient(90deg, #e11d48, #ff4d79);
+    }
+
+    /* Extra-Prominent On-Board CORE HP Gauge */
+    .piece-micro-hud.core-hud .micro-top-row {
+      padding: 4px 12px;
+      border-width: 2px;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.96);
+    }
+
+    .piece-micro-hud.core-hud .micro-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    .piece-micro-hud.core-hud .micro-hp-num {
+      font-size: 13px;
+    }
+
+    .piece-micro-hud.core-hud .micro-hp-track {
+      width: 84px;
+      height: 10px;
+      border: 2px solid #ffffff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.38);
+    }
+
+    /* ==============================================================
+       3. RIGHT FLOATING COMMAND HUD (DARK-THEMED UNIFIED CONSOLE)
+       ============================================================== */
+    .command-sidebar {
+      position: absolute;
+      top: 12px;
+      right: 8px;
+      width: 356px;
+      box-sizing: border-box;
+      padding: 6px 20px 24px 20px;
+      max-height: 100%;
+      overflow-y: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .command-sidebar::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Unified Unit Profile & Skills Command Deck (白基調・ハイテククリーンUI) */
+    .unified-deck-card {
+      position: relative;
+      overflow: hidden;
+      pointer-events: auto;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(203, 213, 225, 0.75);
+      border-top: 4px solid var(--ally-cyan);
+      border-radius: 16px;
+      padding: 12px 14px;
+      box-shadow: 0 18px 36px -6px rgba(15, 23, 42, 0.14), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .unified-deck-card.enemy-theme {
+      border-top-color: var(--enemy-red);
+      border-color: rgba(254, 205, 211, 0.85);
+    }
+
+    /* Hero Character Artwork Header (点線まで大きく張り付け＆白フェード) */
+    .deck-unit-header {
+      position: relative;
+      margin: -12px -14px 0 -14px;
+      padding: 12px 14px;
+      min-height: 295px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .deck-hero-bg {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .deck-hero-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 14%;
+      filter: contrast(1.04);
+      transition: opacity 0.25s ease;
+    }
+
+    .deck-hero-gradient {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.0) 0%,
+        rgba(255, 255, 255, 0.05) 35%,
+        rgba(255, 255, 255, 0.70) 65%,
+        rgba(255, 255, 255, 0.96) 82%,
+        #ffffff 100%
+      );
+    }
+
+    .unified-deck-card.enemy-theme .deck-hero-gradient {
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.0) 0%,
+        rgba(255, 255, 255, 0.05) 35%,
+        rgba(255, 241, 242, 0.72) 65%,
+        rgba(255, 241, 242, 0.96) 82%,
+        #fff1f2 100%
+      );
+    }
+
+    .deck-unit-top-bar {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .deck-unit-body {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 130px;
+    }
+
+    .inspector-title-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .inspector-name {
+      font-size: 20px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: 0.8px;
+      line-height: 1.1;
+      text-shadow: none;
+    }
+
+    .inspector-role {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 1.2px;
+      padding: 3px 10px;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(8px);
+      border: 1.5px solid rgba(56, 189, 248, 0.6);
+      color: #0284c7;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    }
+
+    .unified-deck-card.enemy-theme .inspector-role {
+      border-color: rgba(251, 113, 133, 0.7);
+      color: #e11d48;
+    }
+
+    .inspector-stats-inline {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      font-family: 'Orbitron', sans-serif;
+    }
+
+    .stat-inline-item {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      font-weight: 800;
+      color: #64748b;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-hp {
+      font-size: 15px;
+      font-weight: 900;
+      color: #059669;
+    }
+
+    .stat-atk {
+      font-size: 15px;
+      font-weight: 900;
+      color: #e11d48;
+    }
+
+    /* Minimal Passive Strip */
+    .inspector-passive-box {
+      border-left: 3px solid #d97706;
+      padding-left: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .inspector-passive-title {
+      font-size: 11px;
+      font-weight: 900;
+      color: #b45309;
+      letter-spacing: 0.4px;
+    }
+
+    .inspector-passive-desc {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #475569;
+      line-height: 1.45;
+    }
+
+    /* Dotted Separator & Skills Stack */
+    .deck-skills-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-top: 1.5px dashed rgba(203, 213, 225, 0.9);
+      padding-top: 12px;
+    }
+
+    .skills-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .action-card {
+      width: 100%;
+      background: #f8fafc;
+      border: 1px solid rgba(203, 213, 225, 0.85);
+      border-left: 4px solid var(--ally-cyan);
+      border-radius: 8px;
+      padding: 8px 10px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: all 0.18s ease;
+      position: relative;
+      pointer-events: auto;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+    }
+
+    .action-card:hover {
+      transform: translateX(2px);
+      border-color: rgba(56, 189, 248, 0.8);
+      background: #ffffff;
+      box-shadow: 0 6px 18px rgba(56, 189, 248, 0.15);
+    }
+
+    .unified-deck-card.enemy-theme .action-card {
+      border-left-color: var(--enemy-red);
+    }
+
+    .action-card.ult-card {
+      border-left-color: #f59e0b;
+      background: linear-gradient(135deg, rgba(254, 243, 199, 0.55) 0%, rgba(255, 251, 235, 0.85) 100%);
+      border-color: rgba(245, 158, 11, 0.35);
+    }
+
+    .action-card.ult-card:hover {
+      border-color: #f59e0b;
+      background: #fffbeb;
+      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.22);
+    }
+
+    .action-card.disabled {
+      opacity: 0.42;
+      pointer-events: none;
+      filter: grayscale(0.8);
+    }
+
+    .ac-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ac-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ac-type-badge {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(2, 132, 199, 0.12);
+      color: #0284c7;
+    }
+
+    .ult-card .ac-type-badge {
+      background: rgba(245, 158, 11, 0.18);
+      color: #b45309;
+    }
+
+    .ac-stock {
+      color: #0284c7;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+    }
+
+    .ult-card .ac-stock {
+      color: #b45309;
+    }
+
+    .ac-title {
+      font-size: 13px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: 0.4px;
+    }
+
+    .ac-desc {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #475569;
+      line-height: 1.45;
+    }
+
+    /* Sleek 3px ULT Gauge Line */
+    .ac-ult-gauge-track {
+      width: 100%;
+      height: 4px;
+      background: rgba(203, 213, 225, 0.7);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 1px 0;
+    }
+
+    .ac-ult-gauge-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #f59e0b, #fde047);
+      border-radius: 999px;
+    }
+
+    /* Dedicated Phase End Button (画面右下固定・押しやすい専用大型ボタン) */
+    .btn-phase-end {
+      position: absolute;
+      bottom: 24px;
+      right: 28px;
+      width: 216px;
+      height: 56px;
+      background: linear-gradient(135deg, rgba(11, 17, 32, 0.96) 0%, rgba(15, 28, 48, 0.94) 100%);
+      backdrop-filter: blur(20px);
+      color: #ffffff;
+      border: 1.5px solid rgba(56, 189, 248, 0.45);
+      border-left: 5px solid var(--ally-cyan);
+      border-radius: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 18px 0 16px;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.45), 0 0 20px rgba(0, 210, 255, 0.14);
+      transition: border-color 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease;
+      pointer-events: auto;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+      z-index: 30;
+    }
+
+    .btn-phase-end:hover {
+      transform: translateY(-2px);
+      border-color: rgba(56, 189, 248, 0.85);
+      border-left-color: #38bdf8;
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.55), 0 0 28px rgba(0, 210, 255, 0.3);
+    }
+
+    .btn-phase-end.is-holding {
+      transform: scale(0.96);
+      border-color: #38bdf8;
+      box-shadow: 0 0 32px rgba(56, 189, 248, 0.65);
+    }
+
+    .btn-phase-end.pe-flash {
+      animation: peFlashAnim 0.3s ease-out;
+    }
+
+    @keyframes peFlashAnim {
+      0% {
+        box-shadow: 0 0 35px #38bdf8, 0 0 60px #ffffff;
+        filter: brightness(1.65);
+      }
+      100% {
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+        filter: brightness(1.0);
+      }
+    }
+
+    .pe-hold-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(2, 132, 199, 0.35) 0%, rgba(56, 189, 248, 0.72) 100%);
+      box-shadow: 2px 0 14px rgba(56, 189, 248, 0.8);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .pe-content {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      pointer-events: none;
+    }
+
+    .pe-left {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1px;
+    }
+
+    .pe-en {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 14.5px;
+      font-weight: 900;
+      letter-spacing: 1.6px;
+      color: #ffffff;
+      line-height: 1.1;
+    }
+
+    .pe-hint {
+      font-family: 'Orbitron', 'Noto Sans JP', sans-serif;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      color: #94a3b8;
+      transition: color 0.15s ease;
+    }
+
+    .btn-phase-end.is-holding .pe-hint {
+      color: #38bdf8;
+    }
+
+    .pe-ring-wrap {
+      position: relative;
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .pe-ring-svg {
+      width: 34px;
+      height: 34px;
+      transform: rotate(-90deg);
+    }
+
+    .pe-ring-bg {
+      fill: none;
+      stroke: rgba(148, 163, 184, 0.22);
+      stroke-width: 3;
+    }
+
+    .pe-ring-meter {
+      fill: none;
+      stroke: #38bdf8;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-dasharray: 81.7;
+      stroke-dashoffset: 81.7;
+    }
+
+    .pe-ring-icon {
+      position: absolute;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-left: 2px;
+      transition: transform 0.15s ease, color 0.15s ease;
+    }
+
+    .btn-phase-end:hover .pe-ring-icon,
+    .btn-phase-end.is-holding .pe-ring-icon {
+      transform: scale(1.12);
+      color: #38bdf8;
+    }
+
+    /* ==============================================================
+       ANIME EX-SKILL CUT-IN OVERLAY (WHITE/CYAN GACHA STYLE)
+       ============================================================== */
+    #ex-cutin-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 200;
+      pointer-events: none;
+      visibility: hidden;
+      opacity: 0;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.65);
+      backdrop-filter: blur(8px);
+    }
+
+    .cutin-bg-slash {
+      position: absolute;
+      top: 50%;
+      left: -10%;
+      width: 120%;
+      height: 290px;
+      background: linear-gradient(90deg, #ffffff 0%, #e0f4ff 50%, #00bbf9 100%);
+      transform: translateY(-50%) rotate(-6deg) scaleY(0);
+      border-top: 6px solid var(--ally-blue);
+      border-bottom: 6px solid var(--text-primary);
+      box-shadow: 0 20px 60px rgba(0, 150, 250, 0.35);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+    }
+
+    .cutin-char-img {
+      position: absolute;
+      left: 12%;
+      height: 420px;
+      width: 420px;
+      object-fit: cover;
+      transform: rotate(6deg) translateX(-120px);
+      filter: drop-shadow(10px 10px 0px var(--ally-blue));
+    }
+
+    .cutin-typography {
+      position: absolute;
+      right: 12%;
+      text-align: right;
+      transform: rotate(3deg);
+      z-index: 5;
+    }
+
+    .cutin-ex-badge {
+      display: inline-block;
+      background: var(--text-primary);
+      color: var(--ult-yellow);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 13px;
+      font-weight: 900;
+      padding: 4px 14px;
+      letter-spacing: 3px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+    }
+
+    .cutin-skill-name {
+      font-size: 50px;
+      font-weight: 900;
+      color: var(--text-primary);
+      text-shadow: 3px 3px 0 #fff, 6px 6px 0 var(--ally-cyan);
+      line-height: 1.05;
+      letter-spacing: 2px;
+    }
+
+    .cutin-voice-line {
+      margin-top: 12px;
+      background: var(--text-primary);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 6px 18px;
+      display: inline-block;
+      border-left: 4px solid var(--ult-yellow);
+      border-radius: 4px;
+    }
+
+    /* ==============================================================
+       DAMAGE POPUP
+       ============================================================== */
+    .ba-dmg-popup {
+      position: absolute;
+      pointer-events: none;
+      z-index: 150;
+      transform: translate(-50%, -50%) skewX(-10deg);
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .ba-dmg-tag {
+      display: inline-block;
+      font-size: 10px;
+      background: var(--ult-yellow);
+      color: var(--text-primary);
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+      margin-bottom: -4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+    .ba-dmg-num {
+      font-size: 42px;
+      color: #fff;
+      -webkit-text-stroke: 2.5px var(--text-primary);
+      text-shadow: 3px 3px 0 var(--enemy-red);
+    }
+
+    .ba-dmg-popup.heal .ba-dmg-tag {
+      background: var(--hp-green);
+      color: #fff;
+    }
+
+    .ba-dmg-popup.heal .ba-dmg-num {
+      text-shadow: 3px 3px 0 #059669;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 16:9 Landscape Game Viewport Frame -->
+  <div class="game-frame" id="game-frame">
+
+    <!-- ==============================================================
+         MAIN WORKSPACE: FULL-HEIGHT 3D VIEWPORT + RIGHT COMMAND SIDEBAR
+         ============================================================== -->
+    <div class="battle-workspace">
+
+    <!-- Left/Center: 3D Board Viewport (100vh) -->
+    <div class="board-viewport" id="board-viewport">
+      <div id="webgl-canvas"></div>
+      <div id="piece-labels-container"></div>
+
+      <!-- Top-Left Turn HUD (Dark frame, TURN 01 / BLUE) -->
+      <div class="top-left-turn-hud">
+        <div class="tl-turn-title" id="turn-banner-text">TURN 01</div>
+        <div class="tl-team-badge blue" id="turn-team-badge">BLUE</div>
+      </div>
+
+
+      <!-- Piece Design Studio Link (holo_card_mock.html) -->
+      <a href="holo_card_mock.html" class="holo-demo-link" target="_blank" title="盤面駒設計スタジオを開く">
+        ♟️ PIECE DESIGN STUDIO
+      </a>
+    </div>
+
+    <!-- Right: Floating Tactical Command Deck -->
+    <aside class="command-sidebar" id="hud-layer">
+      <!-- 1. Action Tokens Bar (右詰め・ミニマルLEDスタイル) -->
+      <div class="tokens-horizontal-bar">
+        <div class="token-capsule atk" id="tok-atk">
+          <span class="tok-dot"></span>
+          <span class="tok-name">攻撃</span>
+          <span class="tok-val">×1</span>
+        </div>
+        <div class="token-capsule move" id="tok-move">
+          <span class="tok-dot"></span>
+          <span class="tok-name">移動</span>
+          <span class="tok-val">×1</span>
+        </div>
+        <div class="token-capsule special" id="tok-kinesis">
+          <span class="tok-dot"></span>
+          <span class="tok-name">自律機動</span>
+          <span class="tok-val">×1</span>
+        </div>
+      </div>
+
+      <!-- 2. Unified Unit Details & Tactical Skills Console (黒基調・ミニマルヒーローUI) -->
+      <div class="unified-deck-card" id="unit-inspector">
+        <!-- Top: Unit Identity & Stats (Hero Artwork with Navy Fade) -->
+        <div class="deck-unit-header">
+          <!-- Full-bleed Character Hero Artwork Layer -->
+          <div class="deck-hero-bg">
+            <img id="dossier-img" class="deck-hero-img" src="assets/kinesis.jpg" alt="Hero Portrait">
+            <div class="deck-hero-gradient"></div>
+          </div>
+
+          <!-- Top-Right Minimal Role Badge (Leaves character face unobstructed) -->
+          <div class="deck-unit-top-bar">
+            <span class="inspector-role" id="dossier-role">⚡ ASSAULT</span>
+          </div>
+
+          <!-- Foreground Info Floating over the Navy Fade -->
+          <div class="deck-unit-body">
+            <div class="inspector-title-row">
+              <span class="inspector-name" id="dossier-name">キネシス</span>
+              <div class="inspector-stats-inline">
+                <span class="stat-inline-item">
+                  <span class="stat-label">HP</span>
+                  <span class="stat-hp" id="dossier-hp">95</span>
+                </span>
+                <span class="stat-inline-item">
+                  <span class="stat-label">ATK</span>
+                  <span class="stat-atk" id="dossier-atk">25</span>
+                </span>
+              </div>
+            </div>
+
+            <div class="inspector-passive-box">
+              <div class="inspector-passive-title" id="dossier-passive-title">PASSIVE // 自律機動</div>
+              <div class="inspector-passive-desc" id="dossier-passive-desc">
+                自軍ターン開始時、通常の行動トークンとは別に、自身専用の移動トークンを+1枚追加獲得する。このトークンは自身の移動のみに使用可能。
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom: Integrated Tactical Skills -->
+        <div class="deck-skills-section">
+          <div class="skills-stack">
+            <!-- Normal Skill Card -->
+            <div class="action-card" id="card-cmd-skill">
+              <div class="ac-header-row">
+                <div class="ac-title-wrap">
+                  <span class="ac-type-badge">SKILL</span>
+                  <span class="ac-title" id="card-skill-title">オーバードライブ</span>
+                </div>
+                <span class="ac-stock" id="card-skill-stock">×2</span>
+              </div>
+              <div class="ac-desc" id="card-skill-desc">発動ターン中、自身の移動範囲を周囲8マスから十字方向2マス先まで拡張し、さらに通常攻撃力を+5増強（ATK 25 ➔ 30）する。</div>
+            </div>
+
+            <!-- Ultimate Skill Card -->
+            <div class="action-card ult-card" id="card-cmd-ult">
+              <div class="ac-header-row">
+                <div class="ac-title-wrap">
+                  <span class="ac-type-badge">ULT</span>
+                  <span class="ac-title" id="card-ult-title">フォース・バースト</span>
+                </div>
+                <span class="ac-stock" id="card-ult-stock">MAX</span>
+              </div>
+              <div class="ac-ult-gauge-track">
+                <div class="ac-ult-gauge-fill" style="width: 100%;"></div>
+              </div>
+              <div class="ac-desc" id="card-ult-desc">前方直線上のすべての敵ユニットを貫通して40ダメージを与え、さらに射程線上にある敵防衛コアへ直接25ダメージの致命的衝撃を与える。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Dedicated Phase End Button (Bottom-Right Fixed, Touch-Optimized) -->
+    <button class="btn-phase-end" id="btn-end-turn" title="0.5秒長押しでターン終了">
+      <div class="pe-hold-fill" id="pe-hold-fill"></div>
+      <div class="pe-content">
+        <div class="pe-left">
+          <span class="pe-en">PHASE END</span>
+          <span class="pe-hint" id="pe-hint-text">HOLD 0.5s</span>
+        </div>
+        <div class="pe-ring-wrap">
+          <svg class="pe-ring-svg" viewBox="0 0 34 34">
+            <circle class="pe-ring-bg" cx="17" cy="17" r="13" />
+            <circle class="pe-ring-meter" id="pe-ring-meter" cx="17" cy="17" r="13" />
+          </svg>
+          <span class="pe-ring-icon">▶</span>
+        </div>
+      </div>
+    </button>
+
+  </div>
+
+  <!-- EX-SKILL ANIME CUT-IN OVERLAY -->
+  <div id="ex-cutin-overlay">
+    <div class="cutin-bg-slash" id="cutin-slash">
+      <img id="cutin-img" class="cutin-char-img" src="assets/kinesis.jpg" alt="Cutin">
+      <div class="cutin-typography">
+        <div class="cutin-ex-badge" id="cutin-badge">ULTIMATE OVERDRIVE</div>
+        <div class="cutin-skill-name" id="cutin-title">フォース・バースト</div>
+        <div class="cutin-voice-line" id="cutin-voice">「目標捕捉――音速を超えて貫きます！」</div>
+      </div>
+    </div>
+  </div>
+  </div><!-- /#game-frame -->
+
+  <script>
+    /* ==========================================================================
+       1. SCENE, CAMERA & INORGANIC FUTURISTIC STUDIO ENVIRONMENT
+       ========================================================================== */
+    const viewportEl = document.getElementById('board-viewport');
+    const container = document.getElementById('webgl-canvas');
+    const labelsContainer = document.getElementById('piece-labels-container');
+
+    const scene = new THREE.Scene();
+    // Clean inorganic architectural silver-gray studio space
+    scene.background = new THREE.Color(0xdce4ee);
+    scene.fog = new THREE.FogExp2(0xdce4ee, 0.012);
+
+    function getViewportSize() {
+      return {
+        w: viewportEl.clientWidth || window.innerWidth,
+        h: viewportEl.clientHeight || window.innerHeight
+      };
+    }
+
+    const initSize = getViewportSize();
+    const camera = new THREE.PerspectiveCamera(35, initSize.w / initSize.h, 0.1, 500);
+    const FIXED_CAM_POS = new THREE.Vector3(-0.25, 26.6, 14.3);
+    const FIXED_CAM_TARGET = new THREE.Vector3(-0.25, -0.2, 1.05);
+    camera.position.copy(FIXED_CAM_POS);
+    camera.lookAt(FIXED_CAM_TARGET);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(initSize.w, initSize.h);
+    renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 2), 3));
+    renderer.outputEncoding = THREE.sRGBEncoding; // 正しいsRGBガンマ補正で盤面のくすみを完全解消！
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Crisp, un-washed color reproduction (no blurry bloom haze)
+    renderer.toneMapping = THREE.NoToneMapping;
+    container.appendChild(renderer.domElement);
+
+    // Balanced Clinical Studio Lighting
+    const ambientLight = new THREE.AmbientLight(0xf8fafc, 0.92);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.88);
+    dirLight.position.set(10, 28, 16);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 5;
+    dirLight.shadow.camera.far = 60;
+    const d = 14;
+    dirLight.shadow.camera.left = -d;
+    dirLight.shadow.camera.right = d;
+    dirLight.shadow.camera.top = d;
+    dirLight.shadow.camera.bottom = -d;
+    dirLight.shadow.bias = -0.0005;
+    scene.add(dirLight);
+
+    // Inorganic Studio Floor + Subtle Architectural Grid
+    const floorGeo = new THREE.PlaneGeometry(120, 120);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0xd5dfe9,
+      roughness: 0.85,
+      metalness: 0.05
+    });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.y = -1.05;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
+
+    const studioGrid = new THREE.GridHelper(70, 35, 0xa8b8c8, 0xc4d0dc);
+    studioGrid.position.y = -1.02;
+    scene.add(studioGrid);
+
+    /* ==========================================================================
+       2. 7×7 INORGANIC MONOLITH TACTICAL BOARD (HIGH-CONTRAST & RAZOR-SHARP)
+       ========================================================================== */
+    const BOARD_SIZE = 7;
+    const TILE_STEP = 2.35;
+    const tiles = [];
+    const tileGroup = new THREE.Group();
+    scene.add(tileGroup);
+
+    function gridToWorld(r, c) {
+      const offset = (BOARD_SIZE - 1) * TILE_STEP * 0.5;
+      return new THREE.Vector3(c * TILE_STEP - offset, 0, r * TILE_STEP - offset);
+    }
+
+    // Outer Brushed Titanium Bezel
+    const outerBezelGeo = new THREE.BoxGeometry(18.2, 0.62, 18.6);
+    const outerBezelMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      roughness: 0.4,
+      metalness: 0.45
+    });
+    const outerBezel = new THREE.Mesh(outerBezelGeo, outerBezelMat);
+    outerBezel.position.y = -0.58;
+    outerBezel.castShadow = true;
+    outerBezel.receiveShadow = true;
+    scene.add(outerBezel);
+
+    // Inner Dark-Carbon Recessed Channel (Makes the 7x7 tile gaps super crisp!)
+    const chassisGeo = new THREE.BoxGeometry(17.1, 0.72, 17.1);
+    const chassisMat = new THREE.MeshStandardMaterial({
+      color: 0x0b111e,
+      roughness: 0.5,
+      metalness: 0.3
+    });
+    const chassis = new THREE.Mesh(chassisGeo, chassisMat);
+    chassis.position.y = -0.48;
+    chassis.receiveShadow = true;
+    scene.add(chassis);
+
+    // Frontline Team Status Strips (Cyan P1 / Crimson P2)
+    const blueRail = new THREE.Mesh(
+      new THREE.BoxGeometry(16.8, 0.12, 0.18),
+      new THREE.MeshBasicMaterial({ color: 0x00d2ff })
+    );
+    blueRail.position.set(0, -0.22, 9.15);
+    scene.add(blueRail);
+
+    const redRail = new THREE.Mesh(
+      new THREE.BoxGeometry(16.8, 0.12, 0.18),
+      new THREE.MeshBasicMaterial({ color: 0xff2e63 })
+    );
+    redRail.position.set(0, -0.22, -9.15);
+    scene.add(redRail);
+
+    function makeTileTexture(r, c, isAlt) {
+      const cvs = document.createElement('canvas');
+      cvs.width = 256;
+      cvs.height = 256;
+      const ctx = cvs.getContext('2d');
+
+      // High-contrast matte dark-slate / inorganic graphite tiles
+      ctx.fillStyle = isAlt ? '#243247' : '#192334';
+      ctx.fillRect(0, 0, 256, 256);
+
+      // Crisp 1px-style metallic bevel hairline
+      ctx.strokeStyle = isAlt ? '#475975' : '#33435c';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(6, 6, 244, 244);
+
+      // Subtle inner technical frame
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.15)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(20, 20, 216, 216);
+
+      // Inorganic precision corner crosshairs (+)
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(16, 16, 14, 3);
+      ctx.fillRect(16, 16, 3, 14);
+      ctx.fillRect(226, 237, 14, 3);
+      ctx.fillRect(237, 226, 3, 14);
+
+      // Clean geometric center dot
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.22)';
+      ctx.fillRect(125, 125, 6, 6);
+
+      // Stencil Coordinate (A1..G7)
+      const colChar = String.fromCharCode(65 + c);
+      const rowNum = 7 - r;
+      ctx.font = '800 22px Orbitron, sans-serif';
+      ctx.fillStyle = 'rgba(203, 213, 225, 0.45)';
+      ctx.fillText(`${colChar}${rowNum}`, 26, 46);
+
+      const tex = new THREE.CanvasTexture(cvs);
+      tex.anisotropy = 4;
+      return tex;
+    }
+
+    function makeReticleTexture() {
+      const cvs = document.createElement('canvas');
+      cvs.width = 256;
+      cvs.height = 256;
+      const ctx = cvs.getContext('2d');
+
+      // Translucent tactical fill
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+      ctx.fillRect(10, 10, 236, 236);
+
+      // Razor-sharp corner brackets
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 14;
+      const L = 56;
+      ctx.beginPath(); ctx.moveTo(14, 14 + L); ctx.lineTo(14, 14); ctx.lineTo(14 + L, 14); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(242 - L, 14); ctx.lineTo(242, 14); ctx.lineTo(242, 14 + L); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(242, 242 - L); ctx.lineTo(242, 242); ctx.lineTo(242 - L, 242); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(14 + L, 242); ctx.lineTo(14, 242); ctx.lineTo(14, 242 - L); ctx.stroke();
+
+      return new THREE.CanvasTexture(cvs);
+    }
+    const sharedReticleTex = makeReticleTexture();
+
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      tiles[r] = [];
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        const isAlt = (r + c) % 2 === 1;
+        // 0.91 ratio leaves a crisp dark recessed groove between every tile!
+        const tileGeo = new THREE.BoxGeometry(TILE_STEP * 0.91, 0.24, TILE_STEP * 0.91);
+        const tileMat = new THREE.MeshStandardMaterial({
+          map: makeTileTexture(r, c, isAlt),
+          roughness: 0.45,
+          metalness: 0.2
+        });
+        const tileMesh = new THREE.Mesh(tileGeo, tileMat);
+        const wPos = gridToWorld(r, c);
+        tileMesh.position.set(wPos.x, -0.12, wPos.z);
+        tileMesh.receiveShadow = true;
+        tileMesh.userData = { r, c };
+
+        const hlGeo = new THREE.PlaneGeometry(TILE_STEP * 0.88, TILE_STEP * 0.88);
+        const hlMat = new THREE.MeshBasicMaterial({
+          map: sharedReticleTex,
+          color: 0x00f0ff,
+          transparent: true,
+          opacity: 0,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const hlMesh = new THREE.Mesh(hlGeo, hlMat);
+        hlMesh.rotation.x = -Math.PI / 2;
+        hlMesh.position.y = 0.135;
+        tileMesh.add(hlMesh);
+        tileMesh.userData.hlMesh = hlMesh;
+
+        tileGroup.add(tileMesh);
+        tiles[r][c] = tileMesh;
+      }
+    }
+
+    // 3D Target Ring beneath Selected Unit
+    const selectRingGroup = new THREE.Group();
+    const selRingOuter = new THREE.Mesh(
+      new THREE.RingGeometry(0.98, 1.08, 4),
+      new THREE.MeshBasicMaterial({ color: 0xfbbf24, side: THREE.DoubleSide })
+    );
+    selRingOuter.rotation.x = -Math.PI / 2;
+    selectRingGroup.add(selRingOuter);
+    selectRingGroup.position.y = 0.04;
+    scene.add(selectRingGroup);
+
+    // Hazard Zones (Crisp Geometric Hex Indicators)
+    function addHazardVisual(r, c, colorHex) {
+      const wPos = gridToWorld(r, c);
+      const group = new THREE.Group();
+      group.position.set(wPos.x, 0.03, wPos.z);
+
+      const outer = new THREE.Mesh(
+        new THREE.RingGeometry(0.78, 0.94, 6),
+        new THREE.MeshBasicMaterial({ color: colorHex, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
+      );
+      outer.rotation.x = -Math.PI / 2;
+      group.add(outer);
+
+      const inner = new THREE.Mesh(
+        new THREE.RingGeometry(0.42, 0.48, 6),
+        new THREE.MeshBasicMaterial({ color: colorHex, side: THREE.DoubleSide, transparent: true, opacity: 0.55 })
+      );
+      inner.rotation.x = -Math.PI / 2;
+      group.add(inner);
+
+      scene.add(group);
+      return group;
+    }
+    const hazard1 = addHazardVisual(2, 5, 0xc084fc);
+    const hazard2 = addHazardVisual(3, 2, 0x34d399);
+
+    /* ==========================================================================
+       3. CYBER-HEXAGON CHARACTER PIECES (SF MINIMAL DECAL DESIGN)
+       ========================================================================== */
+    const units = [];
+    const boardState = Array.from({ length: 7 }, () => Array(7).fill(null));
+
+    // Aerospace-inspired Cyber Hexagon Shape (反時計回り CCW: 正しいThree.js外形ポリゴン)
+    function createCyberHexShape(scale = 1.0) {
+      const shape = new THREE.Shape();
+      const s = scale;
+      // Apex nose から反時計回り (CCW) に周回
+      shape.moveTo(0 * s, 1.12 * s);
+      shape.lineTo(-0.80 * s, 0.54 * s);
+      shape.lineTo(-0.88 * s, -0.62 * s);
+      shape.lineTo(-0.62 * s, -0.98 * s);
+      shape.lineTo(0.62 * s, -0.98 * s);
+      shape.lineTo(0.88 * s, -0.62 * s);
+      shape.lineTo(0.80 * s, 0.54 * s);
+      shape.closePath();
+      return shape;
+    }
+    const cyberHexShape = createCyberHexShape(1.0);
+
+    // 1. Heavy Monolith Chassis Base (外殻メインボディ: タイル上面 y = 0.0 に接地)
+    function createCyberChassisGeometry() {
+      const geo = new THREE.ExtrudeGeometry(cyberHexShape, {
+        steps: 1,
+        depth: 0.26,
+        bevelEnabled: true,
+        bevelThickness: 0.04,
+        bevelSize: 0.04,
+        bevelSegments: 3
+      });
+      geo.center(); // 中心を (0,0,0) に完全センタリング (上面は y = +0.17, 底面は y = -0.17)
+      geo.rotateX(-Math.PI / 2);
+      return geo;
+    }
+    const sharedPieceBodyGeo = createCyberChassisGeometry();
+
+    // 2. Raised Outer Bezel Rim (シールを収める「くぼみポケット」を作る外周土手フレーム)
+    function createCyberRimShape() {
+      const shape = createCyberHexShape(1.0); // 外形 CCW
+      const hole = new THREE.Path();
+      const s = 0.915;
+      hole.moveTo(0 * s, 1.12 * s);
+      hole.lineTo(0.80 * s, 0.54 * s);
+      hole.lineTo(0.88 * s, -0.62 * s);
+      hole.lineTo(0.62 * s, -0.98 * s);
+      hole.lineTo(-0.62 * s, -0.98 * s);
+      hole.lineTo(-0.88 * s, -0.62 * s);
+      hole.lineTo(-0.80 * s, 0.54 * s);
+      hole.closePath();
+      shape.holes.push(hole);
+      return shape;
+    }
+
+    function createCyberRimGeometry() {
+      const shape = createCyberRimShape();
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: 0.045, // くぼみの深さ (4.5cm)
+        bevelEnabled: true,
+        bevelThickness: 0.015,
+        bevelSize: 0.015,
+        bevelSegments: 2
+      });
+      geo.center();
+      geo.rotateX(-Math.PI / 2);
+      return geo;
+    }
+    const sharedRimGeo = createCyberRimGeometry();
+
+    // 3. Waist Energy Slit Conduit (側面ネオンレール)
+    function createWaistRailGeometry() {
+      const shape = createCyberHexShape(1.025);
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: 0.035,
+        bevelEnabled: false
+      });
+      geo.center();
+      geo.rotateX(-Math.PI / 2);
+      return geo;
+    }
+    const sharedWaistRailGeo = createWaistRailGeometry();
+
+    // 4. Sticker Decal Plate (くぼみにぴったり収まる大判シールプレート: scale 0.915)
+    const STICKER_SCALE = 0.915;
+    const sharedStickerPlateGeo = new THREE.PlaneGeometry(1.80 * STICKER_SCALE, 2.15 * STICKER_SCALE);
+    sharedStickerPlateGeo.rotateX(-Math.PI / 2);
+
+    // Canvas path tracing helper for Cyber Hexagon (Canvas 2048x2048 ジャストフィット)
+    function traceCyberHexCanvas(ctx, isBlue = true, inset = 0) {
+      ctx.beginPath();
+      if (isBlue) {
+        // P1: Pointing Upward
+        ctx.moveTo(1024, 75 + inset);
+        ctx.lineTo(1830 - inset * 0.8, 590 + inset * 0.6);
+        ctx.lineTo(1910 - inset * 0.8, 1630 - inset * 0.7);
+        ctx.lineTo(1670 - inset * 0.6, 1950 - inset);
+        ctx.lineTo(378 + inset * 0.6, 1950 - inset);
+        ctx.lineTo(138 + inset * 0.8, 1630 - inset * 0.7);
+        ctx.lineTo(218 + inset * 0.8, 590 + inset * 0.6);
+      } else {
+        // P2: Pointing Downward
+        ctx.moveTo(1024, 1973 - inset);
+        ctx.lineTo(218 + inset * 0.8, 1458 - inset * 0.6);
+        ctx.lineTo(138 + inset * 0.8, 418 + inset * 0.7);
+        ctx.lineTo(378 + inset * 0.6, 98 + inset);
+        ctx.lineTo(1670 - inset * 0.6, 98 + inset);
+        ctx.lineTo(1910 - inset * 0.8, 418 + inset * 0.7);
+        ctx.lineTo(1830 - inset * 0.8, 1458 - inset * 0.6);
+      }
+      ctx.closePath();
+    }
+
+    const loadedPieceImages = {};
+
+    function getAssetUrl(unitId, fallbackPath) {
+      const key = (unitId || '').toLowerCase();
+      if (typeof ASSETS_BASE64 !== 'undefined' && ASSETS_BASE64[key]) {
+        return ASSETS_BASE64[key];
+      }
+      if (typeof ASSETS_BASE64 !== 'undefined' && fallbackPath) {
+        const m = fallbackPath.match(/\/([^\/]+)\.[a-zA-Z]+$/);
+        if (m && ASSETS_BASE64[m[1].toLowerCase()]) {
+          return ASSETS_BASE64[m[1].toLowerCase()];
+        }
+      }
+      return fallbackPath;
+    }
+
+    // Pre-populate Base64 Image Objects
+    if (typeof ASSETS_BASE64 !== 'undefined') {
+      Object.keys(ASSETS_BASE64).forEach(k => {
+        const img = new Image();
+        img.src = ASSETS_BASE64[k];
+        loadedPieceImages[k.toUpperCase()] = img;
+        loadedPieceImages[k.toLowerCase()] = img;
+      });
+    }
+
+    // High-Resolution Futuristic Minimal Decal Texture (通常マット仕様)
+    function createCharacterPieceTopTexture(unitData) {
+      const cvs = document.createElement('canvas');
+      cvs.width = 2048;
+      cvs.height = 2048;
+      const ctx = cvs.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      const tex = new THREE.CanvasTexture(cvs);
+      tex.encoding = THREE.sRGBEncoding; // Three.js r128 sRGBガンマ補正でくすみ完全解消！
+      tex.generateMipmaps = false;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.anisotropy = 16;
+
+      const isBlue = unitData.team === 'P1';
+      const primaryColor = isBlue ? '#00bbf9' : '#ff2e63';
+
+      function drawCard(imgElement) {
+        ctx.clearRect(0, 0, 2048, 2048);
+        ctx.save();
+
+        // 1. Clip Cyber Hexagon Contour
+        traceCyberHexCanvas(ctx, isBlue, 0);
+        ctx.clip();
+
+        // 2. Clean High-Tech Base
+        ctx.fillStyle = isBlue ? '#ffffff' : '#080d1a';
+        ctx.fillRect(0, 0, 2048, 2048);
+
+        // 3. Character Artwork with Zoom-In (写真を大きく・表情をダイレクトに強調！)
+        if (imgElement) {
+          ctx.save();
+          ctx.filter = 'contrast(1.06) saturate(1.16)';
+          const zoom = 1.32;
+          const drawW = 2048 * zoom;
+          const drawH = 2048 * zoom;
+          const offsetX = (2048 - drawW) / 2;
+          const offsetY = isBlue ? (2048 - drawH) * 0.32 : (2048 - drawH) * 0.68;
+          ctx.drawImage(imgElement, offsetX, offsetY, drawW, drawH);
+          ctx.filter = 'none';
+          ctx.restore();
+        }
+
+        // 4. Precision Corner Reticles (SF照準マーク)
+        ctx.strokeStyle = primaryColor;
+        ctx.lineWidth = 7;
+        const R = 80;
+        function drawReticle(x, y, dx, dy) {
+          ctx.beginPath();
+          ctx.moveTo(x, y + dy * R);
+          ctx.lineTo(x, y);
+          ctx.lineTo(x + dx * R, y);
+          ctx.stroke();
+        }
+        if (isBlue) {
+          drawReticle(360, 720, 1, 1);
+          drawReticle(1688, 720, -1, 1);
+          drawReticle(320, 1720, 1, -1);
+          drawReticle(1728, 1720, -1, -1);
+        } else {
+          drawReticle(360, 1328, 1, -1);
+          drawReticle(1688, 1328, -1, -1);
+          drawReticle(320, 328, 1, 1);
+          drawReticle(1728, 328, -1, 1);
+        }
+
+        // 5. Dual Precision Border Frame (二重スリムベゼル)
+        ctx.strokeStyle = primaryColor;
+        ctx.lineWidth = 16;
+        traceCyberHexCanvas(ctx, isBlue, 8);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 4;
+        traceCyberHexCanvas(ctx, isBlue, 30);
+        ctx.stroke();
+
+        ctx.restore();
+        tex.needsUpdate = true;
+      }
+
+      const cached = loadedPieceImages[unitData.id];
+      if (cached && (cached.complete || cached.naturalWidth > 0)) {
+        drawCard(cached);
+      } else {
+        drawCard(null);
+        const assetSrc = getAssetUrl(unitData.id, unitData.img);
+        if (assetSrc) {
+          const img = new Image();
+          img.onload = () => {
+            loadedPieceImages[unitData.id] = img;
+            drawCard(img);
+          };
+          img.src = assetSrc;
+          if (img.complete) {
+            drawCard(img);
+          }
+        }
+      }
+
+      return tex;
+    }
+
+    function spawnFlatCharacterPiece(data) {
+      const group = new THREE.Group();
+      const isBlue = data.team === 'P1';
+      const primaryHex = isBlue ? 0x00bbf9 : 0xff2e63;
+
+      // 1. Heavy Monolith Chassis Base (外殻メインボディ: タイル上面 y = 0.0 にぴったり接地)
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: isBlue ? 0xf8fafc : 0x0a0f1d,
+        roughness: isBlue ? 0.16 : 0.24,
+        metalness: isBlue ? 0.12 : 0.42
+      });
+      const bodyMesh = new THREE.Mesh(sharedPieceBodyGeo, bodyMat);
+      bodyMesh.position.set(0, 0.17, 0); // タイル上面(0)から全高0.34の重心
+      bodyMesh.castShadow = true;
+      bodyMesh.receiveShadow = true;
+      if (!isBlue) bodyMesh.rotation.y = Math.PI;
+      group.add(bodyMesh);
+
+      // 2. Raised Bezel Rim (シールを収める「くぼみポケット」を作る外周土手フレーム)
+      const rimMesh = new THREE.Mesh(sharedRimGeo, bodyMat);
+      rimMesh.position.set(0, 0.365, 0); // くぼみの深さ 4.5cm を形成
+      rimMesh.castShadow = true;
+      rimMesh.receiveShadow = true;
+      if (!isBlue) rimMesh.rotation.y = Math.PI;
+      group.add(rimMesh);
+
+      // 3. Waist Energy Slit Conduit (側面の極細エナジーレール)
+      const waistMat = new THREE.MeshStandardMaterial({
+        color: primaryHex,
+        emissive: primaryHex,
+        emissiveIntensity: 0.85,
+        roughness: 0.2,
+        metalness: 0.8
+      });
+      const waistMesh = new THREE.Mesh(sharedWaistRailGeo, waistMat);
+      waistMesh.position.set(0, 0.17, 0);
+      if (!isBlue) waistMesh.rotation.y = Math.PI;
+      group.add(waistMesh);
+
+      // 4. Recessed Decal Sticker Plate (くぼみの中にピタッと貼り付けられた高精細通常マットシール)
+      const topTex = createCharacterPieceTopTexture(data);
+      const stickerMat = new THREE.MeshBasicMaterial({
+        map: topTex,
+        transparent: true,
+        alphaTest: 0.05,
+        side: THREE.DoubleSide,
+        toneMapped: false
+      });
+      const topPlate = new THREE.Mesh(sharedStickerPlateGeo, stickerMat);
+      // くぼみの底面 y = 0.34 の直上 y = 0.345 に配置 (外周土手 0.385 より約 4cm 深く沈み込む！)
+      topPlate.position.set(0, 0.345, 0);
+      group.add(topPlate);
+
+      const wPos = gridToWorld(data.r, data.c);
+      group.position.copy(wPos);
+
+      const hudTag = document.createElement('div');
+      hudTag.className = `piece-micro-hud ${isBlue ? 'blue' : 'red'}`;
+      hudTag.innerHTML = `
+        <div class="micro-top-row">
+          <span class="micro-name">${data.name}</span>
+          <span class="micro-hp-num">${data.hp}</span>
+        </div>
+        <div class="micro-hp-track">
+          <div class="micro-hp-fill" style="width: ${(data.hp / data.maxHp) * 100}%"></div>
+        </div>
+      `;
+      labelsContainer.appendChild(hudTag);
+
+      group.userData = {
+        ...data,
+        bodyMesh,
+        topPlate,
+        hudTag
+      };
+
+      scene.add(group);
+      units.push(group);
+      boardState[data.r][data.c] = group;
+      return group;
+    }
+
+    /* ==========================================================================
+       4. SPAWN CORES & HEROES
+       ========================================================================== */
+    function createCoreMonument(r, c, team) {
+      const isBlue = team === 'P1';
+      const group = new THREE.Group();
+      group.position.copy(gridToWorld(r, c));
+
+      const coreColor = isBlue ? 0x0096fa : 0xff2e63;
+
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.88, 1.04, 0.34, 6),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.5, roughness: 0.25 })
+      );
+      base.position.y = 0.17;
+      base.castShadow = true;
+      group.add(base);
+
+      const crystal = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.62, 0),
+        new THREE.MeshBasicMaterial({ color: coreColor })
+      );
+      crystal.position.y = 1.25;
+      crystal.scale.set(0.85, 1.45, 0.85);
+      group.add(crystal);
+
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.92, 0.035, 12, 32),
+        new THREE.MeshBasicMaterial({ color: coreColor })
+      );
+      ring.position.y = 1.25;
+      ring.rotation.x = Math.PI / 3;
+      group.add(ring);
+
+      const hudTag = document.createElement('div');
+      hudTag.className = `piece-micro-hud core-hud ${isBlue ? 'blue' : 'red'}`;
+      hudTag.innerHTML = `
+        <div class="micro-top-row">
+          <span class="micro-name">CORE</span>
+          <span class="micro-hp-num">100</span>
+        </div>
+        <div class="micro-hp-track">
+          <div class="micro-hp-fill" style="width: 100%"></div>
+        </div>
+        ${isBlue ? `
+        <div class="board-ult-hud ally-ult-hud ready" id="ally-ult-hud">
+          <div class="ult-fill" id="ally-ult-fill" style="width: 100%;"></div>
+          <div class="ult-content">
+            <span class="ult-name">ULT</span>
+            <span class="ult-num" id="ally-ult-val">100</span>
+          </div>
+        </div>
+        ` : ''}
+      `;
+      labelsContainer.appendChild(hudTag);
+
+      let ultHudTag = null;
+      if (!isBlue) {
+        ultHudTag = document.createElement('div');
+        ultHudTag.className = 'board-ult-hud enemy-ult-hud';
+        ultHudTag.id = 'enemy-ult-hud';
+        ultHudTag.innerHTML = `
+          <div class="ult-fill" id="enemy-ult-fill" style="width: 75%;"></div>
+          <div class="ult-content">
+            <span class="ult-name">ULT</span>
+            <span class="ult-num" id="enemy-ult-val">75</span>
+          </div>
+        `;
+        labelsContainer.appendChild(ultHudTag);
+      }
+
+      group.userData = {
+        id: isBlue ? 'blue_core' : 'red_core',
+        name: isBlue ? '防衛コア (BLUE)' : '防衛コア (RED)',
+        role: 'CORE',
+        icon: '💎',
+        team,
+        r, c,
+        hp: 100, maxHp: 100, atk: 0,
+        isCore: true,
+        crystal, ring, hudTag, ultHudTag,
+        img: isBlue ? 'assets/kinesis.jpg' : 'assets/nitro.jpg',
+        passiveName: 'コア防衛目標',
+        passiveDesc: '自軍の最重要防衛拠点シンボル。耐久値が0になると即座に敗北。敵コアを完全破壊するか、敵ユニットを全滅させることで作戦勝利となる。（移動・通常攻撃不可）'
+      };
+
+      scene.add(group);
+      units.push(group);
+      boardState[r][c] = group;
+      return group;
+    }
+
+    const blueCoreObj = createCoreMonument(6, 3, 'P1');
+    const redCoreObj  = createCoreMonument(0, 3, 'P2');
+
+    const uKinesis = spawnFlatCharacterPiece({
+      id: 'KINESIS', name: 'キネシス', role: 'ASSAULT', icon: '⚡', team: 'P1',
+      r: 4, c: 3, hp: 95, maxHp: 95, atk: 25,
+      img: 'assets/kinesis.jpg',
+      passiveName: '自律機動',
+      passiveDesc: '自軍ターン開始時、通常の行動トークンとは別に、自身専用の移動トークンを+1枚追加獲得する。このトークンは自身の移動のみに使用可能。',
+      skillTitle: 'オーバードライブ',
+      skillDesc: '発動ターン中、自身の移動範囲を周囲8マスから十字方向2マス先まで拡張し、さらに通常攻撃力を+5増強（ATK 25 ➔ 30）する。',
+      skillStock: 2,
+      ultTitle: 'フォース・バースト',
+      ultDesc: '前方直線上のすべての敵ユニットを貫通して40ダメージを与え、さらに射程線上にある敵防衛コアへ直接25ダメージの致命的衝撃を与える。',
+      voice: '「目標捕捉――音速を超えて貫きます！」'
+    });
+
+    const uVector = spawnFlatCharacterPiece({
+      id: 'VECTOR', name: 'ベクター', role: 'SENTINEL', icon: '🛡️', team: 'P1',
+      r: 4, c: 1, hp: 100, maxHp: 100, atk: 25,
+      img: 'assets/vector.jpg',
+      passiveName: 'バンカー・スナイパー',
+      passiveDesc: '防壁オブジェクトまたは防衛コアに隣接している間、精密射撃態勢となり攻撃力+10の増強バフを常時獲得する。（ATK 15 ➔ 25）',
+      skillTitle: 'フォース・バリケード',
+      skillDesc: '自身から半径2マス以内の任意の空きマスに、敵の進行と射線を完全遮断するエネルギー防壁（耐久値30）を1基設置する。',
+      skillStock: 3,
+      ultTitle: 'バリケード・バッファー',
+      ultDesc: '設置されているすべての味方防壁の耐久値を最大値まで完全修復し、さらに自身の防壁設置ストックを最大値（3個）まで即時全回復する。',
+      voice: '「防衛ライン展開完了。一歩も通しません。」'
+    });
+
+    const uHive = spawnFlatCharacterPiece({
+      id: 'HIVE', name: 'ハイヴ', role: 'DISRUPTOR', icon: '🛸', team: 'P1',
+      r: 5, c: 4, hp: 90, maxHp: 90, atk: 15,
+      img: 'assets/hive.jpg',
+      passiveName: 'ニューロ・カウンター',
+      passiveDesc: '自身の召喚した自律ビットが撃破された際、破壊した敵ユニットへ弱体化（被ダメージ1.5倍）およびスキル使用阻害（2ターン）を付与する。',
+      skillTitle: 'ビット・デプロイ',
+      skillDesc: '味方アサルトユニットの周囲1マスの空きマスへ、自動迎撃を行う自律型戦闘ビット（HP20 / ATK5）を召喚して展開する。',
+      skillStock: 3,
+      ultTitle: 'スウォーム・オーバードライブ',
+      ultDesc: '盤上に存在するすべての自律ビットへ高出力シールド+30と攻撃力+10を2ターン一斉付与し、索敵・攻撃範囲を周囲2マスへ拡大する。',
+      voice: '「自律ビット全機リンク！ハチの巣にしちゃえー♪」'
+    });
+
+    const uIris = spawnFlatCharacterPiece({
+      id: 'IRIS', name: 'アイリス', role: 'SUPPORT', icon: '💉', team: 'P1',
+      r: 5, c: 2, hp: 90, maxHp: 90, atk: 14,
+      img: 'assets/iris.jpg',
+      passiveName: 'ナノ・エンハンスメント',
+      passiveDesc: '自軍ターン終了時、前方直線上で最も近くにいる負傷した味方ユニット1体を自動検知し、HPを5ポイント自動回復する。',
+      skillTitle: 'ライフ・リペア',
+      skillDesc: '射程3マス以内の負傷した味方ユニット1体を対象とし、高濃度ナノリペア剤を注入してHPを30ポイント急速回復する。',
+      skillStock: 2,
+      ultTitle: 'オーバーチャージ・オーラ',
+      ultDesc: '医療ナノフィールドを盤面全域に展開し、すべての味方ユニットおよび防衛コアへ耐久値+15の防護シールドを2ターン一斉付与する。',
+      voice: '「ナノマシン医療フィールド展開！皆さんを守ります！」'
+    });
+
+    const eNitro = spawnFlatCharacterPiece({
+      id: 'NITRO', name: 'ニトロ', role: 'ASSAULT', icon: '💣', team: 'P2',
+      r: 3, c: 3, hp: 85, maxHp: 85, atk: 30,
+      img: 'assets/nitro.jpg',
+      passiveName: 'アフターバーナー',
+      passiveDesc: '敵ユニットを撃破した瞬間、消費した移動トークン1枚を即座にチャージ・回収し、同一ターン内での連続行動を可能にする。',
+      skillTitle: 'ブラスト・ダッシュ',
+      skillDesc: '隣接する敵ユニットを飛び越えてその背後マスへ瞬時に回り込み、高熱ブラストによる強襲攻撃（30ダメージ）を実行する。',
+      skillStock: 2,
+      ultTitle: 'メガトン・カタストロフ',
+      ultDesc: '自身を中心とした周囲1マスの全敵ユニットに35ダメージの破滅的爆風を与え、さらに衝撃波で敵防衛コアにも直接20ダメージを与える。',
+      voice: '「ハハッ！まとめて吹き飛ぶ準備はいい！？」'
+    });
+
+    const ePhase = spawnFlatCharacterPiece({
+      id: 'PHASE', name: 'フェイズ', role: 'ASSAULT', icon: '🌌', team: 'P2',
+      r: 2, c: 5, hp: 90, maxHp: 90, atk: 25,
+      img: 'assets/phase.jpg',
+      passiveName: '位相共鳴',
+      passiveDesc: '味方が展開したディメンション・ゾーン内に侵入または待機した際、自身のHPを10ポイント回復し、さらにULTゲージを+10チャージする。',
+      skillTitle: 'ディメンション・ゾーン',
+      skillDesc: '盤面上の指定マスに持続型の異空間ゾーンを3ターン展開。進入した敵ユニットへ被ダメージ1.3倍の弱体化デバフを付与する。',
+      skillStock: 2,
+      ultTitle: 'フェイズ・シフト',
+      ultDesc: '盤面上の任意の味方ディメンション・ゾーンへ瞬時に位相ワープ移動し、さらに次回の通常攻撃威力を+20増強する。',
+      voice: '「……影からは誰も逃れられない。」'
+    });
+
+    const eGlitch = spawnFlatCharacterPiece({
+      id: 'GLITCH', name: 'グリッチ', role: 'DISRUPTOR', icon: '🌀', team: 'P2',
+      r: 2, c: 1, hp: 90, maxHp: 90, atk: 15,
+      img: 'assets/phase.jpg',
+      passiveName: 'ディメンション・チャージ',
+      passiveDesc: 'ワープまたは跳躍による着地時、空間歪曲ショックにより着地点の周囲1マスにいる全敵ユニットへ弱体化（被ダメージ1.5倍）を付与する。',
+      skillTitle: 'グラビティ・ワープ',
+      skillDesc: '障害物や敵ユニットを無視し、盤面上の任意の味方アサルトユニットに隣接する空きマスへ即座に跳躍移動する。',
+      skillStock: 2,
+      ultTitle: '緊急回避',
+      ultDesc: '空間座標を再計算し、盤面上に存在する任意の空きマスへ完全脱出ワープを行い、自身に付与されたすべての弱体化デバフを完全解除する。',
+      voice: '「座標書き換え完了。」'
+    });
+
+    /* ==========================================================================
+       5. BOARD SELECTION & INTERACTION
+       ========================================================================== */
+    let selectedUnit = uKinesis;
+    let validMoveCoords = [];
+    let validAttackCoords = [];
+    let isAnimating = false;
+
+    const SURROUND_8 = [
+      [-1,-1], [-1,0], [-1,1],
+      [0,-1],          [0,1],
+      [1,-1],  [1,0],  [1,1]
+    ];
+
+    function clearTileHighlights() {
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const hl = tiles[r][c].userData.hlMesh;
+          hl.material.opacity = 0;
+          tiles[r][c].position.y = -0.12;
+        }
+      }
+      validMoveCoords = [];
+      validAttackCoords = [];
+    }
+
+    function updateUnitSelection(unit) {
+      units.forEach(u => u.userData.hudTag.classList.remove('selected'));
+      if (selectedUnit && !selectedUnit.userData.isCore) {
+        gsap.to(selectedUnit.position, { y: 0, duration: 0.2 });
+      }
+      selectedUnit = unit;
+      const d = unit.userData;
+      d.hudTag.classList.add('selected');
+
+      selectRingGroup.position.x = unit.position.x;
+      selectRingGroup.position.z = unit.position.z;
+
+      // Update Right Sidebar Inspector
+      const inspector = document.getElementById('unit-inspector');
+      inspector.classList.toggle('enemy-theme', d.team === 'P2');
+      const dossierImg = document.getElementById('dossier-img');
+      const targetSrc = d.img || 'assets/kinesis.jpg';
+      if (!dossierImg.src.endsWith(targetSrc)) {
+        gsap.fromTo(dossierImg, { opacity: 0.35, scale: 1.04 }, { opacity: 1, scale: 1.0, duration: 0.3, ease: 'power2.out' });
+        dossierImg.src = targetSrc;
+      }
+      document.getElementById('dossier-name').innerText = d.name;
+      document.getElementById('dossier-role').innerText = `${d.icon} ${d.role}`;
+      document.getElementById('dossier-hp').innerText = `${d.hp}`;
+      document.getElementById('dossier-atk').innerText = `${d.atk}`;
+      document.getElementById('dossier-passive-title').innerText = `PASSIVE // ${d.passiveName || '特性'}`;
+      document.getElementById('dossier-passive-desc').innerText = d.passiveDesc;
+
+      const skillCard = document.getElementById('card-cmd-skill');
+      const ultCard = document.getElementById('card-cmd-ult');
+
+      if (d.skillTitle) {
+        document.getElementById('card-skill-title').innerText = d.skillTitle;
+        document.getElementById('card-skill-desc').innerText = d.skillDesc;
+        document.getElementById('card-skill-stock').innerText = `×${d.skillStock}`;
+        document.getElementById('card-ult-title').innerText = d.ultTitle;
+        document.getElementById('card-ult-desc').innerText = d.ultDesc;
+        document.getElementById('card-ult-stock').innerText = allyUltCharge >= 100 ? 'MAX' : `${allyUltCharge}`;
+        skillCard.classList.toggle('disabled', d.team !== 'P1');
+        ultCard.classList.toggle('disabled', d.team !== 'P1');
+      } else {
+        document.getElementById('card-skill-title').innerText = 'コマンドなし';
+        document.getElementById('card-skill-desc').innerText = '防衛拠点は移動およびアクションスキルの行使ができません。';
+        document.getElementById('card-skill-stock').innerText = 'ー';
+        document.getElementById('card-ult-title').innerText = 'EXスキルなし';
+        document.getElementById('card-ult-desc').innerText = '防衛拠点はアルティメットスキルを所持していません。';
+        document.getElementById('card-ult-stock').innerText = 'ー';
+        skillCard.classList.add('disabled');
+        ultCard.classList.add('disabled');
+      }
+
+      clearTileHighlights();
+
+      if (d.team === 'P1' && !d.isCore) {
+        gsap.to(unit.position, { y: 0.38, duration: 0.25, ease: 'back.out(2)' });
+
+        SURROUND_8.forEach(([dr, dc]) => {
+          const nr = d.r + dr;
+          const nc = d.c + dc;
+          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+            const occupant = boardState[nr][nc];
+            const hl = tiles[nr][nc].userData.hlMesh;
+            if (!occupant) {
+              validMoveCoords.push({ r: nr, c: nc });
+              hl.material.color.setHex(0x00e5ff);
+              hl.material.opacity = 0.85;
+              tiles[nr][nc].position.y = -0.06;
+            } else if (occupant.userData.team === 'P2') {
+              validAttackCoords.push({ r: nr, c: nc, target: occupant });
+              hl.material.color.setHex(0xff2e63);
+              hl.material.opacity = 0.92;
+              tiles[nr][nc].position.y = -0.02;
+            }
+          }
+        });
+      }
+    }
+
+    /* ==========================================================================
+       2D ON-BOARD ULT HUD (ALLY / ENEMY TEAM-SHARED GAUGES)
+       ========================================================================== */
+    let allyUltCharge = 100;
+    let enemyUltCharge = 75;
+
+    function updateUltHud() {
+      const allyFill = document.getElementById('ally-ult-fill');
+      const allyVal = document.getElementById('ally-ult-val');
+      const allyHud = document.getElementById('ally-ult-hud');
+      const cardUltStock = document.getElementById('card-ult-stock');
+      const cardUltTrackFill = document.querySelector('.ac-ult-gauge-fill');
+
+      if (allyFill) allyFill.style.width = `${allyUltCharge}%`;
+      if (cardUltTrackFill) cardUltTrackFill.style.width = `${allyUltCharge}%`;
+
+      if (allyVal) {
+        allyVal.innerText = `${allyUltCharge}`;
+        if (allyUltCharge >= 100) {
+          if (allyHud) allyHud.classList.add('ready');
+          if (cardUltStock && selectedUnit && selectedUnit.userData.skillTitle) cardUltStock.innerText = 'MAX';
+        } else {
+          if (allyHud) allyHud.classList.remove('ready');
+          if (cardUltStock && selectedUnit && selectedUnit.userData.skillTitle) cardUltStock.innerText = `${allyUltCharge}`;
+        }
+      }
+
+      const enemyFill = document.getElementById('enemy-ult-fill');
+      const enemyVal = document.getElementById('enemy-ult-val');
+      const enemyHud = document.getElementById('enemy-ult-hud');
+      if (enemyFill) enemyFill.style.width = `${enemyUltCharge}%`;
+      if (enemyVal) {
+        enemyVal.innerText = `${enemyUltCharge}`;
+        if (enemyUltCharge >= 100) {
+          if (enemyHud) enemyHud.classList.add('warning-ready');
+        } else {
+          if (enemyHud) enemyHud.classList.remove('warning-ready');
+        }
+      }
+    }
+
+    updateUnitSelection(uKinesis);
+
+    // Ally ULT gauge is now a passive status UI (button click removed)
+
+    updateUltHud();
+
+    /* ==========================================================================
+       6. COMBAT VFX & ANIMATIONS
+       ========================================================================== */
+    function spawnDamagePopup(worldPos, dmg, tagText = 'CRITICAL', isHeal = false) {
+      const sz = getViewportSize();
+      const p = worldPos.clone();
+      p.y += 1.2;
+      p.project(camera);
+      const x = (p.x * 0.5 + 0.5) * sz.w;
+      const y = (-(p.y * 0.5) + 0.5) * sz.h;
+
+      const el = document.createElement('div');
+      el.className = `ba-dmg-popup ${isHeal ? 'heal' : ''}`;
+      el.innerHTML = `<span class="ba-dmg-tag">${tagText}</span><div class="ba-dmg-num">${isHeal ? '+' : '-'}${dmg}</div>`;
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      labelsContainer.appendChild(el);
+
+      gsap.fromTo(el,
+        { scale: 0.3, opacity: 0, y: 10 },
+        {
+          scale: 1.1,
+          opacity: 1,
+          y: -34,
+          duration: 0.24,
+          ease: 'back.out(2.5)',
+          onComplete: () => {
+            gsap.to(el, {
+              opacity: 0,
+              y: -60,
+              duration: 0.32,
+              delay: 0.4,
+              onComplete: () => el.remove()
+            });
+          }
+        }
+      );
+    }
+
+    function spawn3DShockwave(worldPos, colorHex = 0x0096fa) {
+      const ringGeo = new THREE.RingGeometry(0.2, 0.45, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.9
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(worldPos.x, 0.22, worldPos.z);
+      scene.add(ring);
+
+      gsap.to(ring.scale, { x: 4.5, y: 4.5, z: 4.5, duration: 0.4, ease: 'power2.out' });
+      gsap.to(ringMat, {
+        opacity: 0,
+        duration: 0.4,
+        onComplete: () => scene.remove(ring)
+      });
+    }
+
+    function executePieceMove(unit, targetR, targetC) {
+      if (isAnimating) return;
+      isAnimating = true;
+
+      const d = unit.userData;
+      boardState[d.r][d.c] = null;
+      d.r = targetR;
+      d.c = targetC;
+      boardState[targetR][targetC] = unit;
+
+      const targetWorld = gridToWorld(targetR, targetC);
+      clearTileHighlights();
+
+      const spTok = document.getElementById('tok-kinesis');
+      const mvTok = document.getElementById('tok-move');
+      if (!spTok.classList.contains('used')) {
+        spTok.classList.add('used');
+      } else {
+        mvTok.classList.add('used');
+      }
+
+      gsap.to(selectRingGroup.position, { x: targetWorld.x, z: targetWorld.z, duration: 0.36, ease: 'power3.out' });
+      gsap.to(unit.position, {
+        x: targetWorld.x,
+        z: targetWorld.z,
+        duration: 0.36,
+        ease: 'power3.out'
+      });
+      gsap.to(unit.position, {
+        y: 1.0,
+        duration: 0.18,
+        yoyo: true,
+        repeat: 1,
+        onComplete: () => {
+          spawn3DShockwave(targetWorld, 0x0096fa);
+          isAnimating = false;
+          updateUnitSelection(unit);
+        }
+      });
+    }
+
+    function executePieceAttack(attacker, targetUnit, isUlt = false) {
+      if (isAnimating) return;
+      isAnimating = true;
+      clearTileHighlights();
+
+      const startPos = gridToWorld(attacker.userData.r, attacker.userData.c);
+      const targetPos = gridToWorld(targetUnit.userData.r, targetUnit.userData.c);
+      const midPoint = startPos.clone().lerp(targetPos, 0.5);
+      const lungePos = startPos.clone().lerp(targetPos, 0.65);
+
+      gsap.to(attacker.position, {
+        x: lungePos.x,
+        y: 0.72,
+        z: lungePos.z,
+        duration: 0.2,
+        ease: 'back.in(1.8)',
+        onComplete: () => {
+          spawn3DShockwave(targetPos, isUlt ? 0xf59e0b : 0xff2e63);
+
+          const dist = startPos.distanceTo(targetPos);
+          const beam = new THREE.Mesh(
+            new THREE.CylinderGeometry(isUlt ? 0.34 : 0.12, isUlt ? 0.34 : 0.12, dist + 1.5, 12),
+            new THREE.MeshBasicMaterial({ color: isUlt ? 0xf59e0b : 0x0096fa })
+          );
+          beam.position.copy(midPoint);
+          beam.position.y = 0.45;
+          beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), targetPos.clone().sub(startPos).normalize());
+          scene.add(beam);
+          gsap.to(beam.scale, { x: 0.01, z: 0.01, duration: 0.28, onComplete: () => scene.remove(beam) });
+
+          const dmg = isUlt ? 40 : attacker.userData.atk;
+          targetUnit.userData.hp = Math.max(0, targetUnit.userData.hp - dmg);
+          const hpFill = targetUnit.userData.hudTag.querySelector('.micro-hp-fill');
+          const hpNum = targetUnit.userData.hudTag.querySelector('.micro-hp-num');
+          if (hpFill) hpFill.style.width = `${(targetUnit.userData.hp / targetUnit.userData.maxHp) * 100}%`;
+          if (hpNum) {
+            hpNum.innerText = `${targetUnit.userData.hp}`;
+          }
+
+          if (isUlt && !targetUnit.userData.isCore) {
+            redCoreObj.userData.hp = Math.max(0, redCoreObj.userData.hp - 25);
+            const coreFill = redCoreObj.userData.hudTag.querySelector('.micro-hp-fill');
+            const coreNum = redCoreObj.userData.hudTag.querySelector('.micro-hp-num');
+            if (coreFill) coreFill.style.width = `${redCoreObj.userData.hp}%`;
+            if (coreNum) coreNum.innerText = `${redCoreObj.userData.hp}`;
+          }
+
+          spawnDamagePopup(targetPos, dmg, isUlt ? 'ULTIMATE!!' : 'CRITICAL!');
+
+          gsap.to(targetUnit.position, {
+            z: targetPos.z - 0.42,
+            duration: 0.07,
+            yoyo: true,
+            repeat: 3
+          });
+
+          gsap.to(attacker.position, {
+            x: startPos.x,
+            y: 0.38,
+            z: startPos.z,
+            duration: 0.28,
+            delay: 0.1,
+            ease: 'power2.out',
+            onComplete: () => {
+              isAnimating = false;
+              updateUnitSelection(attacker);
+            }
+          });
+
+          if (!isUlt) {
+            document.getElementById('tok-atk').classList.add('used');
+            allyUltCharge = Math.min(100, allyUltCharge + 25);
+            updateUltHud();
+          }
+        }
+      });
+    }
+
+    /* ==========================================================================
+       7. EX-SKILL CUT-IN SEQUENCE
+       ========================================================================== */
+    function playExCutinAndSkill(unit, isUltimate = true) {
+      if (isAnimating) return;
+      const d = unit.userData;
+      const overlay = document.getElementById('ex-cutin-overlay');
+      const slash = document.getElementById('cutin-slash');
+      const charImg = document.getElementById('cutin-img');
+
+      document.getElementById('cutin-img').src = d.img || 'assets/kinesis.jpg';
+      document.getElementById('cutin-badge').innerText = isUltimate ? 'ULTIMATE OVERDRIVE' : 'TACTICAL SKILL';
+      document.getElementById('cutin-title').innerText = isUltimate ? d.ultTitle : d.skillTitle;
+      document.getElementById('cutin-voice').innerText = d.voice || '「スキル発動！」';
+
+      overlay.style.visibility = 'visible';
+      gsap.to(overlay, { opacity: 1, duration: 0.14 });
+      gsap.fromTo(slash,
+        { scaleY: 0, rotate: -6 },
+        { scaleY: 1, rotate: -6, duration: 0.24, ease: 'back.out(1.6)' }
+      );
+      gsap.fromTo(charImg,
+        { x: -150, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.3, ease: 'power3.out' }
+      );
+
+      setTimeout(() => {
+        gsap.to(slash, { scaleY: 0, duration: 0.18 });
+        gsap.to(overlay, {
+          opacity: 0,
+          duration: 0.2,
+          onComplete: () => {
+            overlay.style.visibility = 'hidden';
+            if (isUltimate) {
+              const target = validAttackCoords.length > 0 ? validAttackCoords[0].target : eNitro;
+              executePieceAttack(unit, target, true);
+              allyUltCharge = 0;
+              updateUltHud();
+            } else {
+              d.atk += 5;
+              d.skillStock = Math.max(0, d.skillStock - 1);
+              spawn3DShockwave(unit.position, 0xf59e0b);
+              spawnDamagePopup(unit.position, 5, 'OVERDRIVE 🔥', true);
+              updateUnitSelection(unit);
+            }
+          }
+        });
+      }, 1050);
+    }
+
+    /* ==========================================================================
+       8. INPUT HANDLING (SCOPED TO 3D VIEWPORT)
+       ========================================================================== */
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    viewportEl.addEventListener('pointerdown', (e) => {
+      if (isAnimating) return;
+
+      const rect = viewportEl.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      const unitHits = raycaster.intersectObjects(units, true);
+      if (unitHits.length > 0) {
+        let obj = unitHits[0].object;
+        while (obj && !units.includes(obj)) obj = obj.parent;
+        if (obj) {
+          const atkMatch = validAttackCoords.find(a => a.target === obj);
+          if (atkMatch && selectedUnit && selectedUnit.userData.team === 'P1') {
+            executePieceAttack(selectedUnit, obj, false);
+            return;
+          }
+          updateUnitSelection(obj);
+          return;
+        }
+      }
+
+      const tileHits = raycaster.intersectObjects(tileGroup.children, true);
+      if (tileHits.length > 0 && selectedUnit && selectedUnit.userData.team === 'P1') {
+        let tileObj = tileHits[0].object;
+        while (tileObj && tileObj.userData.r === undefined) tileObj = tileObj.parent;
+        if (tileObj) {
+          const { r, c } = tileObj.userData;
+          if (validMoveCoords.some(m => m.r === r && m.c === c)) {
+            executePieceMove(selectedUnit, r, c);
+          }
+        }
+      }
+    });
+
+    document.getElementById('card-cmd-skill').addEventListener('click', () => {
+      if (!selectedUnit || selectedUnit.userData.team !== 'P1') return;
+      playExCutinAndSkill(selectedUnit, false);
+    });
+
+    document.getElementById('card-cmd-ult').addEventListener('click', () => {
+      if (!selectedUnit || selectedUnit.userData.team !== 'P1') return;
+      playExCutinAndSkill(selectedUnit, true);
+    });
+
+    /* ==========================================================================
+       HOLD-TO-CONFIRM PHASE END BUTTON (0.5 SECOND HOLD WITH ANIMATION)
+       ========================================================================== */
+    let turnNum = 1;
+    const btnEndTurn = document.getElementById('btn-end-turn');
+    const peHoldFill = document.getElementById('pe-hold-fill');
+    const peRingMeter = document.getElementById('pe-ring-meter');
+    const peHintText = document.getElementById('pe-hint-text');
+
+    const HOLD_DURATION = 500; // 0.5 second hold requirement
+    const RING_CIRCUMFERENCE = 81.68;
+    let isHolding = false;
+    let holdStartTime = 0;
+    let holdAnimFrame = null;
+
+    function resetHoldProgress() {
+      if (holdAnimFrame) {
+        cancelAnimationFrame(holdAnimFrame);
+        holdAnimFrame = null;
+      }
+      isHolding = false;
+      btnEndTurn.classList.remove('is-holding');
+      if (peHoldFill) {
+        peHoldFill.style.transition = 'width 0.16s ease-out';
+        peHoldFill.style.width = '0%';
+      }
+      if (peRingMeter) {
+        peRingMeter.style.transition = 'stroke-dashoffset 0.16s ease-out';
+        peRingMeter.style.strokeDashoffset = RING_CIRCUMFERENCE;
+      }
+      if (peHintText) {
+        peHintText.innerText = 'HOLD 0.5s';
+      }
+    }
+
+    function executePhaseEnd() {
+      if (isAnimating) {
+        resetHoldProgress();
+        return;
+      }
+
+      // Visual flash on confirmation
+      btnEndTurn.classList.add('pe-flash');
+      if (peHintText) peHintText.innerText = 'COMPLETE';
+      setTimeout(() => {
+        btnEndTurn.classList.remove('pe-flash');
+        resetHoldProgress();
+      }, 350);
+
+      turnNum++;
+      const tb = document.getElementById('turn-banner-text');
+      if (tb) {
+        tb.innerText = turnNum < 10 ? `TURN 0${turnNum}` : `TURN ${turnNum}`;
+        gsap.fromTo(tb, { scale: 1.18 }, { scale: 1.0, duration: 0.35, ease: 'back.out(2)' });
+      }
+
+      document.querySelectorAll('.token-capsule').forEach(el => el.classList.remove('used'));
+      spawn3DShockwave(new THREE.Vector3(0, 0, 0), 0x0096fa);
+
+      allyUltCharge = Math.min(100, allyUltCharge + 25);
+      enemyUltCharge = Math.min(100, (turnNum % 2 === 0 ? 100 : (55 + (turnNum * 15) % 40)));
+      updateUltHud();
+    }
+
+    function updateHoldLoop() {
+      if (!isHolding) return;
+      const elapsed = performance.now() - holdStartTime;
+      const progress = Math.min(elapsed / HOLD_DURATION, 1.0);
+
+      if (peHoldFill) {
+        peHoldFill.style.transition = 'none';
+        peHoldFill.style.width = `${progress * 100}%`;
+      }
+      if (peRingMeter) {
+        peRingMeter.style.transition = 'none';
+        peRingMeter.style.strokeDashoffset = `${RING_CIRCUMFERENCE * (1 - progress)}`;
+      }
+
+      if (progress >= 1.0) {
+        isHolding = false;
+        executePhaseEnd();
+      } else {
+        holdAnimFrame = requestAnimationFrame(updateHoldLoop);
+      }
+    }
+
+    btnEndTurn.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || isAnimating) return;
+      isHolding = true;
+      holdStartTime = performance.now();
+      btnEndTurn.classList.add('is-holding');
+      if (peHintText) peHintText.innerText = 'HOLDING...';
+      updateHoldLoop();
+    });
+
+    btnEndTurn.addEventListener('pointerup', resetHoldProgress);
+    btnEndTurn.addEventListener('pointerleave', resetHoldProgress);
+    btnEndTurn.addEventListener('pointercancel', resetHoldProgress);
+    btnEndTurn.addEventListener('click', (e) => {
+      // Prevent accidental instant click triggers
+      e.preventDefault();
+    });
+
+    const GAME_BASE_W = 1600;
+    const GAME_BASE_H = 900;
+    const gameFrameEl = document.getElementById('game-frame');
+
+    function fitGameFrame() {
+      const windowW = window.innerWidth;
+      const windowH = window.innerHeight;
+      const scale = Math.min(windowW / GAME_BASE_W, windowH / GAME_BASE_H);
+      gameFrameEl.style.transform = `scale(${scale})`;
+    }
+
+    window.addEventListener('resize', fitGameFrame);
+    fitGameFrame();
+
+    /* ==========================================================================
+       9. RENDER LOOP
+       ========================================================================== */
+    const tempVec = new THREE.Vector3();
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+
+      const t = now * 0.002;
+
+      selectRingGroup.rotation.y = t * 0.8;
+      hazard1.rotation.y = -t * 0.4;
+      hazard2.rotation.y = t * 0.4;
+
+      const pulse = 0.68 + Math.sin(t * 3.0) * 0.22;
+      validMoveCoords.forEach(({ r, c }) => {
+        tiles[r][c].userData.hlMesh.material.opacity = pulse * 0.85;
+      });
+      validAttackCoords.forEach(({ r, c }) => {
+        tiles[r][c].userData.hlMesh.material.opacity = pulse;
+      });
+
+      blueCoreObj.userData.crystal.rotation.y = t;
+      blueCoreObj.userData.ring.rotation.z = t * 1.2;
+      redCoreObj.userData.crystal.rotation.y = -t;
+      redCoreObj.userData.ring.rotation.z = -t * 1.2;
+
+      const sz = getViewportSize();
+      units.forEach((u) => {
+        if (u.userData.hudTag) {
+          tempVec.set(
+            u.position.x,
+            0.05,
+            u.position.z + (u.userData.isCore ? 0.60 : 0.48)
+          );
+          tempVec.project(camera);
+
+          const x = (tempVec.x * 0.5 + 0.5) * sz.w;
+          const y = (-(tempVec.y * 0.5) + 0.5) * sz.h;
+          u.userData.hudTag.style.left = `${x}px`;
+          u.userData.hudTag.style.top = `${y}px`;
+          u.userData.hudTag.style.zIndex = u === selectedUnit ? '25' : `${Math.max(1, Math.round(y))}`;
+        }
+        if (u.userData.ultHudTag) {
+          tempVec.set(
+            u.position.x,
+            2.75,
+            u.position.z
+          );
+          tempVec.project(camera);
+
+          const ux = (tempVec.x * 0.5 + 0.5) * sz.w;
+          const uy = (-(tempVec.y * 0.5) + 0.5) * sz.h;
+          u.userData.ultHudTag.style.left = `${ux}px`;
+          u.userData.ultHudTag.style.top = `${uy}px`;
+          u.userData.ultHudTag.style.zIndex = `${Math.max(1, Math.round(uy))}`;
+        }
+      });
+
+      renderer.render(scene, camera);
+    }
+    animate(performance.now());
+  </script>
+</body>
+</html>

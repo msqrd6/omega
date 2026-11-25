@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#08090c">
+  <title>PIECE UI LAB // ミニマル駒UI ショーケース</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,700;1,800&family=Dela+Gothic+One&family=M+PLUS+1p:wght@800;900&family=Oswald:wght@500;600;700&family=Rajdhani:wght@600;700&family=RocknRoll+One&family=Teko:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #07080b;
+      --bg-panel: #11141b;
+      --bg-card: #181c26;
+      --border: #2c3344;
+      --ink: #0a0c10;
+      --white: #f3f5ef;
+      --muted: #8b94a5;
+      --lime: #d8ff00;
+      --orange: #ff4625;
+      --amber: #ffc400;
+      --cyan: #00e5ff;
+      --purple: #b366ff;
+      --emerald: #2ee59d;
+
+      --role-assault: #ff5a36;
+      --role-sentinel: #00d8ff;
+      --role-disruptor: #b366ff;
+      --role-support: #2ee59d;
+      --role-core: #ffc400;
+      --role-object: #7dd3fc;
+
+      --display: "Barlow Condensed", "Yu Gothic UI", sans-serif;
+      --num-font: "Barlow Condensed", "Yu Gothic UI", sans-serif;
+      --num-weight: 700;
+      --num-style: normal;
+      --hp-size: 16px;
+      --atk-size: 12px;
+      --jp: "Zen Kaku Gothic New", "Yu Gothic UI", "Meiryo", sans-serif;
+      --name-font: "Zen Kaku Gothic New", "Yu Gothic UI", sans-serif;
+      --name-weight: 900;
+      --name-track: 0.01em;
+      --mono: Consolas, "Courier New", monospace;
+    }
+
+    body.font-zen  { --name-font: "Zen Kaku Gothic New", "Yu Gothic UI", sans-serif; --name-weight: 900; --name-track: 0.01em; }
+    body.font-dela { --name-font: "Dela Gothic One", "Yu Gothic UI", sans-serif; --name-weight: 400; --name-track: -0.01em; }
+    body.font-mplus{ --name-font: "M PLUS 1p", "Yu Gothic UI", sans-serif; --name-weight: 900; --name-track: 0.01em; }
+    body.font-rock { --name-font: "RocknRoll One", "Yu Gothic UI", sans-serif; --name-weight: 400; --name-track: 0em; }
+
+    body.nfont-barlow   { --num-font: "Barlow Condensed", sans-serif; }
+    body.nfont-teko     { --num-font: "Teko", sans-serif; }
+    body.nfont-rajdhani { --num-font: "Rajdhani", sans-serif; }
+    body.nfont-oswald   { --num-font: "Oswald", sans-serif; }
+    body.nfont-impact   { --num-font: Impact, "Arial Black", "Arial Narrow", sans-serif; }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: radial-gradient(circle at 30% 15%, #1c2230 0%, #0a0c11 55%, #050608 100%);
+      color: var(--white);
+      font-family: var(--jp);
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(#ffffff07 1px, transparent 1px),
+        linear-gradient(#ffffff03 1px, transparent 1px),
+        linear-gradient(90deg, #ffffff03 1px, transparent 1px);
+      background-size: 16px 16px, 64px 64px, 64px 64px;
+      z-index: 0;
+    }
+
+    .app-shell {
+      position: relative;
+      z-index: 1;
+      max-width: 1520px;
+      margin: 0 auto;
+      padding: 18px 24px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* ========================================================================
+       HEADER & CONTROL BAR
+       ======================================================================== */
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px 18px;
+      background: rgba(17, 20, 27, 0.92);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 0 #000, 0 16px 32px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(8px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: 8px;
+      background: #1b202c;
+      border: 1px solid #353f54;
+      color: var(--white);
+      text-decoration: none;
+      font: 800 12px var(--jp);
+      transition: 0.14s;
+    }
+    .back-link:hover {
+      border-color: var(--lime);
+      color: var(--lime);
+    }
+
+    .brand-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .brand-tag {
+      font: 900 10px var(--mono);
+      letter-spacing: 0.16em;
+      color: var(--lime);
+    }
+    .brand-copy h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      line-height: 1.1;
+    }
+    .brand-copy h1 span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      margin-left: 8px;
+    }
+
+    .controls-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      background: #0a0c11;
+      border: 1px solid #262d3d;
+      border-radius: 9px;
+    }
+
+    .ctrl-label {
+      font: 900 10px var(--mono);
+      color: var(--muted);
+      padding: 0 8px 0 6px;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    .ctrl-btn {
+      border: 1px solid transparent;
+      background: transparent;
+      color: #b7c0d0;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font: 800 11px var(--jp);
+      cursor: pointer;
+      transition: 0.12s;
+      white-space: nowrap;
+    }
+    .ctrl-btn:hover {
+      color: var(--white);
+      background: #1b202b;
+    }
+    .ctrl-btn.active {
+      background: var(--lime);
+      color: #08090c;
+      border-color: #000;
+      box-shadow: 0 2px 0 #000;
+    }
+    .ctrl-btn.active.enemy-pill {
+      background: var(--orange);
+      color: #fff;
+    }
+
+    /* Style Preset Selector Cards */
+    .preset-bar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 1024px) {
+      .preset-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 600px) {
+      .preset-bar { grid-template-columns: 1fr; }
+    }
+
+    .preset-card {
+      text-align: left;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--bg-panel);
+      border: 1.5px solid var(--border);
+      color: var(--white);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: 0.14s;
+      box-shadow: 0 4px 0 #000;
+    }
+    .preset-card:hover {
+      border-color: #606d8a;
+      transform: translateY(-1px);
+    }
+    .preset-card.active {
+      border-color: var(--lime);
+      background: linear-gradient(135deg, #1b2114 0%, #11141b 70%);
+      box-shadow: 0 4px 0 #000, 0 0 0 1px var(--lime), 0 0 20px rgba(216, 255, 0, 0.15);
+    }
+    .preset-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .preset-code {
+      font: 900 10px var(--mono);
+      letter-spacing: 0.12em;
+      color: var(--lime);
+    }
+    .preset-card:not(.active) .preset-code { color: var(--muted); }
+    .preset-badge {
+      font: 900 9px var(--mono);
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #0a0c10;
+      border: 1px solid #30384b;
+      color: #a4b0c5;
+    }
+    .preset-card.active .preset-badge {
+      background: var(--lime);
+      color: #000;
+      border-color: #000;
+    }
+    .preset-card strong {
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 0.03em;
+    }
+    .preset-card small {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    /* ========================================================================
+       MAIN LAYOUT: GALLERY + LIVE INSPECTOR & 1:1 BOARD PREVIEW
+       ======================================================================== */
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: 1fr 370px;
+      gap: 18px;
+      align-items: start;
+    }
+    @media (max-width: 1180px) {
+      .workspace-grid { grid-template-columns: 1fr; }
+    }
+
+    .panel-box {
+      background: rgba(17, 20, 27, 0.94);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 18px 20px;
+      box-shadow: 0 8px 0 #000, 0 20px 40px rgba(0, 0, 0, 0.45);
+    }
+
+    .section-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #252b3b;
+    }
+    .section-head h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-head h2::before {
+      content: '';
+      width: 4px;
+      height: 16px;
+      border-radius: 2px;
+      background: var(--lime);
+    }
+    .section-sub {
+      font: 700 11px var(--mono);
+      color: var(--muted);
+    }
+
+    /* Role Sections */
+    .role-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .role-group {
+      background: #0d1016;
+      border: 1px solid #222836;
+      border-radius: 12px;
+      padding: 12px 14px 16px;
+    }
+
+    .role-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .role-pill-head {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: #141821;
+      border: 1px solid color-mix(in srgb, var(--rc) 50%, transparent);
+      color: var(--rc);
+      font: 900 11px var(--mono);
+      letter-spacing: 0.08em;
+    }
+    .role-pill-head svg { width: 13px; height: 13px; }
+    .role-pill-head span.jp {
+      font-family: var(--jp);
+      color: var(--white);
+      font-weight: 800;
+    }
+
+    .role-desc {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .piece-showcase-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .showcase-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      border-radius: 12px;
+      background: #131720;
+      border: 1.5px solid #252c3c;
+      cursor: pointer;
+      transition: 0.14s;
+    }
+    .showcase-slot:hover {
+      border-color: #5b6784;
+      background: #181d28;
+    }
+    .showcase-slot.active {
+      border-color: var(--lime);
+      box-shadow: 0 0 0 1px var(--lime), 0 0 18px rgba(216, 255, 0, 0.16);
+    }
+
+    .tile-stage {
+      width: calc(85px * var(--zoom, 1.6));
+      height: calc(83px * var(--zoom, 1.6));
+      display: grid;
+      place-items: center;
+      flex: none;
+    }
+
+    .tile-sim {
+      width: 85px;
+      height: 83px;
+      transform: scale(var(--zoom, 1.6));
+      transform-origin: center center;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid #384256;
+      border-radius: 9px;
+      background: #232936;
+      box-shadow: inset 0 1px 0 #ffffff14, 0 2px 0 #090b10;
+      isolation: isolate;
+    }
+    .tile-sim.ally-zone { background: #1e2d24; border-color: #355c43; }
+    .tile-sim.enemy-zone { background: #2f1d23; border-color: #632d37; }
+    .tile-sim.selected {
+      background: #2d3818;
+      border: 2px solid var(--lime);
+      box-shadow: inset 0 0 0 1.5px var(--lime), 0 0 16px #d8ff0044;
+    }
+
+    .slot-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font: 800 10px var(--mono);
+      color: var(--muted);
+    }
+    .slot-meta b {
+      color: var(--white);
+      font-family: var(--jp);
+      font-size: 11px;
+    }
+
+    /* ========================================================================
+       RIGHT COLUMN: 1:1 BOARD CONTEXT + LIVE INSPECTOR CUSTOMIZER
+       ======================================================================== */
+    .right-rail {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: sticky;
+      top: 16px;
+    }
+
+    .inspector-preview-stage {
+      height: 270px;
+      border-radius: 12px;
+      background: radial-gradient(circle at 50% 45%, #232a3a 0%, #10131a 72%, #080a0e 100%);
+      border: 1px solid #2b3244;
+      display: grid;
+      place-items: center;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .inspector-preview-stage::before {
+      content: 'LIVE 2.7× LOUPE';
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      font: 900 9px var(--mono);
+      letter-spacing: 0.14em;
+      color: var(--muted);
+    }
+    .inspector-preview-stage .tile-sim {
+      --zoom: 2.7;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .field.full { grid-column: 1 / -1; }
+    .field label {
+      font: 900 9px var(--mono);
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+    .field input, .field select {
+      width: 100%;
+      padding: 6px 9px;
+      border-radius: 7px;
+      background: #0a0c11;
+      border: 1px solid #30384b;
+      color: var(--white);
+      font: 700 12px var(--jp);
+      outline: none;
+    }
+    .field input:focus, .field select:focus {
+      border-color: var(--lime);
+    }
+
+    .board-context-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .mini-board-frame {
+      padding: 10px;
+      border-radius: 12px;
+      background: #131720;
+      border: 2px solid #455068;
+      box-shadow: 0 6px 0 #000;
+    }
+    .mini-board-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 85px);
+      grid-template-rows: repeat(3, 83px);
+      gap: 6px;
+    }
+    .mini-board-note {
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.45;
+    }
+
+    .floor-sim {
+      position: absolute;
+      inset: 2px;
+      border-radius: 7px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .floor-sim.toxic {
+      background: repeating-linear-gradient(-45deg, #b366ff33 0 5px, transparent 5px 10px);
+      border: 1.5px dashed var(--purple);
+    }
+    .floor-sim.dimension {
+      background: #00e5ff24;
+      border: 1.5px solid var(--cyan);
+    }
+
+    .copy-btn {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      background: #1b2214;
+      border: 1.5px solid var(--lime);
+      color: var(--lime);
+      font: 900 11px var(--mono);
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: 0.12s;
+    }
+    .copy-btn:hover {
+      background: var(--lime);
+      color: #08090c;
+    }
+
+    /* ========================================================================
+       COMMON PIECE VARIABLES & SHARED TOKENS
+       Hierarchy:
+         - HP   : Large bold WHITE
+         - ATK  : Smaller bold COLORED (Amber or Role/Accent)
+         - ROLE : Colored ICON ONLY (no text!)
+         - NAME : Clean compact text
+       ======================================================================== */
+    .p-token {
+      --accent: var(--lime);
+      --team-bg-top: #445816;
+      --team-bg-bot: #18200c;
+      --role-color: var(--role-assault);
+      --atk-color: var(--amber);
+      position: relative;
+      width: 92%;
+      height: 94%;
+      z-index: 2;
+      user-select: none;
+      filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.78));
+    }
+
+    .p-token.p2 {
+      --accent: var(--orange);
+      --team-bg-top: #6e2219;
+      --team-bg-bot: #270f0e;
+    }
+
+    .p-token.atk-team { --atk-color: var(--accent); }
+    .p-token.atk-role { --atk-color: var(--role-color); }
+
+    .p-token[data-role="ASSAULT"]   { --role-color: var(--role-assault); }
+    .p-token[data-role="SENTINEL"]  { --role-color: var(--role-sentinel); }
+    .p-token[data-role="DISRUPTOR"] { --role-color: var(--role-disruptor); }
+    .p-token[data-role="SUPPORT"]   { --role-color: var(--role-support); }
+    .p-token[data-role="CORE"]      { --role-color: var(--role-core); }
+    .p-token[data-role="OBJECT"]    { --role-color: var(--role-object); }
+
+    .p-token .svg-ic {
+      width: 1em;
+      height: 1em;
+      display: block;
+      flex: none;
+    }
+
+    /* Hide HP bar smoothly when HP BAR toggle is OFF */
+    .no-hpbar .hp-track-opt {
+      display: none !important;
+    }
+
+    /* ========================================================================
+       DESIGN 01: CLEAN MEDAL (極簡メダル型)
+       - 立ち絵の視認性を最優先した円形トークン
+       - 左上: 色付きロールアイコンのみ (文字なし)
+       - 下部: 白く大きなHP (主役) + 色付きで小さなATK (副) + スッキリ名前
+       ======================================================================== */
+    .p-clean-medal {
+      width: 92%;
+      height: 94%;
+    }
+
+    .p-clean-medal .cm-face {
+      position: absolute;
+      left: 50%;
+      top: 1px;
+      transform: translateX(-50%);
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 35%, var(--team-bg-top) 0%, var(--team-bg-bot) 80%);
+      border: 2px solid #08090c;
+      box-shadow:
+        0 0 0 2.5px var(--accent),
+        0 3px 0 #000;
+      overflow: hidden;
+    }
+
+    .p-clean-medal .cm-face img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transform: translateY(-3%) scale(1.42);
+      transform-origin: 50% 15%;
+      display: block;
+    }
+
+    /* Core & Structure (Barricade / Turret) portrait treatment */
+    .p-token.is-structure .cm-face,
+    .p-token.is-structure .ft-ring {
+      border-radius: 13px;
+    }
+    .p-token .core-emblem {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+      background:
+        radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--accent) 28%, transparent) 0%, transparent 70%);
+    }
+    .p-token .core-emblem svg {
+      width: 30px;
+      height: 30px;
+      transform: translateY(-4px);
+      filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 55%, transparent));
+    }
+    .p-token .cm-atk.is-none,
+    .p-token .cp-atk.is-none,
+    .p-token .ft-atk.is-none {
+      color: #5b657a;
+    }
+
+    /* Pure colored role icon badge (zero text), anchored cleanly at 10:30 of portrait ring */
+    .p-clean-medal .cm-role {
+      position: absolute;
+      top: -1px;
+      left: 3.5px;
+      z-index: 5;
+      width: 19px;
+      height: 19px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #0a0c10;
+      border: 1.5px solid var(--role-color);
+      color: var(--role-color);
+      box-shadow: 0 2px 0 #000, 0 0 8px color-mix(in srgb, var(--role-color) 35%, transparent);
+    }
+    .p-clean-medal .cm-role .svg-ic {
+      width: 10px;
+      height: 10px;
+    }
+
+    /* Minimal bottom dock with central recessed notch between HP and ATK */
+    .p-clean-medal .cm-dock {
+      position: absolute;
+      left: -2px;
+      right: -2px;
+      bottom: -1px;
+      z-index: 4;
+      padding: 4px 0 3px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .p-clean-medal .cm-dock-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      overflow: visible;
+      filter: drop-shadow(0 2px 0 #000);
+      pointer-events: none;
+    }
+
+    .p-clean-medal .cm-dock-svg path {
+      fill: #0a0c11f5;
+      stroke: #3f4a63;
+      stroke-width: 1.5;
+      stroke-linejoin: round;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .p-clean-medal .cm-hp-track {
+      width: calc(100% - 10px);
+      margin: 3px 5px 1.5px;
+      height: 2px;
+      border-radius: 2px;
+      background: #1b2130;
+      overflow: hidden;
+    }
+    .p-clean-medal .cm-hp-track i {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+    }
+
+    .p-clean-medal .cm-nums {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      line-height: 1;
+      width: 100%;
+    }
+    .p-clean-medal .cm-hp {
+      width: 33.75%;
+      margin-left: 1.25%;
+      text-align: center;
+      font-family: var(--num-font);
+      font-style: var(--num-style);
+      font-weight: var(--num-weight);
+      font-size: var(--hp-size);
+      line-height: 0.92;
+      color: #ffffff;
+      letter-spacing: 0.01em;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 1px 0 #000;
+    }
+    .p-clean-medal .cm-atk {
+      width: 22%;
+      margin-right: 3.5%;
+      text-align: center;
+      font-family: var(--num-font);
+      font-style: var(--num-style);
+      font-weight: var(--num-weight);
+      font-size: var(--atk-size);
+      line-height: 0.95;
+      color: var(--atk-color);
+      letter-spacing: 0.01em;
+      font-variant-numeric: tabular-nums;
+    }
+    .p-clean-medal .cm-name {
+      padding: 0 5px;
+      font-family: var(--name-font);
+      font-weight: var(--name-weight);
+      font-size: 8.5px;
+      line-height: 1.12;
+      color: #eef2fa;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: var(--name-track);
+      text-shadow: 0 1px 2px #000;
+    }
+
+    /* ========================================================================
+       DESIGN 02: CLEAN PLATE (コーナー分離・極小情報型)
+       - 角丸フレームいっぱいにキャラを表示し、余計な帯を排したスッキリ構成
+       - 左上: 色付きロールアイコンのみ
+       - 下部: 左に白く大きなHP / 右に色付きで小さなATK / 最下段に名前
+       ======================================================================== */
+    .p-clean-plate {
+      width: 94%;
+      height: 94%;
+      border-radius: 9px;
+      background: radial-gradient(circle at 50% 35%, var(--team-bg-top) 0%, #12161f 68%, var(--team-bg-bot) 100%);
+      border: 2px solid var(--accent);
+      box-shadow: 0 3px 0 #000;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .p-clean-plate .cp-art {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .p-clean-plate .cp-art img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transform: translateY(-5%) scale(1.36);
+      transform-origin: 50% 15%;
+      display: block;
+    }
+    .p-clean-plate .cp-art::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 48%, rgba(7, 9, 13, 0.94) 98%);
+      pointer-events: none;
+    }
+
+    /* Pure colored role icon, floating corner */
+    .p-clean-plate .cp-role {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      z-index: 4;
+      width: 17px;
+      height: 17px;
+      border-radius: 5px;
+      display: grid;
+      place-items: center;
+      background: rgba(8, 10, 14, 0.88);
+      border: 1.5px solid var(--role-color);
+      color: var(--role-color);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    }
+    .p-clean-plate .cp-role .svg-ic {
+      width: 10px;
+      height: 10px;
+    }
+
+    /* Numbers overlaid cleanly over bottom dark gradient — zero extra boxes! */
+    .p-clean-plate .cp-overlay-nums {
+      position: absolute;
+      left: 5px;
+      right: 5px;
+      bottom: 2px;
+      z-index: 4;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      line-height: 1;
+    }
+    .p-clean-plate .cp-hp {
+      font: italic 900 17px/0.9 var(--display);
+      color: #ffffff;
+      text-shadow: 0 2px 3px #000, 0 0 6px #000;
+      font-variant-numeric: tabular-nums;
+    }
+    .p-clean-plate .cp-atk {
+      font: italic 900 11px/1 var(--display);
+      color: var(--atk-color);
+      text-shadow: 0 1px 2px #000, 0 0 4px #000;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .p-clean-plate .cp-footer {
+      flex: none;
+      background: #080a0f;
+      padding: 1.5px 4px 2.5px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5px;
+    }
+    .p-clean-plate .cp-hp-bar {
+      width: 100%;
+      height: 2px;
+      background: #1b2130;
+      border-radius: 1px;
+      overflow: hidden;
+    }
+    .p-clean-plate .cp-hp-bar i {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+    }
+    .p-clean-plate .cp-name {
+      font-family: var(--name-font);
+      font-weight: var(--name-weight);
+      font-size: 8.5px;
+      line-height: 1.12;
+      color: #eef2fa;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: var(--name-track);
+    }
+
+    /* ========================================================================
+       DESIGN 03: FLOATING TOKEN (純粋コマ・ノーボックス型)
+       - 枠線を最小限にし、盤面コマとしての軽快さ・読みやすさを追求
+       - 円形ポートレート + 色付きロールアイコン + 下部に直接ピル配置
+       ======================================================================== */
+    .p-float-token {
+      width: 94%;
+      height: 95%;
+    }
+
+    .p-float-token .ft-ring {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      transform: translateX(-50%);
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 35%, var(--team-bg-top) 0%, var(--team-bg-bot) 82%);
+      border: 2.5px solid var(--accent);
+      box-shadow: 0 3px 0 #000, inset 0 0 10px rgba(0, 0, 0, 0.55);
+      overflow: hidden;
+    }
+    .p-float-token .ft-ring img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transform: translateY(-4%) scale(1.42);
+      transform-origin: 50% 15%;
+      display: block;
+    }
+
+    /* Floating colored role icon (no border box, high-contrast dark halo) */
+    .p-float-token .ft-role {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 5;
+      width: 19px;
+      height: 19px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--role-color);
+      color: #08090c;
+      border: 1.5px solid #08090c;
+      box-shadow: 0 2px 0 #000;
+    }
+    .p-float-token .ft-role .svg-ic {
+      width: 11px;
+      height: 11px;
+      stroke-width: 2.6;
+    }
+
+    /* Large white HP pill bottom-left, small colored ATK pill bottom-right */
+    .p-float-token .ft-hp {
+      position: absolute;
+      left: -1px;
+      bottom: 12px;
+      z-index: 6;
+      padding: 1px 5px 1.5px;
+      border-radius: 5px;
+      background: #080a0ff0;
+      border: 1.5px solid #3c465c;
+      font: italic 900 15px/0.95 var(--display);
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 2px 0 #000;
+    }
+    .p-float-token .ft-atk {
+      position: absolute;
+      right: -1px;
+      bottom: 12px;
+      z-index: 6;
+      padding: 1.5px 4.5px;
+      border-radius: 5px;
+      background: #080a0ff0;
+      border: 1px solid #3c465c;
+      font: italic 900 10.5px/1 var(--display);
+      color: var(--atk-color);
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 2px 0 #000;
+    }
+
+    /* Ultra-clean floating name strip at very bottom */
+    .p-float-token .ft-namebar {
+      position: absolute;
+      left: 1px;
+      right: 1px;
+      bottom: -1px;
+      z-index: 5;
+      background: #080a0fe8;
+      border-radius: 4px;
+      padding: 1.5px 4px 1.5px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      box-shadow: 0 1px 0 #000;
+    }
+    .p-float-token .ft-hp-line {
+      width: 100%;
+      height: 2px;
+      border-radius: 1px;
+      background: #1a202e;
+      overflow: hidden;
+    }
+    .p-float-token .ft-hp-line i {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+    }
+    .p-float-token .ft-name {
+      font-family: var(--name-font);
+      font-weight: var(--name-weight);
+      font-size: 8.5px;
+      line-height: 1.12;
+      color: #eef2fa;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: var(--name-track);
+    }
+
+    /* ========================================================================
+       PRESET 04: CURRENT index.html REFERENCE (現行UI 比較用)
+       ======================================================================== */
+    .p-legacy {
+      width: 90%;
+      height: 92%;
+    }
+    .p-legacy .piece-face {
+      position: absolute;
+      left: 8%;
+      top: 0;
+      width: 84%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 35%, var(--team-bg-top) 0%, var(--team-bg-bot) 78%);
+      border: 2px solid #000;
+      padding: 2px;
+      box-shadow: 0 0 0 2.5px var(--accent), 0 3px 0 #000;
+      overflow: hidden;
+    }
+    .p-legacy .piece-face img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transform: translateY(-4%) scale(1.38);
+      transform-origin: 50% 15%;
+      border-radius: 50%;
+    }
+    .p-legacy .piece-role {
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      display: grid;
+      place-items: center;
+      width: 19px;
+      height: 19px;
+      border-radius: 50%;
+      background: #0b0d12;
+      border: 1.5px solid var(--accent);
+      color: var(--accent);
+      z-index: 4;
+    }
+    .p-legacy .piece-role .svg-ic { width: 10px; height: 10px; }
+    .p-legacy .piece-readout {
+      position: absolute;
+      bottom: -2px;
+      left: -2px;
+      right: -2px;
+      background: #0a0c10f0;
+      border: 1.5px solid #4a5568;
+      border-radius: 4px 4px 6px 6px;
+      padding: 2px 4px;
+      color: #fff;
+      z-index: 4;
+      box-shadow: 0 2px 0 #000;
+    }
+    .p-legacy .piece-values {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      line-height: 1;
+    }
+    .p-legacy .piece-values b {
+      font: italic 14px/1 var(--display);
+      letter-spacing: 0.03em;
+      color: #fff;
+    }
+    .p-legacy .piece-values span {
+      font: italic 900 11.5px/1 var(--display);
+      letter-spacing: 0.04em;
+      color: var(--accent);
+    }
+    .p-legacy .piece-name {
+      display: block;
+      font: 800 8.5px/1.1 var(--jp);
+      color: #c4cddc;
+      text-align: center;
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--lime);
+      color: #08090c;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 2px solid #000;
+      font: 900 12px var(--mono);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.2s;
+      z-index: 999;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header & Global Controls -->
+    <header class="topbar">
+      <div class="brand">
+        <a class="back-link" href="../../index.html">← index.html へ戻る</a>
+        <div class="brand-copy">
+          <span class="brand-tag">TACTICS: CORE BREAK // MINIMAL PIECE UI LAB</span>
+          <h1>ミニマル駒UI ショーケース <span>白大HP · 色付小ATK · 色付ロールアイコン · 名前</span></h1>
+        </div>
+      </div>
+
+      <div class="controls-strip">
+        <div class="ctrl-group" role="group" aria-label="表示倍率">
+          <span class="ctrl-label">ZOOM</span>
+          <button class="ctrl-btn" data-zoom="1">1× 実寸</button>
+          <button class="ctrl-btn active" data-zoom="1.6">1.6×</button>
+          <button class="ctrl-btn" data-zoom="2.2">2.2×</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="陣営カラー">
+          <span class="ctrl-label">TEAM</span>
+          <button class="ctrl-btn active" data-team="P1">ALLY</button>
+          <button class="ctrl-btn" data-team="P2">ENEMY</button>
+          <button class="ctrl-btn" data-team="MIX">MIXED</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="攻撃力カラー">
+          <span class="ctrl-label">ATK色</span>
+          <button class="ctrl-btn active" data-atkcolor="amber">橙黄</button>
+          <button class="ctrl-btn" data-atkcolor="team">陣営色</button>
+          <button class="ctrl-btn" data-atkcolor="role">ロール色</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="HPバー表示">
+          <span class="ctrl-label">HPバー</span>
+          <button class="ctrl-btn active" data-hpbar="on">ON</button>
+          <button class="ctrl-btn" data-hpbar="off">OFF</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="HP残量">
+          <span class="ctrl-label">HP状態</span>
+          <button class="ctrl-btn active" data-hpstate="1">100%</button>
+          <button class="ctrl-btn" data-hpstate="0.5">50%</button>
+          <button class="ctrl-btn" data-hpstate="0.25">25%</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="名前フォント">
+          <span class="ctrl-label">名前FONT</span>
+          <button class="ctrl-btn active" data-font="zen">角ゴ</button>
+          <button class="ctrl-btn" data-font="dela">極太</button>
+          <button class="ctrl-btn" data-font="mplus">M+</button>
+          <button class="ctrl-btn" data-font="rock">エッジィ</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="数値フォント">
+          <span class="ctrl-label">数値FONT</span>
+          <button class="ctrl-btn" data-nfont="barlow">Barlow</button>
+          <button class="ctrl-btn" data-nfont="teko">Teko</button>
+          <button class="ctrl-btn" data-nfont="rajdhani">Rajdhani</button>
+          <button class="ctrl-btn active" data-nfont="oswald">Oswald</button>
+          <button class="ctrl-btn" data-nfont="impact">Impact</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="数値の太さ">
+          <span class="ctrl-label">太さ</span>
+          <button class="ctrl-btn active" data-nweight="600">細め</button>
+          <button class="ctrl-btn" data-nweight="700">標準</button>
+          <button class="ctrl-btn" data-nweight="800">太め</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="斜体">
+          <span class="ctrl-label">斜体</span>
+          <button class="ctrl-btn" data-nstyle="normal">正体</button>
+          <button class="ctrl-btn active" data-nstyle="italic">斜体</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="数値サイズ">
+          <span class="ctrl-label">サイズ</span>
+          <button class="ctrl-btn" data-nsize="14/10.5">小 (14/10.5)</button>
+          <button class="ctrl-btn active" data-nsize="16/12">中 (16/12)</button>
+          <button class="ctrl-btn" data-nsize="18/13.5">大 (18/13.5)</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Preset Design Switcher -->
+    <section class="preset-bar" aria-label="駒デザイン案の切り替え">
+      <button class="preset-card active" data-preset="medal">
+        <div class="preset-card-top">
+          <span class="preset-code">MINIMAL 01</span>
+          <span class="preset-badge">RECOMMENDED</span>
+        </div>
+        <strong>CLEAN MEDAL（極簡メダル型）</strong>
+        <small>文字を極力排し、左上の色付ロールアイコン＋下段の「白大HP / 色付小ATK / 名前」のみで構成</small>
+      </button>
+
+      <button class="preset-card" data-preset="plate">
+        <div class="preset-card-top">
+          <span class="preset-code">MINIMAL 02</span>
+          <span class="preset-badge">MAX ART</span>
+        </div>
+        <strong>CLEAN PLATE（純アイコン・全面型）</strong>
+        <small>立ち絵の面積を最大化。枠外の余計な囲みをなくし、下部に白大HPと色付小ATKを直置き</small>
+      </button>
+
+      <button class="preset-card" data-preset="float">
+        <div class="preset-card-top">
+          <span class="preset-code">MINIMAL 03</span>
+          <span class="preset-badge">CHESS TOKEN</span>
+        </div>
+        <strong>FLOATING TOKEN（コマ型）</strong>
+        <small>ロール色を塗りアイコンで強調し、HPとATKを左右の独立ポッドに分けて瞬時に読み取れる構成</small>
+      </button>
+
+      <button class="preset-card" data-preset="legacy">
+        <div class="preset-card-top">
+          <span class="preset-code">REFERENCE</span>
+          <span class="preset-badge">CURRENT</span>
+        </div>
+        <strong>CURRENT index.html（現行比較）</strong>
+        <small>現在の index.html の表示。ロールが陣営色で同一アイコンだった点や数値のメリハリ差を比較</small>
+      </button>
+    </section>
+
+    <!-- Main Workspace: All 12 Heroes by Role + Right Side Inspector & 1:1 Board -->
+    <div class="workspace-grid">
+      <main class="panel-box">
+        <div class="section-head">
+          <h2>全エージェント ＋ コア・設置物・子機 駒UI一覧</h2>
+          <span class="section-sub">赤橙=アサルト / 水=センチネル / 紫=ディスラプター / 緑=サポート / 黄=コア / 氷=設置物</span>
+        </div>
+        <div id="role-groups-container" class="role-groups"></div>
+      </main>
+
+      <aside class="right-rail">
+        <!-- Single Piece Live Inspector -->
+        <section class="panel-box">
+          <div class="section-head">
+            <h2>選択駒 インスペクター</h2>
+            <span class="section-sub" id="inspector-slug">KINESIS</span>
+          </div>
+
+          <div class="inspector-preview-stage">
+            <div class="tile-sim selected" id="inspector-tile"></div>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label for="edit-name">NAME（名前）</label>
+              <input id="edit-name" type="text" maxlength="10" value="キネシス">
+            </div>
+            <div class="field">
+              <label for="edit-role">ROLE（アイコン色・形）</label>
+              <select id="edit-role">
+                <option value="ASSAULT">アサルト（稲妻 · 赤橙）</option>
+                <option value="SENTINEL">センチネル（盾 · 水色）</option>
+                <option value="DISRUPTOR">ディスラプター（照準 · 紫）</option>
+                <option value="SUPPORT">サポート（十字 · 緑）</option>
+                <option value="CORE">コア（ダイヤ · 黄）</option>
+                <option value="OBJECT">設置物（ブロック · 氷）</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="edit-hp">HP（白・大）</label>
+              <input id="edit-hp" type="number" min="1" max="999" value="95">
+            </div>
+            <div class="field">
+              <label for="edit-atk">ATK（色付・小）</label>
+              <input id="edit-atk" type="number" min="0" max="999" value="25">
+            </div>
+            <div class="field full">
+              <label for="edit-team">TEAM（陣営枠）</label>
+              <select id="edit-team">
+                <option value="P1">ALLY (P1 · LIME)</option>
+                <option value="P2">ENEMY (P2 · ORANGE)</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="copy-btn" id="btn-copy-snippet">この駒デザインのHTMLをコピー</button>
+        </section>
+
+        <!-- 1:1 Board Context -->
+        <section class="panel-box">
+          <div class="section-head">
+            <h2>実寸 1:1 盤面プレビュー</h2>
+            <span class="section-sub">85×83px EXACT TILE</span>
+          </div>
+          <div class="board-context-wrap">
+            <div class="mini-board-frame">
+              <div class="mini-board-grid" id="mini-board-grid"></div>
+            </div>
+            <p class="mini-board-note">
+              実寸（1:1）での見え方チェック用です。HP（白・大）と攻撃力（色付・小）、ロールアイコンがごちゃつかずに判別できるか確認できます。
+            </p>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">COPIED!</div>
+
+  <script>
+    const ROLES = {
+      ASSAULT:   { key: 'ASSAULT',   jp: 'アサルト',       en: 'ASSAULT',   colorVar: '--role-assault',   desc: '稲妻アイコン（赤橙）：突撃・高火力' },
+      SENTINEL:  { key: 'SENTINEL',  jp: 'センチネル',     en: 'SENTINEL',  colorVar: '--role-sentinel',  desc: '盾アイコン（水色）：陣地構築・防衛' },
+      DISRUPTOR: { key: 'DISRUPTOR', jp: 'ディスラプター', en: 'DISRUPTOR', colorVar: '--role-disruptor', desc: '照準アイコン（紫）：妨害・トリッキー' },
+      SUPPORT:   { key: 'SUPPORT',   jp: 'サポート',       en: 'SUPPORT',   colorVar: '--role-support',   desc: '十字アイコン（緑）：回復・シールド支援' }
+    };
+
+    const SPECIAL_GROUP = {
+      key: 'SPECIAL',
+      jp: 'コア · 設置物 · 子機',
+      en: 'CORE / OBJECTS',
+      colorVar: '--role-core',
+      desc: 'ダイヤ（黄）=コア / ブロック（氷）=タレット・防壁 / アサルト=ビット'
+    };
+
+    const HEROES = [
+      { key: 'KINESIS', slug: 'kinesis', name: 'キネシス',   role: 'ASSAULT',   maxHp: 95,  atk: 25 },
+      { key: 'PHASE',   slug: 'phase',   name: 'フェイズ',   role: 'ASSAULT',   maxHp: 80,  atk: 30 },
+      { key: 'NITRO',   slug: 'nitro',   name: 'ニトロ',     role: 'ASSAULT',   maxHp: 110, atk: 20 },
+
+      { key: 'VECTOR',  slug: 'vector',  name: 'ベクター',   role: 'SENTINEL',  maxHp: 100, atk: 15 },
+      { key: 'VULCAN',  slug: 'vulcan',  name: 'ヴァルカン', role: 'SENTINEL',  maxHp: 100, atk: 15 },
+      { key: 'TOXIN',   slug: 'toxin',   name: 'トキシン',   role: 'SENTINEL',  maxHp: 100, atk: 15 },
+
+      { key: 'GLITCH',  slug: 'glitch',  name: 'グリッチ',   role: 'DISRUPTOR', maxHp: 90,  atk: 15 },
+      { key: 'CYPHER',  slug: 'cypher',  name: 'サイファー', role: 'DISRUPTOR', maxHp: 95,  atk: 20 },
+      { key: 'HIVE',    slug: 'hive',    name: 'ハイヴ',     role: 'DISRUPTOR', maxHp: 90,  atk: 15 },
+
+      { key: 'IRIS',    slug: 'iris',    name: 'アイリス',   role: 'SUPPORT',   maxHp: 90,  atk: 14 },
+      { key: 'NEXUS',   slug: 'nexus',   name: 'ネクサス',   role: 'SUPPORT',   maxHp: 90,  atk: 14 },
+      { key: 'AURA',    slug: 'aura',    name: 'オーラ',     role: 'SUPPORT',   maxHp: 90,  atk: 18 },
+
+      // Special units & structures (group: 'SPECIAL')
+      { key: 'CORE',      slug: 'core',      name: '防衛コア',     role: 'CORE',    group: 'SPECIAL', maxHp: 100, atk: 0,  isStructure: true, emblem: 'CORE' },
+      { key: 'TURRET',    slug: 'vulcan',    name: '自動タレット', role: 'OBJECT',  group: 'SPECIAL', maxHp: 20,  atk: 10, isStructure: true, emblem: 'TURRET' },
+      { key: 'BARRICADE', slug: 'barricade', name: '防壁',         role: 'OBJECT',  group: 'SPECIAL', maxHp: 30,  atk: 0,  isStructure: true },
+      { key: 'BIT',       slug: 'hive',      name: 'ビット',       role: 'ASSAULT', group: 'SPECIAL', maxHp: 20,  atk: 5 }
+    ];
+
+    const SVG_ICONS = {
+      ASSAULT:   '<path d="m13 2-9 12h7l-1 8 10-13h-8Z"/>',
+      SENTINEL:  '<path d="m12 2 8 3v6c0 5-8 11-8 11S4 16 4 11V5Z"/>',
+      DISRUPTOR: '<circle cx="12" cy="12" r="5.5"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>',
+      SUPPORT:   '<path d="M8.5 3h7v5.5H21v7h-5.5V21h-7v-5.5H3v-7h5.5Z"/>',
+      CORE:      '<path d="m12 2 9 10-9 10L3 12Z"/><path d="m12 7 4 5-4 5-4-5Z"/>',
+      OBJECT:    '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v6m6 0v10M3 15h18"/>',
+      TURRET:    '<path d="M12 3v4M6 11h12l-1.5-4h-9ZM4 20h16M7 20l1.5-9h7L17 20"/><circle cx="12" cy="14" r="1.5"/>'
+    };
+
+    function svgIcon(name) {
+      return `<svg class="svg-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG_ICONS[name] || SVG_ICONS.ASSAULT}</svg>`;
+    }
+
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    const state = {
+      preset: 'medal',       // medal | plate | float | legacy
+      zoom: 1.6,
+      teamMode: 'P1',        // P1 | P2 | MIX
+      atkColor: 'amber',     // amber | team | role
+      hpBar: 'on',           // on | off
+      hpRatio: 1,
+      nameFont: 'zen',       // zen | dela | mplus | rock
+      numFont: 'oswald',     // barlow | teko | rajdhani | oswald | impact
+      numWeight: '600',      // 600 | 700 | 800
+      numStyle: 'italic',    // normal | italic
+      hpSize: '16px',
+      atkSize: '12px',
+      selectedKey: 'KINESIS',
+      custom: {
+        slug: 'kinesis',
+        name: 'キネシス',
+        role: 'ASSAULT',
+        hp: 95,
+        maxHp: 95,
+        atk: 25,
+        owner: 'P1',
+        isStructure: false,
+        emblem: null
+      }
+    };
+
+    function getHpColor(pct) {
+      if (pct <= 30) return '#ff4625';
+      if (pct <= 60) return '#ffc400';
+      return '#2ee59d';
+    }
+
+    function renderFaceVisual({ slug, name, emblem }) {
+      if (emblem && SVG_ICONS[emblem]) {
+        return `<div class="core-emblem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG_ICONS[emblem]}</svg></div>`;
+      }
+      const imgSrc = `../../assets/${esc(slug)}-urban-anime-v2.png`;
+      return `<img src="${imgSrc}" alt="${esc(name)}" draggable="false">`;
+    }
+
+    function renderPieceHTML({ slug, name, role, hp, maxHp, atk, owner, isStructure = false, emblem = null }) {
+      const pct = Math.max(0, Math.min(100, Math.round((hp / (maxHp || hp || 1)) * 100)));
+      const hpColor = getHpColor(pct);
+      const teamCls = owner === 'P2' ? 'p2' : 'p1';
+      const structCls = isStructure ? 'is-structure' : '';
+      const atkCls = state.atkColor === 'team' ? 'atk-team' : (state.atkColor === 'role' ? 'atk-role' : '');
+      const hasAtk = atk > 0;
+      const atkText = hasAtk ? String(atk) : '—';
+      const atkNoneCls = hasAtk ? '' : 'is-none';
+      const styleAttr = `--hp-color: ${hpColor};`;
+      const roleTitle = ROLES[role]?.jp || (role === 'CORE' ? 'コア' : role === 'OBJECT' ? '設置物' : role);
+      const faceInner = renderFaceVisual({ slug, name, emblem });
+
+      if (state.preset === 'medal') {
+        return `
+          <div class="p-token p-clean-medal ${teamCls} ${structCls} ${atkCls}" data-role="${esc(role)}" style="${styleAttr}">
+            <div class="cm-face">
+              ${faceInner}
+            </div>
+            <span class="cm-role" title="${esc(roleTitle)}" aria-label="${esc(roleTitle)}">${svgIcon(role)}</span>
+            <div class="cm-dock">
+              <svg class="cm-dock-svg" viewBox="0 0 80 35" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M 4,1 L 26,1 Q 28,1 28.8,3 L 31.2,15 Q 32,17 34,17 L 56.5,17 Q 58.5,17 59.3,15 L 60.8,7.5 Q 61.6,5.5 63.6,5.5 L 76,5.5 Q 79,5.5 79,8.5 L 79,30 Q 79,34 75,34 L 5,34 Q 1,34 1,30 L 1,4 Q 1,1 4,1 Z"/>
+              </svg>
+              <div class="cm-nums">
+                <span class="cm-hp">${hp}</span>
+                <span class="cm-atk ${atkNoneCls}">${atkText}</span>
+              </div>
+              <div class="cm-hp-track hp-track-opt"><i style="width:${pct}%"></i></div>
+              <div class="cm-name">${esc(name)}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (state.preset === 'plate') {
+        return `
+          <div class="p-token p-clean-plate ${teamCls} ${structCls} ${atkCls}" data-role="${esc(role)}" style="${styleAttr}">
+            <div class="cp-art">
+              ${faceInner}
+              <span class="cp-role" title="${esc(roleTitle)}" aria-label="${esc(roleTitle)}">${svgIcon(role)}</span>
+              <div class="cp-overlay-nums">
+                <span class="cp-hp">${hp}</span>
+                <span class="cp-atk ${atkNoneCls}">${atkText}</span>
+              </div>
+            </div>
+            <div class="cp-footer">
+              <div class="cp-hp-bar hp-track-opt"><i style="width:${pct}%"></i></div>
+              <div class="cp-name">${esc(name)}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (state.preset === 'float') {
+        return `
+          <div class="p-token p-float-token ${teamCls} ${structCls} ${atkCls}" data-role="${esc(role)}" style="${styleAttr}">
+            <div class="ft-ring">
+              ${faceInner}
+            </div>
+            <span class="ft-role" title="${esc(roleTitle)}" aria-label="${esc(roleTitle)}">${svgIcon(role)}</span>
+            <span class="ft-hp">${hp}</span>
+            <span class="ft-atk ${atkNoneCls}">${atkText}</span>
+            <div class="ft-namebar">
+              <div class="ft-hp-line hp-track-opt"><i style="width:${pct}%"></i></div>
+              <div class="ft-name">${esc(name)}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Legacy index.html reference
+      const legacyRoleIcon = role === 'SUPPORT' ? 'SUPPORT' : role === 'DISRUPTOR' ? 'DISRUPTOR' : role === 'CORE' ? 'CORE' : role === 'OBJECT' ? 'OBJECT' : 'ASSAULT';
+      return `
+        <div class="p-token p-legacy ${teamCls} ${structCls}" data-role="${esc(role)}">
+          <span class="piece-face">${faceInner}</span>
+          <span class="piece-role">${svgIcon(legacyRoleIcon)}</span>
+          <span class="piece-readout">
+            <span class="piece-values"><b>${hp}</b><span>${hasAtk ? atk : ''}</span></span>
+            <span class="piece-name">${esc(name)}</span>
+          </span>
+        </div>
+      `;
+    }
+
+    function renderAll() {
+      document.documentElement.style.setProperty('--zoom', state.zoom);
+      document.documentElement.style.setProperty('--num-weight', state.numWeight);
+      document.documentElement.style.setProperty('--num-style', state.numStyle);
+      document.documentElement.style.setProperty('--hp-size', state.hpSize);
+      document.documentElement.style.setProperty('--atk-size', state.atkSize);
+      document.body.classList.toggle('no-hpbar', state.hpBar === 'off');
+      document.body.classList.remove('font-zen', 'font-dela', 'font-mplus', 'font-rock');
+      document.body.classList.add(`font-${state.nameFont}`);
+      document.body.classList.remove('nfont-barlow', 'nfont-teko', 'nfont-rajdhani', 'nfont-oswald', 'nfont-impact');
+      document.body.classList.add(`nfont-${state.numFont}`);
+
+      const groups = [
+        ...Object.values(ROLES).map(r => ({ ...r, items: HEROES.filter(h => !h.group && h.role === r.key) })),
+        { ...SPECIAL_GROUP, items: HEROES.filter(h => h.group === 'SPECIAL') }
+      ];
+
+      const container = document.getElementById('role-groups-container');
+      container.innerHTML = groups.map(group => {
+        const cardsHtml = group.items.map((h, idx) => {
+          const owner = state.teamMode === 'MIX'
+            ? (idx % 2 === 0 ? 'P1' : 'P2')
+            : state.teamMode;
+          const hp = Math.max(1, Math.round(h.maxHp * state.hpRatio));
+          const isSelected = state.selectedKey === h.key;
+          const pieceHtml = renderPieceHTML({
+            slug: h.slug,
+            name: h.name,
+            role: h.role,
+            hp,
+            maxHp: h.maxHp,
+            atk: h.atk,
+            owner,
+            isStructure: !!h.isStructure,
+            emblem: h.emblem || null
+          });
+          return `
+            <div class="showcase-slot ${isSelected ? 'active' : ''}" data-hero="${h.key}" tabindex="0" role="button" aria-label="${esc(h.name)} を編集">
+              <div class="tile-stage">
+                <div class="tile-sim ${owner === 'P2' ? 'enemy-zone' : 'ally-zone'} ${isSelected ? 'selected' : ''}">
+                  ${pieceHtml}
+                </div>
+              </div>
+              <div class="slot-meta">
+                <b>${esc(h.name)}</b>
+                <span>HP ${hp}${h.atk > 0 ? ` · ATK ${h.atk}` : ''}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <section class="role-group" style="--rc: var(${group.colorVar});">
+            <div class="role-group-header">
+              <span class="role-pill-head">
+                ${svgIcon(group.key === 'SPECIAL' ? 'CORE' : group.key)}
+                <span>${group.en}</span>
+                <span class="jp">/ ${group.jp}</span>
+              </span>
+              <span class="role-desc">${group.desc}</span>
+            </div>
+            <div class="piece-showcase-row">${cardsHtml}</div>
+          </section>
+        `;
+      }).join('');
+
+      container.querySelectorAll('.showcase-slot').forEach(slot => {
+        slot.addEventListener('click', () => selectHero(slot.dataset.hero));
+        slot.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectHero(slot.dataset.hero);
+          }
+        });
+      });
+
+      renderInspector();
+      renderMiniBoard();
+    }
+
+    function renderInspector() {
+      const tile = document.getElementById('inspector-tile');
+      const c = state.custom;
+      tile.className = `tile-sim selected ${c.owner === 'P2' ? 'enemy-zone' : 'ally-zone'}`;
+      tile.innerHTML = renderPieceHTML(c);
+      document.getElementById('inspector-slug').textContent = state.selectedKey || 'CUSTOM';
+    }
+
+    function renderMiniBoard() {
+      const grid = document.getElementById('mini-board-grid');
+      const layout = [
+        { zone: 'enemy-zone', hero: 'PHASE',     owner: 'P2', hpPct: 1.0 },
+        { zone: 'enemy-zone', hero: 'CORE',      owner: 'P2', hpPct: 0.75 },
+        { zone: 'enemy-zone', hero: 'TURRET',    owner: 'P2', hpPct: 1.0 },
+        { zone: 'enemy-zone', hero: 'CYPHER',    owner: 'P2', hpPct: 0.25 },
+
+        { zone: '',           hero: null,        floor: 'toxic' },
+        { zone: '',           hero: 'GLITCH',    owner: 'P1', hpPct: 0.75, floor: 'dimension' },
+        { zone: '',           hero: 'BARRICADE', owner: 'P1', hpPct: 1.0 },
+        { zone: '',           hero: 'BIT',       owner: 'P1', hpPct: 1.0 },
+
+        { zone: 'ally-zone',  hero: 'KINESIS',   owner: 'P1', hpPct: 1.0, selected: true },
+        { zone: 'ally-zone',  hero: 'CORE',      owner: 'P1', hpPct: 1.0 },
+        { zone: 'ally-zone',  hero: 'VECTOR',    owner: 'P1', hpPct: 0.85 },
+        { zone: 'ally-zone',  hero: 'IRIS',      owner: 'P1', hpPct: 0.40 }
+      ];
+
+      grid.innerHTML = layout.map(cell => {
+        const h = cell.hero ? HEROES.find(x => x.key === cell.hero) : null;
+        const floorHtml = cell.floor ? `<div class="floor-sim ${cell.floor}"></div>` : '';
+        const pieceHtml = h ? renderPieceHTML({
+          slug: h.slug,
+          name: h.name,
+          role: h.role,
+          hp: Math.max(1, Math.round(h.maxHp * cell.hpPct)),
+          maxHp: h.maxHp,
+          atk: h.atk,
+          owner: cell.owner,
+          isStructure: !!h.isStructure,
+          emblem: h.emblem || null
+        }) : '';
+        return `
+          <div class="tile-sim ${cell.zone} ${cell.selected ? 'selected' : ''}" style="--zoom: 1;">
+            ${floorHtml}
+            ${pieceHtml}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectHero(key) {
+      const h = HEROES.find(x => x.key === key);
+      if (!h) return;
+      state.selectedKey = key;
+      const owner = state.teamMode === 'P2' ? 'P2' : 'P1';
+      const hp = Math.max(1, Math.round(h.maxHp * state.hpRatio));
+      state.custom = {
+        slug: h.slug,
+        name: h.name,
+        role: h.role,
+        hp,
+        maxHp: h.maxHp,
+        atk: h.atk,
+        owner,
+        isStructure: !!h.isStructure,
+        emblem: h.emblem || null
+      };
+      document.getElementById('edit-name').value = h.name;
+      document.getElementById('edit-role').value = h.role;
+      document.getElementById('edit-hp').value = hp;
+      document.getElementById('edit-atk').value = h.atk;
+      document.getElementById('edit-team').value = owner;
+      renderAll();
+    }
+
+    function bindGroup(attr, handler) {
+      const btns = [...document.querySelectorAll(`[data-${attr}]`)];
+      btns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          btns.forEach(b => b.classList.remove('active', 'enemy-pill'));
+          btn.classList.add('active');
+          if (attr === 'team' && btn.dataset.team === 'P2') btn.classList.add('enemy-pill');
+          handler(btn.dataset[attr]);
+          renderAll();
+        });
+      });
+    }
+
+    bindGroup('preset', val => { state.preset = val; });
+    bindGroup('zoom', val => { state.zoom = parseFloat(val); });
+    bindGroup('team', val => {
+      state.teamMode = val;
+      if (val === 'P1' || val === 'P2') {
+        state.custom.owner = val;
+        document.getElementById('edit-team').value = val;
+      }
+    });
+    bindGroup('atkcolor', val => { state.atkColor = val; });
+    bindGroup('hpbar', val => { state.hpBar = val; });
+    bindGroup('font', val => { state.nameFont = val; });
+    bindGroup('nfont', val => { state.numFont = val; });
+    bindGroup('nweight', val => { state.numWeight = val; });
+    bindGroup('nstyle', val => { state.numStyle = val; });
+    bindGroup('nsize', val => {
+      const [h, a] = val.split('/');
+      state.hpSize = `${h}px`;
+      state.atkSize = `${a}px`;
+    });
+    bindGroup('hpstate', val => {
+      state.hpRatio = parseFloat(val);
+      const h = HEROES.find(x => x.key === state.selectedKey);
+      if (h) {
+        state.custom.hp = Math.max(1, Math.round(h.maxHp * state.hpRatio));
+        state.custom.maxHp = h.maxHp;
+        document.getElementById('edit-hp').value = state.custom.hp;
+      }
+    });
+
+    document.getElementById('edit-name').addEventListener('input', e => {
+      state.custom.name = e.target.value || ' ';
+      renderInspector();
+    });
+    document.getElementById('edit-role').addEventListener('change', e => {
+      state.custom.role = e.target.value;
+      renderInspector();
+    });
+    document.getElementById('edit-hp').addEventListener('input', e => {
+      const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+      state.custom.hp = val;
+      if (val > state.custom.maxHp) state.custom.maxHp = val;
+      renderInspector();
+    });
+    document.getElementById('edit-atk').addEventListener('input', e => {
+      state.custom.atk = Math.max(0, parseInt(e.target.value, 10) || 0);
+      renderInspector();
+    });
+    document.getElementById('edit-team').addEventListener('change', e => {
+      state.custom.owner = e.target.value;
+      renderInspector();
+    });
+
+    document.getElementById('btn-copy-snippet').addEventListener('click', async () => {
+      const html = document.getElementById('inspector-tile').innerHTML.trim();
+      try {
+        await navigator.clipboard.writeText(html);
+        showToast(`COPIED ${state.preset.toUpperCase()} HTML!`);
+      } catch {
+        showToast('CLIPBOARD UNAVAILABLE');
+      }
+    });
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+    }
+
+    const initPreset = new URLSearchParams(window.location.search).get('preset');
+    if (initPreset && ['medal', 'plate', 'float', 'legacy'].includes(initPreset)) {
+      state.preset = initPreset;
+      document.querySelectorAll('[data-preset]').forEach(b => {
+        b.classList.toggle('active', b.dataset.preset === initPreset);
+      });
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#dfe4ec">
+  <title>LAB WHITE // BATTLE UI MOCK</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/lab-white.css">
+  <link rel="stylesheet" href="css/holo-inspector.css">
+  <link rel="stylesheet" href="css/screens-mock.css">
+  <script defer src="js/mock.js"></script>
+</head>
+<body>
+  <button type="button" class="mock-float-toggle" id="mock-toggle-bar" title="モック操作バー表示切替 (Mキー)">LAB BAR</button>
+
+  <header class="mock-lab-bar" id="mock-lab-bar">
+    <div class="mock-lab-left">
+      <a class="mock-back" href="../index.html">← 本番へ戻る</a>
+      <div class="mock-title">
+        <strong>LAB WHITE MOCK</strong>
+        <span>1600×900 UI確定版</span>
+      </div>
+    </div>
+
+    <div class="mock-lab-controls">
+      <div class="mock-group" role="group" aria-label="画面切替">
+        <span class="mock-lbl">SCREEN</span>
+        <button type="button" class="mock-btn" data-screen="home">ホーム</button>
+        <button type="button" class="mock-btn" data-screen="select">ユニット選択</button>
+        <button type="button" class="mock-btn active" data-screen="battle">バトル</button>
+      </div>
+      <div class="mock-group" role="group" aria-label="フェーズ">
+        <span class="mock-lbl">TURN</span>
+        <button type="button" class="mock-btn active" data-phase="BLUE">BLUE TURN</button>
+        <button type="button" class="mock-btn" data-phase="RED">RED TURN</button>
+        <button type="button" class="mock-btn" data-phase="DEPLOY">DEPLOY</button>
+      </div>
+      <div class="mock-group" role="group" aria-label="盤面状態">
+        <span class="mock-lbl">STATE</span>
+        <button type="button" class="mock-btn active" data-bstate="rich">戦闘中 (バフ/地形)</button>
+        <button type="button" class="mock-btn" data-bstate="normal">通常配置風</button>
+        <button type="button" class="mock-btn" data-bstate="skill">SKILL対象選択</button>
+        <button type="button" class="mock-btn" data-bstate="ult">ULT100%待機</button>
+      </div>
+      <div class="mock-group" role="group" aria-label="演出テスト">
+        <span class="mock-lbl">FX</span>
+        <button type="button" class="mock-btn mock-btn-dmg" id="mock-trigger-dmg" title="選択中ユニットにダメージ演出を再生">⚔ DMG</button>
+        <button type="button" class="mock-btn mock-btn-heal" id="mock-trigger-heal" title="選択中ユニットに回復演出を再生">✚ HEAL</button>
+        <button type="button" class="mock-btn mock-btn-skill" id="mock-trigger-skill" title="選択中ユニットのスキル発動演出を再生">✦ SKILL</button>
+        <button type="button" class="mock-btn mock-btn-ult" id="mock-trigger-ult" title="選択中ユニットのULTカットイン＆発動演出を再生">⚡ ULT発動</button>
+        <button type="button" class="mock-btn" id="mock-trigger-turn-ally" title="ALLY TURN開始演出を再生">▶ ALLY開始</button>
+        <button type="button" class="mock-btn" id="mock-trigger-turn-enemy" title="ENEMY TURN開始演出を再生">▶ ENEMY開始</button>
+        <button type="button" class="mock-btn" id="mock-trigger-fin-core" title="敵コア破壊時のスロー→VICTORY演出を再生">★ コア破壊WIN</button>
+        <button type="button" class="mock-btn" id="mock-trigger-fin-wipe" title="最後の敵撃破時のスロー→VICTORY演出を再生">★ 全滅WIN</button>
+        <button type="button" class="mock-btn mock-btn-dmg" id="mock-trigger-fin-defeat" title="敗北時のスロー→DEFEAT演出を再生">✕ 敗北</button>
+      </div>
+      <div class="mock-group" role="group" aria-label="表示倍率">
+        <span class="mock-lbl">SCALE</span>
+        <button type="button" class="mock-btn active" data-viewscale="fit">FIT</button>
+        <button type="button" class="mock-btn" data-viewscale="full">100% 実寸</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="mock-stage-viewport" id="mock-viewport">
+    <main id="battle-stage" class="mock-stage" data-screen="battle" aria-label="TACTICS">
+      <script>(function(){var q=new URLSearchParams(location.search),sc=q.get('screen'),el=document.getElementById('battle-stage');el.dataset.screen=(sc==='home'||sc==='select'||sc==='battle')?sc:'battle';})();</script>
+      <div id="game-content">
+        <!-- ホーム画面（ソシャゲ風） -->
+        <section id="home-screen-view" class="home-screen-view" aria-label="ホーム画面"></section>
+
+        <!-- ユニット選択画面（左上：編成 / 左下：ユニット駒一覧） -->
+        <section id="select-screen-view" class="select-screen-view" aria-label="ユニット選択画面">
+          <div id="select-formation-panel" class="select-panel select-formation-panel"></div>
+          <div id="select-roster-panel" class="select-panel select-roster-panel"></div>
+        </section>
+
+        <!-- 左上：ユーティリティタブ＆ターン表示 -->
+        <header class="top-left-hud">
+          <div class="hud-buttons">
+            <button type="button" class="icon-button" title="タイトルへ戻る（モック）" aria-label="タイトルへ戻る">
+              <span data-icon="home"></span>
+            </button>
+            <button type="button" class="icon-button" title="ルール解説（モック）" aria-label="ルール解説">
+              <span data-icon="help"></span>
+            </button>
+          </div>
+          <div id="turn-display-box" class="turn-display">
+            <span id="turn-label-eyebrow">TURN</span>
+            <strong id="turn-count-badge">03</strong>
+            <small id="turn-badge" class="turn-owner-pill">OBSERVER TURN</small>
+          </div>
+          <span id="current-mode-badge" class="mode-pill">MONOLITH // LAPSE-07</span>
+        </header>
+
+        <!-- 中央：トークンバー(または初期配置バー) ＋ 敵アンカー ＋ 7×7盤面 ＋ 味方アンカー -->
+        <section class="battlefield" aria-label="戦術盤面">
+          <div id="action-status-banner" class="token-bar" aria-label="行動トークン">
+            <span class="token-bar-label tokens-banner-title">SYNC ORDERS</span>
+            <div id="action-tokens-container" class="turn-tokens"></div>
+          </div>
+
+          <div id="deploy-control-bar" class="deploy-control-bar" style="display:none">
+            <span class="deploy-bar-label">DEPLOYMENT PHASE</span>
+            <span id="deploy-bar-instruction" class="deploy-bar-instruction">自陣（手前2マス）に味方ユニットとコアを配置してください</span>
+          </div>
+
+          <div id="core-bar-enemy" class="core-bar enemy" aria-label="ENEMY ULTゲージ">
+            <span class="core-ult-sheen" aria-hidden="true"></span>
+            <span class="core-tag">ULT</span>
+            <div class="core-metric">
+              <span class="metric-label">HP</span>
+              <span class="core-gauge"><i id="p2-core-bar" style="width:80%"></i></span>
+              <strong id="p2-core-hp">80/100</strong>
+            </div>
+            <div class="core-metric ult-metric">
+              <span class="metric-label">ULT</span>
+              <span class="core-gauge ult-gauge"><i id="p2-ult-bar" style="height:45%"></i></span>
+              <strong id="p2-ult-text">45%</strong>
+            </div>
+          </div>
+
+          <div id="board-frame" class="board-frame board-wrapper">
+            <div class="coord-cols" aria-hidden="true"><span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span></div>
+            <div class="coord-rows" aria-hidden="true"><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
+            <div id="board" class="board-grid board" role="group" aria-label="7×7の戦術盤面"></div>
+            <div id="board-fx-layer" class="board-fx-layer" aria-hidden="true"></div>
+          </div>
+
+          <div id="core-bar-ally" class="core-bar ally" aria-label="ALLY ULTゲージ">
+            <span class="core-ult-sheen" aria-hidden="true"></span>
+            <span class="core-tag">ULT</span>
+            <div class="core-metric">
+              <span class="metric-label">HP</span>
+              <span class="core-gauge"><i id="p1-core-bar" style="width:100%"></i></span>
+              <strong id="p1-core-hp">100/100</strong>
+            </div>
+            <div class="core-metric ult-metric">
+              <span class="metric-label">ULT</span>
+              <span class="core-gauge ult-gauge"><i id="p1-ult-bar" style="height:65%"></i></span>
+              <strong id="p1-ult-text">65%</strong>
+            </div>
+          </div>
+        </section>
+
+        <!-- 右側：INFO / BATTLE LOG -->
+        <aside id="inspector" class="inspector urban-inspector" aria-label="選択情報">
+          <div class="inspector-tabs urban-tabs ar-tabs" role="tablist" aria-label="情報切り替え">
+            <button id="urban-tab-details" class="inspector-tab urban-tab ar-tab" role="tab" aria-selected="true" aria-controls="urban-panel-details">
+              <span>INFO</span>
+            </button>
+            <button id="urban-tab-log" class="inspector-tab urban-tab ar-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="urban-panel-log">
+              <span>LOG</span><b id="urban-log-count" class="log-badge ar-badge">0</b>
+            </button>
+          </div>
+
+          <div class="ar-panel-body">
+            <div class="holo-surface-fx" aria-hidden="true">
+              <span class="holo-glitch-flash"></span>
+            </div>
+            <div id="urban-panel-details" class="inspector-panel urban-panel" role="tabpanel" aria-labelledby="urban-tab-details">
+              <div id="unit-detail-panel" class="ar-detail-root"></div>
+            </div>
+
+            <div id="urban-panel-log" class="inspector-panel log-panel urban-panel" role="tabpanel" aria-labelledby="urban-tab-log" hidden>
+              <div class="ar-log-toolbar" role="group" aria-label="ログフィルター">
+                <button type="button" class="ar-filter-btn is-active" data-logfilter="ALL">ALL (0)</button>
+                <button type="button" class="ar-filter-btn" data-logfilter="combat">COMBAT</button>
+                <button type="button" class="ar-filter-btn" data-logfilter="skill">SKILL / ULT</button>
+                <button type="button" class="ar-filter-btn" data-logfilter="turn">SYSTEM</button>
+              </div>
+              <div class="ar-log-scroll">
+                <div id="urban-log-empty" class="battle-log-empty" hidden>NO RECORDS<span>移動・攻撃・スキルなどの行動履歴がここに記録されます。</span></div>
+                <div id="log-box" class="battle-log-list log-box ar-log-list" data-filter="ALL" role="log" aria-live="polite" aria-label="戦績ログ"></div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- 右下：END TURN ボタン -->
+        <button id="btn-end-turn" class="end-turn hold-turn btn-end-turn" aria-label="ターン終了。長押しで確定">
+          <span class="hold-fill"></span>
+          <span class="hold-content">
+            <strong id="hold-main-text">END TURN</strong>
+            <small><span id="hold-sub-text">長押しで観測確定</span></small>
+          </span>
+          <span id="hold-icon-box" class="hold-icon" data-icon="endturn"></span>
+          <span class="hold-invert-layer" aria-hidden="true">
+            <span class="hold-content">
+              <strong id="hold-main-text-inv">END TURN</strong>
+              <small><span id="hold-sub-text-inv">長押しで観測確定</span></small>
+            </span>
+            <span id="hold-icon-box-inv" class="hold-icon" data-icon="endturn"></span>
+          </span>
+        </button>
+
+        <!-- 右下（ユニット選択画面用）：出撃開始ボタン -->
+        <button id="btn-deploy-squad" type="button" class="end-turn hold-turn btn-deploy-squad" aria-label="出撃開始">
+          <span class="hold-fill"></span>
+          <span class="hold-content">
+            <strong id="deploy-main-text">DEPLOY SQUAD</strong>
+            <small><span id="deploy-sub-text">5 / 5 READY</span></small>
+          </span>
+          <span class="hold-icon" data-icon="endturn"></span>
+        </button>
+      </div>
+
+      <div class="stage-ult-flare" aria-hidden="true"></div>
+      <div id="turn-cutin-overlay" class="turn-cutin" hidden aria-hidden="true">
+        <div class="tci-backdrop"></div>
+        <div class="tci-band">
+          <div class="tci-watermark"><span id="tci-wm-text">ALLY PHASE // TURN 03</span></div>
+          <div class="tci-eyebrow-row">
+            <span class="tci-pill" id="tci-pill">TURN 03</span>
+            <span class="tci-code" id="tci-code">PHASE SHIFT // SYNCHRONIZED</span>
+          </div>
+          <h2 class="tci-title" id="tci-title">ALLY TURN</h2>
+          <div class="tci-sub" id="tci-sub">自軍行動フェーズを開始します</div>
+        </div>
+      </div>
+      <div id="ult-cutin-overlay" class="ult-cutin" hidden aria-hidden="true">
+        <div class="uci-backdrop"></div>
+        <div class="uci-speedlines"></div>
+        <div class="uci-band-back"></div>
+        <div class="uci-watermark"><span id="uci-wm-text">ULTIMATE // OVERDRIVE</span></div>
+        <div class="uci-slash-frame">
+          <div class="uci-halftone"></div>
+          <div class="uci-stripes"></div>
+          <div class="uci-burst-rays"></div>
+          <div class="uci-art-ghost"><img id="uci-art-ghost-img" src="" alt="" draggable="false"></div>
+          <div class="uci-art-main"><img id="uci-art-img" src="" alt="" draggable="false"></div>
+        </div>
+        <div class="uci-edge-flare"></div>
+        <div class="uci-sparks" id="uci-sparks"></div>
+        <div class="uci-plate">
+          <div class="uci-tag-row">
+            <span class="uci-ult-badge" id="uci-ult-badge">DECIBEL MAX // ULTIMATE</span>
+            <span class="uci-unit-tag" id="uci-unit-tag">KINESIS · アサルト</span>
+          </div>
+          <div class="uci-skill-title" id="uci-skill-title">ライトニング・ラッシュ</div>
+          <div class="uci-skill-sub" id="uci-skill-sub">EXTRA ATTACK TOKEN +1</div>
+        </div>
+        <div class="uci-frame-flash"></div>
+      </div>
+
+      <div id="finisher-overlay" class="finisher-overlay" hidden aria-hidden="true">
+        <div class="fn-vignette"></div>
+        <div class="fn-slow-motes" id="fn-slow-motes"></div>
+        <div class="fn-letterbox top"></div>
+        <div class="fn-letterbox bottom"></div>
+        <div class="fn-flash"></div>
+        <div class="fn-slash-line"></div>
+        <div class="fn-banner-stage">
+          <div class="fn-band">
+            <div class="fn-watermark"><span id="fn-wm-text">CORE BREAK // VICTORY</span></div>
+            <div class="fn-eyebrow-row">
+              <span class="fn-reason-pill" id="fn-reason-pill">CORE BREAK</span>
+              <span class="fn-sub-tag" id="fn-sub-tag">OPERATION COMPLETE</span>
+            </div>
+            <h2 class="fn-title" id="fn-title">VICTORY!</h2>
+          </div>
+          <div class="fn-result-footer">
+            <div class="fn-desc" id="fn-desc">敵コアの完全破壊に成功しました！自軍の勝利！</div>
+            <div class="fn-actions">
+              <button type="button" class="fn-btn primary" id="fn-btn-again"><span>PLAY AGAIN</span></button>
+              <button type="button" class="fn-btn secondary" id="fn-btn-title"><span>TITLE</span></button>
+              <button type="button" class="fn-btn replay" id="fn-btn-replay" title="フィニッシャー演出をもう一度再生"><span>↻ REPLAY</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

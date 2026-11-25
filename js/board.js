@@ -5,21 +5,21 @@
 import {
   ROWS,
   COLS,
+  inBounds,
   HERO_TYPES,
   ULT_REQUIRED_DAMAGE,
   DEPLOYABLE_ROWS,
   DEFAULT_ROSTER,
   DEFAULT_ACTION_ORDERS
-} from './config.js?v=lab-white-1';
-import { createEntity } from './entities/EntityFactory.js?v=lab-white-1';
+} from './config.js?v=lab-white-3';
+import { createEntity } from './entities/EntityFactory.js?v=lab-white-3';
+export { inBounds };
 
-// 盤面・トラップ・ハザード状態
+// 盤面・ハザード状態
 export let board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
-export let traps = [];        // [{ r, c, owner, damage, type, sourceHeroId }]
-export let phantomZones = []; // [{ r, c, owner, sourceHeroId, sourceHeroType }]
-export let poisonZones = [];  // [{ r, c, owner, sourceHeroId, sourceHeroType }]
+export let poisonZones = [];  // [{ r, c, owner, sourceHeroId }]
 
-// ローカルプレイヤーの陣営管理（トラップの可視・不可視判定等で使用）
+// ローカルプレイヤーの陣営管理
 export let localPlayerRole = 'P1';
 
 export function setLocalPlayerRole(role) {
@@ -128,7 +128,7 @@ function createBitAttackOrder(bit) {
     unitType: 'BIT',
     unitName: bit.name,
     used: false,
-    desc: 'ビットのパッシブ『自律ドライブ』による専用攻撃オーダー。共通攻撃とは独立してこのビットのみが通常攻撃できます。'
+    desc: 'ビットのパッシブ『セルフ・ドライブ』による専用攻撃オーダー。共通攻撃とは独立してこのビットのみが通常攻撃できます。'
   };
 }
 
@@ -157,7 +157,7 @@ export function resetActionOrders(owner, { playPassivePopupFX } = {}) {
       unitType: null,
       unitName: null,
       used: false,
-      desc: '味方ユニットが1回通常攻撃できます（ウルトゲージ蓄積）。'
+      desc: '味方ユニットが1回通常攻撃できます。実際に減らしたHP分だけウルトゲージが蓄積します。'
     }
   ];
 
@@ -168,7 +168,7 @@ export function resetActionOrders(owner, { playPassivePopupFX } = {}) {
       if (!u || u.owner !== owner) continue;
 
       // ビット生存時：各ビット専用攻撃オーダー+1
-      if (u.typeKey === 'BIT') {
+      if (u.typeKey === 'BIT' && !hasDebuff(u, 'silence')) {
         playPassivePopupFX?.({ r, c }, { label: 'EX ATK +1' });
         tokens.push(createBitAttackOrder(u));
       }
@@ -198,84 +198,31 @@ export function resetTeamUltGauge(owner) {
 }
 
 // ==========================================
-// 盤面・ハザード・トラップ判定
+// 盤面・ハザード判定
 // ==========================================
-export function inBounds(r, c) {
-  return r >= 0 && r < ROWS && c >= 0 && c < COLS;
-}
-
 export function clearBoard() {
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       board[r][c] = null;
     }
   }
-  traps.length = 0;
-  phantomZones.length = 0;
   poisonZones.length = 0;
   return board;
 }
 
-export function hasHazardAt(r, c) {
-  return (
-    phantomZones.some(pz => pz.r === r && pz.c === c) ||
-    poisonZones.some(pz => pz.r === r && pz.c === c)
-  );
-}
-
-export function hasTrapAt(r, c, owner) {
-  return traps.some(tp => tp.r === r && tp.c === c && (owner === undefined || tp.owner === owner));
-}
-
-export function hasHazardOrTrapAt(r, c, owner) {
-  return hasHazardAt(r, c) || hasTrapAt(r, c, owner);
-}
-
 export function getHazardInfoAt(r, c) {
-  const fz = phantomZones.find(z => z.r === r && z.c === c);
-  if (fz) {
-    return {
-      type: 'phantom',
-      name: 'ディメンション・ゾーン',
-      icon: '👻',
-      owner: fz.owner,
-      setter: 'ヴェイル',
-      impact: '滞在中は常に弱体化 (被ダメ1.5倍)',
-      desc: 'ヴェイルが展開したハザード。侵入している敵ユニット（アンカー除く）は滞在しているあいだ常に【弱体化 (被ダメ1.5倍)】状態になる！ヴェイル撃破時に同時消滅。',
-      category: 'ハザード（展開者生存時永続 / 撃破時同時消滅）'
-    };
-  }
-  const pzn = poisonZones.find(z => z.r === r && z.c === c);
-  if (pzn) {
-    return {
-      type: 'poison',
-      name: 'トキシック・ゾーン',
-      icon: '🧪',
-      owner: pzn.owner,
-      setter: 'スモッグ',
-      impact: 'ターン開始時 10 DMG',
-      desc: '猛毒が立ち込める危険エリア。滞在している敵ユニット（アンカー除く）は自軍ターン開始時に 10 ダメージを受ける！スモッグ撃破時に同時消滅。',
-      category: 'ハザード（展開者生存時永続 / 撃破時同時消滅）'
-    };
-  }
-  const tp = traps.find(t => t.r === r && t.c === c && isLocalPlayer(t.owner));
-  if (tp) {
-    const dmg = tp.damage;
-    const toxic = tp.type === 'TOXIC_MINE';
-    return {
-      type: 'mine',
-      name: toxic ? 'トキシック・マイン' : 'ブラスト・マイン',
-      icon: '💣',
-      owner: tp.owner,
-      setter: toxic ? 'スモッグ' : 'ブラスト',
-      impact: `踏破で ${dmg} DMG 爆発`,
-      desc: toxic
-        ? '敵ユニットの侵入で10ダメージ。スモッグが生存していて、作動したマスにゾーンがなければトキシック・ゾーンを展開する。'
-        : '敵ユニットの侵入で20ダメージを与えて消滅する。',
-      category: 'トラップ（敵からは不可視 / 踏破で爆発消滅）'
-    };
-  }
-  return null;
+  const zone = poisonZones.find(zone => zone.r === r && zone.c === c);
+  if (!zone) return null;
+  return {
+    type: 'poison',
+    name: 'トキシック・ゾーン',
+    icon: '🧪',
+    owner: zone.owner,
+    setter: 'スモッグ',
+    impact: '両軍の手番終了時に5 DMG',
+    desc: '両軍それぞれの手番終了時、ゾーン上の敵ユニットに5ダメージ。展開者が撃破されると消滅する。',
+    category: 'ハザード'
+  };
 }
 
 // ==========================================
@@ -351,8 +298,7 @@ export function resetTurnPassives(owner, context) {
       const u = board[r][c];
       if (!u) continue;
       if (u.owner !== owner) continue;
-      u.turnDamageDealt = 0;
-      u.onTurnStart?.(board, context);
+      if (!hasDebuff(u, 'silence')) u.onTurnStart?.(board, { ...context, poisonZones });
     }
   }
 }
@@ -362,7 +308,7 @@ export function spawnHero(typeKey, owner, r, c) {
   const entity = createEntity(typeKey, owner, r, c);
   if (!entity) return null;
   board[r][c] = entity;
-  if (entity.typeKey === 'BIT') addSpecialActionOrder(owner, createBitAttackOrder(entity));
+  if (entity.typeKey === 'BIT' && !hasDebuff(entity, 'silence')) addSpecialActionOrder(owner, createBitAttackOrder(entity));
   return entity;
 }
 
@@ -399,35 +345,6 @@ export function isAssault(unit) {
 // ==========================================
 // バフ・デバフ・ステータス計算ヘルパー
 // ==========================================
-export function applyBuff(unit, key, val, turns) {
-  if (!unit) return;
-  if (typeof unit.applyBuff === 'function') {
-    unit.applyBuff(key, val, turns);
-    return;
-  }
-  if (unit.typeKey === 'ANCHOR' && key !== 'shield') return;
-  if (!unit.buffs) unit.buffs = {};
-  unit.buffs[key] = { val, turns };
-}
-
-export function applyDebuff(unit, key, turns) {
-  if (!unit || !isUnit(unit)) return;
-  if (typeof unit.applyDebuff === 'function') {
-    unit.applyDebuff(key, turns);
-    return;
-  }
-  if (!unit.debuffs) unit.debuffs = {};
-  const cur = unit.debuffs[key];
-  const curTurns = cur ? cur.turns : 0;
-  unit.debuffs[key] = { turns: Math.max(curTurns, turns) };
-}
-
-export function hasBuff(unit, key) {
-  if (!unit) return false;
-  if (typeof unit.hasBuff === 'function') return unit.hasBuff(key);
-  return !!(unit.buffs && unit.buffs[key] && unit.buffs[key].turns > 0);
-}
-
 // 盤面上のユニット現在座標を取得（unit.r/c が古い場合のフォールバック検索付き）
 export function getUnitPos(unit) {
   if (!unit) return null;
@@ -442,99 +359,28 @@ export function getUnitPos(unit) {
   return null;
 }
 
-// 敵ディメンション・ゾーン上に滞在しているユニットかどうかを判定
-export function isUnitInEnemyPhantomZone(unit) {
-  if (!unit || !isUnit(unit) || !phantomZones.length) return false;
-  const pos = getUnitPos(unit);
-  if (!pos) return false;
-  return phantomZones.some(pz => pz.r === pos.r && pz.c === pos.c && pz.owner !== unit.owner);
-}
-
 export function hasDebuff(unit, key) {
-  if (!unit) return false;
-  if (key === 'vulnerable' && isUnitInEnemyPhantomZone(unit)) return true;
-  if (typeof unit.hasDebuff === 'function') return unit.hasDebuff(key);
-  return !!(unit.debuffs && unit.debuffs[key] && unit.debuffs[key].turns > 0);
+  return unit?.hasDebuff?.(key) ?? false;
 }
 
 export function hasAnyDebuff(unit) {
-  if (!unit) return false;
-  if (isUnitInEnemyPhantomZone(unit)) return true;
-  if (typeof unit.hasAnyDebuff === 'function') return unit.hasAnyDebuff();
-  if (!unit.debuffs) return false;
-  return Object.values(unit.debuffs).some(d => d && d.turns > 0);
+  return Boolean(unit?.debuffs?.length);
 }
 
-export function clearAllDebuffs(unit) {
-  if (!unit) return;
-  if (typeof unit.clearAllDebuffs === 'function') {
-    unit.clearAllDebuffs();
-    return;
-  }
-  unit.debuffs = {
-    vulnerable: null,
-    disarm: null,
-    bind: null,
-    silence: null
-  };
+export function getAtkBonuses(unit) {
+  return unit?.getAtkBonuses?.({ board, poisonZones }) ?? [];
 }
 
-// ウォーデンのパッシブ『バンカー・スナイパー』判定 (味方オブジェクトまたは味方アンカー隣接時に真)
-export function isWardenBunkerActive(unit) {
-  if (!unit || (unit.typeKey !== 'WARDEN' && unit.typeKey !== 'SENTINEL')) return false;
-  let ur = -1, uc = -1;
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      if (board[r][c] === unit) { ur = r; uc = c; break; }
-    }
-    if (ur !== -1) break;
-  }
-  if (ur === -1) return false;
-
-  for (let dr = -1; dr <= 1; dr++) {
-    for (let dc = -1; dc <= 1; dc++) {
-      if (dr === 0 && dc === 0) continue;
-      const nr = ur + dr, nc = uc + dc;
-      if (inBounds(nr, nc)) {
-        const neighbor = board[nr][nc];
-        if (neighbor && neighbor.owner === unit.owner && (isAnchor(neighbor) || isObject(neighbor))) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
+export function getEffectiveAtk(unit) {
+  return unit ? unit.atk + getAtkBonuses(unit).reduce((total, buff) => total + buff.val, 0) : 0;
 }
 
-// ヴァルカンのパッシブ『クロスファイア・リンク』判定 (セントリー・タレットのストック保持時に真)
-export function isVulcanStockActive(unit) {
-  if (!unit || unit.typeKey !== 'VULCAN') return false;
-  return (unit.stockA ?? 0) > 0;
-}
-
-// 実効攻撃力計算（基本ATK ＋ 攻撃力増強バフ ＋ パッシブ攻撃力増強）
-export function getEffectiveAtk(unit, target) {
-  if (!unit) return 0;
-  if (typeof unit.getEffectiveAtk === 'function') {
-    return unit.getEffectiveAtk({ board, poisonZones, target });
-  }
-  let total = unit.atk;
-  if (hasBuff(unit, 'atk_up')) {
-    total += unit.buffs.atk_up.val;
-  }
-  if (isWardenBunkerActive(unit)) {
-    total += 5;
-  }
-  if (isVulcanStockActive(unit)) {
-    total += 10;
-  }
-  return total;
+export function getStatusEffects(unit) {
+  return [...getAtkBonuses(unit), ...unit.buffs.filter(buff => buff.key === 'shield'), ...unit.debuffs];
 }
 
 export function getShieldVal(unit) {
-  if (!unit) return 0;
-  if (typeof unit.getShieldVal === 'function') return unit.getShieldVal();
-  return hasBuff(unit, 'shield') ? unit.buffs.shield.val : 0;
+  return unit?.getShieldVal?.() ?? 0;
 }
 
 export function findAnchor(owner) {
@@ -636,14 +482,7 @@ export function getValidSkillTargets(r, c, slot) {
   if (typeof unit.getSkillTargets === 'function') {
     unit.r = r;
     unit.c = c;
-    const targets = unit.getSkillTargets(slot, {
-      board,
-      phantomZones,
-      poisonZones,
-      traps,
-      hasFriendlyTrapAt: (r, c) => hasTrapAt(r, c, unit.owner),
-      hasHazardOrTrapAt: (r, c) => hasHazardOrTrapAt(r, c, unit.owner)
-    });
+    const targets = unit.getSkillTargets(slot, { board });
     if (targets && Array.isArray(targets)) {
       return targets;
     }

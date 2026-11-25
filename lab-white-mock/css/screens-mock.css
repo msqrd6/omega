@@ -1,0 +1,1008 @@
+/* ==========================================================================
+   HOME (ソシャゲ風) & UNIT SELECT 画面モック専用スタイル
+   - 現行バトル盤面UI（チャコールグリッド・黒すりガラス・Space Grotesk/IBM Plex Sans JP・
+     イエロー#facc15/パープル#a855f7・角丸システム）に完全統一
+   ========================================================================== */
+
+/* ---------- SCREEN切替: 表示制御 ---------- */
+#battle-stage[data-screen="home"] .top-left-hud,
+#battle-stage[data-screen="home"] .battlefield,
+#battle-stage[data-screen="home"] .inspector,
+#battle-stage[data-screen="home"] #btn-end-turn,
+#battle-stage[data-screen="home"] #btn-deploy-squad,
+#battle-stage[data-screen="home"] #select-screen-view {
+  display: none !important;
+}
+
+#battle-stage[data-screen="select"] .top-left-hud,
+#battle-stage[data-screen="select"] .battlefield,
+#battle-stage[data-screen="select"] #btn-end-turn,
+#battle-stage[data-screen="select"] #home-screen-view {
+  display: none !important;
+}
+
+#battle-stage[data-screen="battle"] #home-screen-view,
+#battle-stage[data-screen="battle"] #select-screen-view,
+#battle-stage[data-screen="battle"] #btn-deploy-squad {
+  display: none !important;
+}
+
+#battle-stage:is([data-screen="home"], [data-screen="select"]) #game-content::before,
+#battle-stage:is([data-screen="home"], [data-screen="select"]) #game-content::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* セレクト画面でINFO単体表示時：既存の#inspector位置・サイズをそのまま維持 */
+#battle-stage[data-screen="select"] #urban-tab-log {
+  display: none !important;
+}
+#battle-stage[data-screen="select"] .ar-tabs {
+  grid-template-columns: 160px !important;
+}
+
+/* セレクト画面右下：出撃開始ボタン (.btn-deploy-squad は .hold-turn と同一位置・デザイン系譜) */
+#battle-stage[data-screen="select"] .btn-deploy-squad {
+  position: absolute !important;
+  left: 1148px !important;
+  bottom: 16px !important;
+  top: auto !important;
+  width: 426px !important;
+  height: 66px !important;
+  cursor: pointer;
+}
+#battle-stage[data-screen="select"] .btn-deploy-squad:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+#battle-stage[data-screen="select"] .btn-deploy-squad:not(:disabled) .hold-fill {
+  display: none;
+}
+
+/* ==========================================================================
+   1. ホーム画面（ソシャゲ風: #home-screen-view）
+   ========================================================================== */
+.home-screen-view {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 20px 26px 22px;
+  display: grid;
+  grid-template-columns: 92px 1fr 484px;
+  grid-template-rows: 66px 1fr;
+  gap: 16px 20px;
+  z-index: 3;
+}
+
+/* 共有黒すりガラスカード基盤 */
+.hm-glass {
+  background: linear-gradient(145deg, rgba(14, 14, 16, 0.80) 0%, rgba(22, 22, 26, 0.68) 100%);
+  backdrop-filter: blur(12px) saturate(1.08);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.36);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+  border-radius: 16px;
+}
+
+/* 上部ヘッダーバー（全幅スパン） */
+.hm-topbar {
+  grid-column: 1 / 4;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
+.hm-profile-pill {
+  height: 62px;
+  padding: 0 18px 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 13px;
+}
+.hm-avatar-ring {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #facc15;
+  background: #141418;
+  overflow: hidden;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.28);
+  flex: none;
+}
+.hm-avatar-ring img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 15%;
+  transform: scale(1.25);
+  display: block;
+}
+.hm-profile-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hm-profile-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hm-profile-name {
+  font: normal 700 17px/1 var(--piece-num-font);
+  letter-spacing: 0.04em;
+  color: #ffffff;
+}
+.hm-rank-tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #facc15;
+  color: #11151d;
+  font: normal 700 10.5px/1 var(--piece-num-font);
+  letter-spacing: 0.08em;
+}
+.hm-profile-sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: normal 600 10.5px/1 var(--mono);
+  letter-spacing: 0.12em;
+  color: #a1a1aa;
+}
+.hm-profile-sub b {
+  color: #38e8ff;
+  font-weight: 700;
+}
+
+/* ブランド＆リソースバー */
+.hm-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hm-resource-pill {
+  height: 44px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 999px !important;
+}
+.hm-res-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #facc15;
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.75);
+}
+.hm-res-dot.is-cyan {
+  background: #38e8ff;
+  box-shadow: 0 0 8px rgba(56, 232, 255, 0.75);
+}
+.hm-res-dot.is-purple {
+  background: #a855f7;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.75);
+}
+.hm-res-lbl {
+  font: normal 600 10px/1 var(--mono);
+  letter-spacing: 0.12em;
+  color: #a1a1aa;
+}
+.hm-res-val {
+  font: normal 700 15px/1 var(--piece-num-font);
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+.hm-util-btn {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #f4f4f5;
+  cursor: pointer;
+  position: relative;
+  border-radius: 14px !important;
+  transition: transform 0.12s, border-color 0.12s, background 0.12s;
+}
+.hm-util-btn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(250, 204, 21, 0.72);
+  color: #facc15;
+}
+.hm-util-btn .icon {
+  width: 20px;
+  height: 20px;
+}
+.hm-notice-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff4625;
+  box-shadow: 0 0 6px #ff4625;
+}
+
+/* 左端縦型サブメニューレール */
+.hm-side-rail {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+}
+.hm-rail-btn {
+  width: 92px;
+  height: 76px;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #d4d4d8;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.14s, color 0.14s, background 0.14s;
+}
+.hm-rail-btn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(250, 204, 21, 0.70);
+  color: #ffffff;
+}
+.hm-rail-btn.is-highlight {
+  border-left: 3.5px solid #facc15;
+}
+.hm-rail-btn .icon {
+  width: 22px;
+  height: 22px;
+  color: #facc15;
+}
+.hm-rail-btn span {
+  font: normal 700 10.5px/1.1 var(--jp);
+  letter-spacing: 0.04em;
+}
+.hm-rail-spacer {
+  flex: 1;
+}
+.hm-event-chip {
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 5px;
+  border-left: 3.5px solid #a855f7;
+}
+.hm-event-chip small {
+  font: normal 700 9px/1 var(--mono);
+  letter-spacing: 0.12em;
+  color: #c084fc;
+}
+.hm-event-chip strong {
+  font: normal 700 12px/1.25 var(--jp);
+  color: #ffffff;
+}
+
+/* 中央左：看板キャラクターショーケース＋吹き出し＋切り替えUI */
+.hm-showcase {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 0;
+  min-height: 0;
+}
+
+.hm-reticle-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hm-reticle-ring {
+  position: relative;
+  width: 560px;
+  height: 560px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hm-reticle-ring::before {
+  content: '';
+  position: absolute;
+  inset: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(250, 204, 21, 0.22);
+}
+.hm-watermark {
+  position: absolute;
+  top: 22px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+.hm-watermark span {
+  font: normal 700 11px/1 var(--mono);
+  letter-spacing: 0.24em;
+  color: rgba(244, 244, 245, 0.45);
+}
+.hm-watermark strong {
+  font: normal 700 44px/0.95 var(--piece-num-font);
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.10);
+  text-transform: uppercase;
+}
+
+.hm-hero-art-wrap {
+  position: absolute;
+  left: 50%;
+  top: -10px;
+  bottom: 34px;
+  width: 680px;
+  transform: translateX(-48%);
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.hm-hero-art-wrap img {
+  height: 104%;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 34px rgba(0, 0, 0, 0.55));
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 76%, rgba(0, 0, 0, 0.52) 89%, transparent 99%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 76%, rgba(0, 0, 0, 0.52) 89%, transparent 99%);
+}
+
+/* 会話ボックス＆看板キャラ切替 */
+.hm-dialogue-dock {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 12px 6px 4px;
+}
+.hm-dialogue-card {
+  flex: 1;
+  max-width: 560px;
+  padding: 14px 18px 15px;
+  border-left: 4px solid #facc15;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hm-dialogue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.hm-char-tag-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.hm-char-role-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #facc15;
+  color: #11151d;
+  font: normal 700 10.5px/1 var(--jp);
+}
+.hm-char-role-pill .svg-ic {
+  width: 12px;
+  height: 12px;
+}
+.hm-char-name {
+  font: normal 700 18px/1 var(--jp);
+  color: #ffffff;
+  letter-spacing: 0.03em;
+}
+.hm-char-code {
+  font: normal 600 10.5px/1 var(--mono);
+  letter-spacing: 0.12em;
+  color: #a1a1aa;
+}
+.hm-quote {
+  margin: 0;
+  font: normal 500 13.5px/1.55 var(--jp);
+  color: #f4f4f5;
+}
+.hm-switcher-pill {
+  padding: 6px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px !important;
+}
+.hm-sw-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4f4f5;
+  font: normal 700 13px/1 var(--piece-num-font);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, border-color 0.12s;
+}
+.hm-sw-btn:hover {
+  background: rgba(250, 204, 21, 0.22);
+  border-color: #facc15;
+  color: #fde047;
+}
+.hm-sw-label {
+  padding: 0 6px;
+  font: normal 700 10.5px/1 var(--mono);
+  letter-spacing: 0.10em;
+  color: #d4d4d8;
+}
+
+/* 右側：シンプル2択出撃ボタン（右中央やや下＋バトル画面同様の中央へすぼむ3D傾斜） */
+.hm-command-deck {
+  grid-column: 3;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: 72px;
+  gap: 16px;
+  min-width: 0;
+  min-height: 0;
+  transform-origin: 0% 52%;
+  transform: perspective(1000px) scale(0.96) rotateY(-11.5deg);
+}
+
+.hm-mode-btn {
+  min-height: 114px;
+  padding: 26px 28px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  transition: transform 0.13s, border-color 0.13s, background 0.13s, box-shadow 0.13s;
+}
+.hm-mode-btn:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(145deg, rgba(24, 24, 28, 0.86) 0%, rgba(32, 32, 38, 0.74) 100%);
+  border-color: rgba(255, 255, 255, 0.42);
+}
+.hm-mode-btn.is-solo:hover {
+  border-color: rgba(250, 204, 21, 0.75);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34), 0 0 18px rgba(250, 204, 21, 0.18);
+}
+.hm-mode-btn.is-online:hover {
+  border-color: rgba(168, 85, 247, 0.75);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34), 0 0 18px rgba(168, 85, 247, 0.20);
+}
+.hm-mode-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.hm-mode-copy small {
+  font: normal 700 11.5px/1 var(--mono);
+  letter-spacing: 0.16em;
+  color: #a1a1aa;
+}
+.hm-mode-btn.is-solo .hm-mode-copy small {
+  color: #fde047;
+}
+.hm-mode-btn.is-online .hm-mode-copy small {
+  color: #c084fc;
+}
+.hm-mode-copy strong {
+  font: normal 700 28px/1.15 var(--jp);
+  letter-spacing: 0.04em;
+  color: #ffffff;
+}
+.hm-mode-arrow {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f4f4f5;
+  font: normal 700 20px/1 var(--piece-num-font);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  transition: background 0.13s, border-color 0.13s, color 0.13s;
+}
+.hm-mode-btn.is-solo:hover .hm-mode-arrow {
+  background: #facc15;
+  border-color: #fde047;
+  color: #11151d;
+}
+.hm-mode-btn.is-online:hover .hm-mode-arrow {
+  background: #a855f7;
+  border-color: #c084fc;
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   2. ユニット選択画面 (#select-screen-view)
+   - 左上: 編成 (#select-formation-panel)
+   - 左下: ユニット（駒）一覧 (#select-roster-panel)
+   - 右: 既存 #inspector (INFOそのまま流用)
+   - 右下: #btn-deploy-squad (出撃開始)
+   ========================================================================== */
+.select-screen-view {
+  position: absolute;
+  left: 26px;
+  top: 14px;
+  width: 1096px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  z-index: 3;
+}
+
+.select-panel {
+  background: linear-gradient(145deg, rgba(14, 14, 16, 0.80) 0%, rgba(22, 22, 26, 0.66) 100%);
+  backdrop-filter: blur(12px) saturate(1.08);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.36);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+  border-radius: 16px;
+}
+
+/* 左上ブロック：編成パネル */
+.select-formation-panel {
+  height: 222px;
+  padding: 14px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: none;
+}
+
+.sel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sel-head-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.sel-back-btn {
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #f4f4f5;
+  font: normal 700 11px/1 var(--piece-num-font);
+  letter-spacing: 0.06em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  flex: none;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.sel-back-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(250, 204, 21, 0.72);
+  color: #fde047;
+}
+.sel-back-btn .icon {
+  width: 14px;
+  height: 14px;
+}
+.sel-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  white-space: nowrap;
+}
+.sel-eyebrow {
+  font: normal 700 10px/1 var(--mono);
+  letter-spacing: 0.14em;
+  color: #a1a1aa;
+  white-space: nowrap;
+}
+.sel-title {
+  margin: 0;
+  font: normal 700 17px/1 var(--jp);
+  color: #ffffff;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.sel-count-pill {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #facc15;
+  color: #11151d;
+  font: normal 700 11.5px/1 var(--piece-num-font);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  flex: none;
+}
+.sel-count-pill.is-incomplete {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fde047;
+  border: 1px solid rgba(250, 204, 21, 0.45);
+}
+
+.sel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.sel-role-mix {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 2px;
+}
+.sel-mix-chip {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font: normal 600 10px/1 var(--piece-num-font);
+  letter-spacing: 0.04em;
+  color: #a1a1aa;
+  white-space: nowrap;
+}
+.sel-mix-chip b {
+  color: #f4f4f5;
+  margin-left: 3px;
+}
+.sel-mix-chip.is-nonzero {
+  border-color: rgba(250, 204, 21, 0.45);
+  color: #e4e4e7;
+}
+.sel-mix-chip.is-nonzero b {
+  color: #fde047;
+}
+
+.sel-act-btn {
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  color: #f4f4f5;
+  font: normal 700 11px/1 var(--jp);
+  white-space: nowrap;
+  flex: none;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.sel-act-btn:hover {
+  background: rgba(250, 204, 21, 0.18);
+  border-color: #facc15;
+  color: #fde047;
+}
+.sel-act-btn.is-danger:hover {
+  background: rgba(244, 63, 94, 0.22);
+  border-color: #fb7185;
+  color: #ffe4e6;
+}
+
+/* 5体編成スロット */
+.sel-slots-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+.sel-slot {
+  position: relative;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(8, 8, 10, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  cursor: pointer;
+  text-align: left;
+  color: #f4f4f5;
+  transition: border-color 0.14s, transform 0.12s, background 0.14s;
+}
+.sel-slot:hover {
+  transform: translateY(-2px);
+  border-color: rgba(250, 204, 21, 0.65);
+}
+.sel-slot.is-focused {
+  background: rgba(34, 30, 14, 0.62);
+  border: 1.5px solid #facc15;
+  box-shadow: 0 0 18px rgba(250, 204, 21, 0.22);
+}
+.sel-slot.is-empty {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.20);
+  background: rgba(8, 8, 10, 0.24);
+  justify-content: center;
+  cursor: default;
+}
+.sel-slot.is-empty:hover {
+  transform: none;
+  border-color: rgba(255, 255, 255, 0.26);
+}
+.sel-slot-num {
+  position: absolute;
+  top: 7px;
+  left: 9px;
+  font: normal 700 9.5px/1 var(--mono);
+  letter-spacing: 0.10em;
+  color: #a1a1aa;
+}
+.sel-slot.is-focused .sel-slot-num {
+  color: #fde047;
+}
+.sel-slot-empty-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.sel-slot-empty-copy strong {
+  font: normal 700 12px/1 var(--piece-num-font);
+  letter-spacing: 0.12em;
+  color: #71717a;
+}
+.sel-slot-empty-copy span {
+  font: normal 500 10.5px/1.2 var(--jp);
+  color: #71717a;
+}
+
+/* スロット内のミニ駒表現 */
+.sel-slot-face {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid #09090b;
+  box-shadow: 0 0 0 2px #facc15;
+  background: radial-gradient(circle at 50% 35%, rgba(250, 204, 21, 0.20) 0%, #121214 82%);
+  overflow: hidden;
+  flex: none;
+  margin-top: 8px;
+}
+.sel-slot-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: translateY(-2%) scale(1.38);
+  transform-origin: 50% 15%;
+  display: block;
+}
+.sel-slot-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 6px;
+}
+.sel-slot-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: normal 700 10px/1 var(--jp);
+  color: #fde047;
+}
+.sel-slot-role-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--role-color, #facc15);
+}
+.sel-slot-name {
+  font: normal 700 15.5px/1.1 var(--jp);
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sel-slot-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font: normal 700 12.5px/1 var(--piece-num-font);
+  font-variant-numeric: tabular-nums;
+}
+.sel-slot-stats b {
+  color: #ffffff;
+}
+.sel-slot-stats span {
+  color: #ffc400;
+}
+.sel-slot-remove {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(18, 18, 22, 0.84);
+  color: #d4d4d8;
+  font: normal 700 12px/1 var(--mono);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.sel-slot-remove:hover {
+  background: #f43f5e;
+  border-color: #fda4af;
+  color: #ffffff;
+}
+
+/* 左下ブロック：ユニット（駒）一覧パネル */
+.select-roster-panel {
+  flex: 1;
+  min-height: 0;
+  padding: 14px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sel-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* 全12ユニットの駒カードグリッド (6列×2行でスクロール不要一覧) */
+.sel-roster-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 12px;
+}
+
+.sel-unit-tile {
+  position: relative;
+  border-radius: 12px;
+  padding: 10px 10px 10px;
+  background: rgba(52, 52, 58, 0.56);
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.14s, background 0.14s, box-shadow 0.14s;
+}
+.sel-unit-tile:hover {
+  transform: translateY(-2px);
+  background: rgba(68, 68, 76, 0.72);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+.sel-unit-tile.is-in-squad {
+  background: rgba(52, 52, 58, 0.56);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.sel-unit-tile.is-focused {
+  background: rgba(52, 52, 58, 0.56);
+  border: 2px solid #facc15;
+  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.45), 0 0 18px rgba(250, 204, 21, 0.25);
+}
+.sel-unit-tile.is-focused:hover {
+  background: rgba(68, 68, 76, 0.72);
+  border-color: #facc15;
+}
+
+.sel-tile-top {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 2px 0;
+}
+.sel-tile-role-lbl {
+  font: normal 700 10.5px/1 var(--jp);
+  color: #d4d4d8;
+  letter-spacing: 0.04em;
+}
+.sel-tile-toggle {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: rgba(14, 14, 16, 0.80);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: #f4f4f5;
+  font: normal 700 12.5px/1 var(--piece-num-font), var(--jp);
+  letter-spacing: 0.06em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.sel-tile-toggle:hover {
+  background: rgba(250, 204, 21, 0.16);
+  border-color: #facc15;
+  color: #fde047;
+}
+.sel-tile-toggle.is-in {
+  background: #facc15;
+  border-color: #fde047;
+  color: #11151d;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(250, 204, 21, 0.26);
+}
+.sel-tile-toggle.is-in:hover {
+  background: #fde047;
+  border-color: #fef08a;
+  color: #11151d;
+}
+
+/* ユニット本体の配置（既存 #battle-stage .piece スタイルを完全継承） */
+.sel-piece-stage {
+  position: relative;
+  width: 112px;
+  height: 114px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sel-piece-stage .piece {
+  position: relative;
+  transform: scale(1.14);
+  transform-origin: center center;
+}
+
+.sel-tile-foot {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ロール別カラー変数（セレクト画面のスロット用） */
+.sel-slot[data-role="ASSAULT"]   { --role-color: #f04d29; }
+.sel-slot[data-role="SENTINEL"]  { --role-color: #0284c7; }
+.sel-slot[data-role="DISRUPTOR"] { --role-color: #9333ea; }
+.sel-slot[data-role="SUPPORT"]   { --role-color: #10b981; }

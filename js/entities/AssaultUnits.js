@@ -3,7 +3,8 @@
    (キネシス, ヴェイル, ブラスト, ビット)
    ============================================================== */
 import { UnitEntity } from './UnitEntity.js?v=lab-white-1';
-import { HERO_TYPES, inBounds } from '../config.js?v=lab-white-1';
+import { HERO_TYPES } from '../config.js?v=lab-white-3';
+import { cellsInRadius, getSkillImpact, isEmptyAt } from '../battle-targets.js';
 
 // ==========================================
 // 1. キネシス (Kinesis / DUELIST)
@@ -61,7 +62,7 @@ export class KinesisUnit extends UnitEntity {
   onKill(target, context) {
     if (context.currentTurn !== this.owner || target.owner === this.owner || !target.isUnit()) return;
     this.grantMoveOrder(this.passive.name, context);
-    context.playPassivePopupFX?.(this, { label: 'EX MOVE +1' });
+    context.playPassivePopupFX?.(this, { label: '+1 EX MOVE' });
     context.addLog(`⚡ ${this.name} の『${this.passive.name}』発動！専用移動オーダー (+1 EX MOVE) を獲得！`, 'skill');
   }
 
@@ -114,32 +115,27 @@ export class VeilUnit extends UnitEntity {
     });
   }
 
-  getSkillTargets(slot, context = {}) {
-    const { phantomZones, board } = context;
-    if (slot === 'A') {
-      const targets = [];
-      const myZones = (phantomZones || []).filter(pz => pz.owner === this.owner);
-      for (const pz of myZones) {
-        if (inBounds(pz.r, pz.c) && !board[pz.r][pz.c]) {
-          targets.push({ r: pz.r, c: pz.c });
-        }
-      }
-      return targets;
-    } else if (slot === 'ULT') {
-      return [{ r: this.r, c: this.c }];
-    }
-    return [];
+  getPassiveAtk({ board } = {}) {
+    if (!board) return 0;
+    return cellsInRadius(this, 1, false).some(({ r, c }) => {
+      const ally = board[r][c];
+      return ally?.owner === this.owner && ally.hp > 0;
+    }) ? 0 : this.passive.atkBonus;
   }
 
-  executeSkill(slot, targetPos, context = {}) {
-    const { addLog } = context;
+  getSkillTargets(slot, { board }) {
+    if (slot === 'ULT') return [{ r: this.r, c: this.c }];
+    return cellsInRadius(this, this.skills.A.range).filter(pos => isEmptyAt(board, pos));
+  }
 
+  executeSkill(slot, target, { warpUnit, playPassivePopupFX }) {
     if (slot === 'A') {
-      if (!context.warpUnit(this, targetPos)) return;
-      addLog(`👻 ${this.name} が『テレポート』発動！自軍ディメンション・ゾーン (${targetPos.r}, ${targetPos.c}) へ瞬時に帰還！`, 'skill');
-    } else if (slot === 'ULT') {
-      this.applyBuff('shadow_drain', 1, 1);
-      addLog(`👤🩸 ${this.name} がウルト『シャドウ・ドレイン』発動！このターン中、自身が敵に与えたダメージ分だけHPを吸収・回復する状態になった！`, 'skill');
+      warpUnit(this, target);
+    } else {
+      const { atkBonus, shieldVal, shieldTurns } = this.skills.ULT;
+      this.applyBuff('atk_up', atkBonus);
+      this.applyBuff('shield', shieldVal, shieldTurns);
+      playPassivePopupFX(this, { label: `ATK +${atkBonus} / SHIELD +${shieldVal}` });
     }
   }
 }
@@ -169,50 +165,23 @@ export class BlastUnit extends UnitEntity {
     });
   }
 
-  getSkillTargets(slot, context = {}) {
-    const { board, hasFriendlyTrapAt } = context;
-    if (slot === 'A') {
-      const targets = [];
-      for (let dr = -2; dr <= 2; dr++) {
-        for (let dc = -2; dc <= 2; dc++) {
-          const r = this.r + dr, c = this.c + dc;
-          if (inBounds(r, c) && !board[r][c] && !hasFriendlyTrapAt(r, c)) targets.push({ r, c });
-        }
-      }
-      return targets;
-    } else if (slot === 'ULT') {
-      return [{ r: this.r, c: this.c }];
-    }
-    return [];
+  getSkillTargets(slot, { board }) {
+    const cells = cellsInRadius(this, this.skills[slot].range);
+    if (slot === 'ULT') return cells;
+    return cells.filter(pos => getSkillImpact(this, slot, pos, board).targets.length > 0);
   }
 
-  executeSkill(slot, targetPos, context = {}) {
-    const { board, traps, isLocalPlayer, addLog, dealDamage, checkDeath, onGameOver } = context;
+  executeSkill(slot, target, { board, hit, playBeamFX }) {
+    const { targets } = getSkillImpact(this, slot, target, board);
+    if (slot === 'A') playBeamFX(this, target, { kind: 'attack' });
+    for (const piece of targets) hit(this, piece, this.skills[slot].damage);
+  }
 
-    if (slot === 'A') {
-      traps.push({
-        r: targetPos.r,
-        c: targetPos.c,
-        owner: this.owner,
-        damage: 20,
-        type: 'MINE',
-        sourceHeroId: this.id
-      });
-      if (isLocalPlayer(this.owner)) {
-        addLog(`💣 ${this.name} が『マイン・プラント』発動！指定マスにマイン（20 DMGトラップ）を仕掛けた（自軍のみ視認可能・ブラスト破壊後も存続）！`, 'skill');
-      } else {
-        addLog(`💣 敵の ${this.name} が『マイン・プラント』発動！いずれかのマスにマインを仕掛けた...！`, 'skill');
-      }
-    } else if (slot === 'ULT') {
-      const { selfDamage, damage, range } = this.skills.ULT;
-      dealDamage(null, this, selfDamage, { r: this.r, c: this.c });
-      for (const target of board.flat()) {
-        if (!target || target.owner === this.owner || Math.max(Math.abs(target.r - this.r), Math.abs(target.c - this.c)) > range) continue;
-        dealDamage(this, target, damage, target);
-        checkDeath(target.r, target.c, this.owner, onGameOver, this);
-      }
-      checkDeath(this.r, this.c, this.owner === 'P1' ? 'P2' : 'P1', onGameOver);
-    }
+  onAttacked(attacker, { hit, addLog, playBeamFX, playPassivePopupFX }) {
+    addLog(`💣 ${this.passive.name}発動！${attacker.name}に5 DMG。`, 'skill');
+    playPassivePopupFX(this, { label: '反撃爆破', kind: 'attack' });
+    playBeamFX(this, attacker, { kind: 'attack' });
+    hit(this, attacker, 5);
   }
 }
 
@@ -248,7 +217,7 @@ export class BitUnit extends UnitEntity {
   executeSkill(slot, targetPos, context = {}) {
     const { addLog, checkDeath, onGameOver } = context;
     if (slot === 'A') {
-      addLog(`🛰️💥 ${this.name} がスキル『自壊』を発動し、自身を破壊した！`, 'skill');
+      addLog(`🛰️💥 ${this.name} がスキル『デリート』を発動し、自身を破壊した！`, 'skill');
       this.hp = 0;
       checkDeath(this.r, this.c, this.owner, onGameOver);
     }

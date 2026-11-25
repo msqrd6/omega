@@ -1,0 +1,1834 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TACTICAL BOT DASHBOARD // 2D UI DEMO</title>
+
+  <!-- Google Fonts for Neo-Industrial / Editorial Cyber Style -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Dela+Gothic+One&family=JetBrains+Mono:ital,wght@0,400;0,700;0,800;1,700&family=Noto+Sans+JP:wght@400;700;900&family=Saira+Condensed:ital,wght@0,700;0,800;1,800&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       INDUSTRIAL / CYBER DASHBOARD DESIGN SYSTEM
+       Based on Voice Bot Dashboard design language (matchachoco010 style)
+       ========================================================================== */
+    :root {
+      /* Typography */
+      --font-anton: "Anton", "Saira Condensed", sans-serif;
+      --font-dela: "Dela Gothic One", "Noto Sans JP", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      --font-jp: "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif;
+      --font-cond: "Saira Condensed", var(--font-jp);
+
+      /* Colors */
+      --k: #b5ead7;          /* Mint / Sage Accent */
+      --k2: #8fd3bb;         /* Mid Mint */
+      --kd: #1d4a42;         /* Deep Forest Teal */
+      --ink: #111816;        /* Heavy Green-Black Ink */
+      --ink2: #3f4946;       /* Charcoal Ink */
+      --ink3: #7c8683;       /* Muted Steel */
+      --ink4: #a9b1ae;       /* Light Slate */
+      --paper: #f4f6f5;      /* Warm Paper Off-White */
+      --paper-grid: #e2e7e4; /* Grid Background lines */
+      --white: #fdfefd;
+      --red: #f04c38;        /* Vivid Hazard Red */
+      --red-sub: #ff8577;
+      --line: rgba(17, 24, 22, 0.16);
+      --line2: rgba(17, 24, 22, 0.32);
+      --on-ink: #e8f3ef;
+      --on-ink2: #9fb8b0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--paper);
+      background-image:
+        linear-gradient(var(--paper-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--paper-grid) 1px, transparent 1px);
+      background-size: 24px 24px;
+      color: var(--ink);
+      font-family: var(--font-jp);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Warning Stripe Top Hazard Bar */
+    .hazard-stripe-top {
+      height: 6px;
+      width: 100%;
+      background: repeating-linear-gradient(
+        -45deg,
+        var(--ink),
+        var(--ink) 12px,
+        var(--k) 12px,
+        var(--k) 24px
+      );
+      box-shadow: 0 1px 0 var(--ink);
+      flex: none;
+    }
+
+    /* Outer Container */
+    .dashboard-container {
+      width: 100%;
+      max-width: 1540px;
+      margin: 0 auto;
+      padding: 12px 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      flex: 1;
+    }
+
+    /* ==========================================================================
+       1. HEADER & TOP SYSTEM BAR
+       ========================================================================== */
+    .header-system-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--ink);
+    }
+
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Skewed Badge / Band */
+    .r2-band {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      flex: none;
+    }
+
+    .r2-band-code {
+      font-family: var(--font-anton);
+      font-weight: 400;
+      font-size: 13.5px;
+      letter-spacing: .06em;
+      padding: 3px 10px 2px;
+      background: var(--red);
+      color: #fff;
+      transform: skew(-14deg);
+      margin-right: 4px;
+      display: inline-flex;
+      align-items: center;
+      box-shadow: 2px 2px 0 var(--ink);
+    }
+
+    .r2-band > span {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-anton);
+      font-size: 14.5px;
+      letter-spacing: .12em;
+      padding: 4px 14px 2px;
+      transform: skew(-14deg);
+      white-space: nowrap;
+      background: var(--ink);
+      color: var(--white);
+      box-shadow: 2px 2px 0 rgba(0,0,0,0.15);
+    }
+
+    .r2-band > span > * {
+      transform: skew(14deg);
+    }
+
+    .system-telemetry-pill {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--ink2);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .telemetry-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--k);
+      border: 1.5px solid var(--ink);
+      box-shadow: 0 0 6px var(--k2);
+      animation: pulse-dot 1.4s ease-in-out infinite alternate;
+    }
+
+    @keyframes pulse-dot {
+      from { opacity: 0.6; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1.15); }
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ==========================================================================
+       BUTTONS & CHIPS
+       ========================================================================== */
+    .btn {
+      font-family: var(--font-jp);
+      font-size: 11.5px;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      padding: 6px 16px 5px;
+      border: 2px solid var(--ink);
+      background: var(--white);
+      color: var(--ink);
+      cursor: pointer;
+      box-shadow: 3px 3px 0 var(--ink);
+      transition: all 0.08s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      user-select: none;
+    }
+
+    .btn:hover {
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0 var(--ink);
+    }
+
+    .btn.btn-primary {
+      background: var(--ink);
+      color: var(--k);
+    }
+
+    .btn.btn-primary:hover {
+      background: #1c2724;
+      color: #c8fae7;
+    }
+
+    .btn.btn-danger {
+      background: var(--red);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    .btn.btn-mint {
+      background: var(--k);
+      color: var(--ink);
+    }
+
+    /* Skewed Chip Selectors */
+    .r2-chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .r2-chip {
+      border: 0;
+      box-shadow: inset 0 0 0 1.5px var(--ink);
+      background: var(--white);
+      padding: 4px 14px 3px;
+      font-family: var(--font-anton);
+      font-size: 13px;
+      letter-spacing: .08em;
+      color: var(--ink);
+      transform: skew(-12deg);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.12s ease;
+    }
+
+    .r2-chip > * {
+      transform: skew(12deg);
+      display: inline-block;
+    }
+
+    .r2-chip:hover {
+      background: #eef3f1;
+      box-shadow: inset 0 0 0 2px var(--ink), 2px 2px 0 var(--ink);
+      transform: skew(-12deg) translateY(-1px);
+    }
+
+    .r2-chip.active,
+    .r2-chip[aria-pressed="true"] {
+      background: var(--k);
+      box-shadow: inset 0 0 0 2px var(--ink), 4px 4px 0 var(--ink);
+      color: var(--ink);
+      transform: skew(-12deg) translate(-1px, -1px);
+    }
+
+    /* ==========================================================================
+       2. MEGA STATUS STRIP (Anton Italic Massive Typography)
+       ========================================================================== */
+    .status-strip-section {
+      background: var(--white);
+      border: 2px solid var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      padding: 12px 20px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .status-strip-section::before {
+      content: "";
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 140px;
+      background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 6px,
+        rgba(17, 24, 22, 0.04) 6px,
+        rgba(17, 24, 22, 0.04) 12px
+      );
+      pointer-events: none;
+    }
+
+    .status-hero-block {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .r2-status {
+      font-family: var(--font-anton);
+      font-style: italic;
+      font-size: clamp(48px, 5.5vw, 84px);
+      line-height: 0.85;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+      text-shadow: 4px 4px 0 var(--white), 6px 6px 0 var(--ink);
+      text-transform: uppercase;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .r2-status[data-state="engaged"] {
+      color: var(--red);
+      text-shadow: 4px 4px 0 var(--white), 6px 6px 0 var(--ink);
+    }
+
+    .r2-status[data-state="overdrive"] {
+      color: var(--kd);
+      text-shadow: 4px 4px 0 var(--k), 6px 6px 0 var(--ink);
+    }
+
+    .r2-status[data-state="standby"] {
+      color: transparent;
+      -webkit-text-stroke: 2.5px var(--ink);
+      text-shadow: 3px 3px 0 var(--k);
+    }
+
+    .r2-status-ja {
+      display: flex;
+      gap: 12px;
+      align-items: baseline;
+      font-size: 12.5px;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+
+    .r2-status-ja b {
+      font-size: 13px;
+      background: var(--ink);
+      color: var(--k);
+      padding: 1px 8px;
+      letter-spacing: 0.04em;
+    }
+
+    .r2-status-ja .mono {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--ink2);
+    }
+
+    /* Center KPI Grid */
+    .r2-kpirow {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      background: var(--paper);
+      border: 1.5px solid var(--ink);
+      box-shadow: inset 0 0 0 1px var(--white);
+    }
+
+    .r2-kpirow li {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 5px 14px;
+      border-left: 2px solid var(--ink);
+    }
+
+    .r2-kpirow li:first-child {
+      border-left: 0;
+    }
+
+    .r2-kpirow small {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      color: var(--ink3);
+      text-transform: uppercase;
+    }
+
+    .r2-kpirow b {
+      font-family: var(--font-anton);
+      font-style: italic;
+      font-size: 30px;
+      line-height: 1;
+      color: var(--ink);
+    }
+
+    .r2-kpirow span {
+      font-size: 10.5px;
+      font-weight: 800;
+      color: var(--ink2);
+    }
+
+    /* Right State Mode Toggles */
+    .status-mode-toggles {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    /* ==========================================================================
+       3. MAIN DECK GRID: OPERATOR DOSSIER & COMMAND CONSOLE
+       ========================================================================== */
+    .main-deck-grid {
+      display: grid;
+      grid-template-columns: 390px 1fr;
+      gap: 18px;
+    }
+
+    @media (max-width: 1200px) {
+      .main-deck-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left Card: Operator Dossier */
+    .operator-card {
+      background: var(--white);
+      border: 2px solid var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .operator-card-header {
+      padding: 8px 12px;
+      background: var(--ink);
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .operator-header-title {
+      font-family: var(--font-anton);
+      font-size: 14px;
+      letter-spacing: 0.1em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .operator-header-id {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--k);
+      font-weight: 700;
+    }
+
+    /* Portrait & Graphic Stage */
+    .portrait-stage {
+      position: relative;
+      height: 270px;
+      background: #090e0d;
+      overflow: hidden;
+      border-bottom: 2px solid var(--ink);
+    }
+
+    .portrait-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 15%;
+      filter: contrast(1.06) saturate(1.05);
+      transition: transform 0.3s ease, filter 0.3s ease;
+    }
+
+    .portrait-stage:hover .portrait-img {
+      transform: scale(1.02);
+    }
+
+    /* Overlay Decals & Barcode */
+    .portrait-scan-line {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        180deg,
+        rgba(181, 234, 215, 0.0) 0%,
+        rgba(181, 234, 215, 0.08) 50%,
+        rgba(181, 234, 215, 0.0) 100%
+      );
+      pointer-events: none;
+    }
+
+    .portrait-overlay-bottom {
+      position: absolute;
+      inset: auto 0 0 0;
+      padding: 12px 14px;
+      background: linear-gradient(
+        0deg,
+        rgba(17, 24, 22, 0.95) 0%,
+        rgba(17, 24, 22, 0.6) 60%,
+        transparent 100%
+      );
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      color: var(--white);
+    }
+
+    .portrait-name-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .portrait-code-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      color: var(--k);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .portrait-hero-name {
+      font-family: var(--font-dela);
+      font-size: 24px;
+      line-height: 1.1;
+      color: var(--white);
+      text-shadow: 2px 2px 0 var(--ink);
+    }
+
+    .portrait-role-badge {
+      font-family: var(--font-anton);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      padding: 2px 8px;
+      background: var(--k);
+      color: var(--ink);
+      transform: skew(-14deg);
+      box-shadow: 2px 2px 0 var(--ink);
+    }
+
+    .portrait-role-badge span {
+      transform: skew(14deg);
+      display: inline-block;
+    }
+
+    /* Barcode SVG in portrait */
+    .svg-barcode {
+      width: 58px;
+      height: 22px;
+      fill: var(--white);
+      opacity: 0.85;
+    }
+
+    /* Body Stats & Gauges */
+    .operator-card-body {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* SKEWED GAUGE COMPONENT (r2-gauge) */
+    .gauge-field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .gauge-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    .gauge-name {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--ink2);
+    }
+
+    .gauge-val {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--ink);
+    }
+
+    .r2-gauge {
+      position: relative;
+      display: block;
+      height: 11px;
+      background: rgba(17, 24, 22, 0.12);
+      transform: skew(-24deg);
+      box-shadow: inset 0 0 0 1.5px var(--line2);
+      overflow: hidden;
+    }
+
+    .r2-gauge i {
+      position: absolute;
+      inset: 0 auto 0 0;
+      background: var(--k);
+      box-shadow: inset 0 0 0 1px rgba(17, 24, 22, 0.35);
+      transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .r2-gauge[data-tone="ink"] i {
+      background: var(--ink);
+    }
+
+    .r2-gauge[data-tone="red"] i {
+      background: var(--red);
+    }
+
+    /* Repeating Segment Dividers */
+    .r2-gauge[data-seg] {
+      background-image: repeating-linear-gradient(
+        90deg,
+        transparent 0 calc(5% - 1.5px),
+        rgba(253, 254, 253, 0.9) calc(5% - 1.5px) 5%
+      );
+    }
+
+    .r2-gauge[data-seg] i {
+      background-image: repeating-linear-gradient(
+        90deg,
+        transparent 0 calc(5% - 1.5px),
+        var(--white) calc(5% - 1.5px) 5%
+      );
+    }
+
+    /* Passive Spec Box */
+    .passive-spec-box {
+      border: 1.5px solid var(--ink);
+      background: var(--paper);
+      padding: 9px 11px;
+      position: relative;
+    }
+
+    .passive-spec-title {
+      font-family: var(--font-anton);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 3px;
+    }
+
+    .passive-spec-desc {
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--ink2);
+      font-weight: 500;
+    }
+
+    /* Right Console: Command Deck & Action Panels */
+    .command-console-column {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Action Deck Card */
+    .action-deck-card {
+      background: var(--white);
+      border: 2px solid var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .deck-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid var(--ink);
+      padding-bottom: 8px;
+    }
+
+    .deck-title {
+      font-family: var(--font-anton);
+      font-size: 17px;
+      letter-spacing: 0.08em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Command Action Grid */
+    .action-button-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .command-card-btn {
+      border: 2px solid var(--ink);
+      background: var(--white);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      cursor: pointer;
+      box-shadow: 3px 3px 0 var(--ink);
+      transition: all 0.08s ease;
+      position: relative;
+      user-select: none;
+      text-align: left;
+    }
+
+    .command-card-btn:hover {
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0 var(--ink);
+      background: #fbfdfc;
+    }
+
+    .command-card-btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0 var(--ink);
+    }
+
+    .command-card-btn.active {
+      background: var(--k);
+      box-shadow: inset 0 0 0 1px var(--ink), 3px 3px 0 var(--ink);
+    }
+
+    .command-card-btn.ult-btn {
+      background: #fff8f6;
+      border-color: var(--ink);
+    }
+
+    .command-card-btn.ult-btn:hover {
+      background: #ffebe7;
+    }
+
+    .cmd-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .cmd-slot-badge {
+      font-family: var(--font-anton);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      background: var(--ink);
+      color: var(--white);
+      padding: 1px 6px;
+      transform: skew(-14deg);
+    }
+
+    .cmd-slot-badge.ult-badge {
+      background: var(--red);
+      color: #fff;
+    }
+
+    .cmd-stock-tag {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 800;
+      color: var(--ink3);
+    }
+
+    .cmd-name {
+      font-family: var(--font-dela);
+      font-size: 15px;
+      color: var(--ink);
+    }
+
+    .cmd-desc {
+      font-size: 10.5px;
+      color: var(--ink2);
+      line-height: 1.35;
+    }
+
+    /* Simulation Control Bar */
+    .sim-control-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+      background: var(--paper);
+      border: 1.5px solid var(--ink);
+    }
+
+    .sim-bar-title {
+      font-family: var(--font-anton);
+      font-size: 11.5px;
+      letter-spacing: 0.1em;
+      color: var(--ink3);
+      margin-right: 4px;
+    }
+
+    /* Live Telemetry Log Table */
+    .log-stream-card {
+      background: var(--white);
+      border: 2px solid var(--ink);
+      box-shadow: 5px 5px 0 var(--ink);
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 200px;
+    }
+
+    .log-stream-header {
+      padding: 7px 12px;
+      background: var(--ink);
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .log-stream-title {
+      font-family: var(--font-anton);
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .log-stream-body {
+      padding: 8px 12px;
+      background: #0f1614;
+      color: #9fb8b0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.55;
+      height: 190px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .log-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      border-bottom: 1px dashed rgba(181, 234, 215, 0.1);
+      padding-bottom: 2px;
+    }
+
+    .log-time {
+      color: var(--ink4);
+      flex: none;
+    }
+
+    .log-tag {
+      padding: 0 4px;
+      font-size: 9.5px;
+      font-weight: 800;
+      border-radius: 2px;
+      flex: none;
+    }
+
+    .log-tag.info { background: #1d4a42; color: var(--k); }
+    .log-tag.action { background: #2b3935; color: #fff; }
+    .log-tag.skill { background: #7c2d12; color: #fed7aa; }
+    .log-tag.warn { background: var(--red); color: #fff; }
+
+    .log-text {
+      color: #e5edea;
+      flex: 1;
+    }
+
+    /* ==========================================================================
+       4. FOOTER GUIDE STRIP (r2-guide-keys)
+       ========================================================================== */
+    .r2-guide {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--ink2);
+      border-top: 2px solid var(--ink);
+      flex-wrap: wrap;
+      flex: none;
+    }
+
+    .r2-guide-build {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: .12em;
+      color: var(--ink3);
+      white-space: nowrap;
+    }
+
+    .r2-guide-tick {
+      flex: 1;
+      font-size: 10.5px;
+      color: var(--ink2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border-left: 2px solid var(--ink);
+      padding-left: 10px;
+    }
+
+    .r2-guide-keys {
+      font-weight: 800;
+      white-space: nowrap;
+      background: var(--ink);
+      color: var(--white);
+      padding: 4px 12px 3px;
+      transform: skew(-14deg);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .r2-guide-keys > * {
+      transform: skew(14deg);
+    }
+
+    .r2-guide-keys kbd {
+      border: 1px solid var(--k);
+      color: var(--k);
+      padding: 1px 4px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      background: rgba(181, 234, 215, 0.1);
+    }
+
+    /* ==========================================================================
+       5. FULL-SCREEN DYNAMIC CUT-IN OVERLAY (r2-cutin)
+       ========================================================================== */
+    .r2-cutin-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 22, 0.82);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.22s ease, visibility 0.22s;
+    }
+
+    .r2-cutin-overlay.active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .r2-cutin-bar {
+      width: 100%;
+      background: var(--white);
+      border-top: 4px solid var(--ink);
+      border-bottom: 4px solid var(--ink);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+      padding: 16px 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 26px;
+      transform: rotate(-1.5deg) scale(0.92);
+      transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .r2-cutin-overlay.active .r2-cutin-bar {
+      transform: rotate(-1.5deg) scale(1);
+    }
+
+    .r2-cutin-num {
+      font-family: var(--font-anton);
+      font-size: clamp(70px, 9vw, 120px);
+      line-height: 1;
+      color: transparent;
+      -webkit-text-stroke: 3px var(--ink);
+      user-select: none;
+    }
+
+    .r2-cutin-en {
+      font-family: var(--font-anton);
+      font-size: clamp(54px, 7vw, 100px);
+      line-height: 1;
+      font-style: italic;
+      color: var(--ink);
+      letter-spacing: .02em;
+      white-space: nowrap;
+      text-shadow: 5px 5px 0 var(--k);
+    }
+
+    .r2-cutin-ja {
+      font-family: var(--font-dela);
+      font-size: clamp(22px, 3vw, 38px);
+      color: var(--white);
+      background: var(--ink);
+      padding: 6px 18px;
+      box-shadow: 6px 6px 0 var(--red);
+      white-space: nowrap;
+    }
+
+    .cutin-stripe-bg {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 14px,
+        rgba(17, 24, 22, 0.04) 14px,
+        rgba(17, 24, 22, 0.04) 28px
+      );
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Warning Hazard Stripe -->
+  <div class="hazard-stripe-top"></div>
+
+  <div class="dashboard-container">
+
+    <!-- 1. HEADER BAR -->
+    <header class="header-system-bar">
+      <div class="brand-lockup">
+        <div class="r2-band r2-band-ink">
+          <div class="r2-band-code">[TAC-CMD // 01]</div>
+          <span><span>OMEGA PROTOCOL // COMBAT BOT CONTROLLER</span></span>
+        </div>
+      </div>
+
+      <div class="system-telemetry-pill">
+        <div class="telemetry-item">
+          <span class="status-dot"></span>
+          <span>SYSTEM ONLINE</span>
+        </div>
+        <div class="telemetry-item">
+          <span>FREQ:</span>
+          <span style="color:var(--ink);">120.0 Hz</span>
+        </div>
+        <div class="telemetry-item">
+          <span>TICK:</span>
+          <span id="system-tick" style="color:var(--ink);">0042</span>
+        </div>
+        <div class="telemetry-item">
+          <span>TIME:</span>
+          <span id="clock-display" style="color:var(--ink);">--:--:--</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn btn-primary" id="btn-toggle-sound">🔊 AUDIO ON</button>
+        <button class="btn" id="btn-reset-demo">↺ RESET DEMO</button>
+      </div>
+    </header>
+
+    <!-- 2. MEGA STATUS STRIP (Anton Italic Massive Typography) -->
+    <section class="status-strip-section">
+      <div class="status-hero-block">
+        <div class="r2-status" id="main-status-text" data-state="overdrive">OVERDRIVE</div>
+        <div class="r2-status-ja">
+          <b id="status-ja-badge">作戦行動中 // 第一種戦闘配備</b>
+          <span class="mono" id="status-ja-sub">GRID: [04, 03] ｜ OPERATOR SYNC: 99.4%</span>
+        </div>
+      </div>
+
+      <!-- Center KPI Metrics -->
+      <ul class="r2-kpirow">
+        <li>
+          <small>UNIT STATUS</small>
+          <b id="kpi-status-code">ACT-01</b>
+          <span>稼働状態良好</span>
+        </li>
+        <li>
+          <small>CURRENT HP</small>
+          <b id="kpi-hp">95</b>
+          <span id="kpi-hp-sub">/ 95 MAX</span>
+        </li>
+        <li>
+          <small>ATTACK PWR</small>
+          <b id="kpi-atk">25</b>
+          <span>+5 BONUS ACTIVE</span>
+        </li>
+        <li>
+          <small>ULT CHARGE</small>
+          <b id="kpi-ult">85%</b>
+          <span>CHARGE READY</span>
+        </li>
+      </ul>
+
+      <!-- Mode Selector Toggles -->
+      <div class="status-mode-toggles">
+        <button class="btn btn-mint" onclick="setStatusMode('overdrive')">OVERDRIVE</button>
+        <button class="btn btn-danger" onclick="setStatusMode('engaged')">ENGAGED</button>
+        <button class="btn" onclick="setStatusMode('standby')">STANDBY</button>
+      </div>
+    </section>
+
+    <!-- Operator Selection Chips (r2-chip) -->
+    <div style="display:flex; align-items:center; gap:14px; margin-top:2px;">
+      <span style="font-family:var(--font-anton); font-size:13px; letter-spacing:0.08em; color:var(--ink3);">
+        SELECT OPERATOR //
+      </span>
+      <div class="r2-chips" id="operator-chips-container">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+
+    <!-- 3. MAIN DECK GRID: OPERATOR DOSSIER & COMMAND CONSOLE -->
+    <main class="main-deck-grid">
+
+      <!-- LEFT: OPERATOR DOSSIER CARD -->
+      <article class="operator-card">
+        <div class="operator-card-header">
+          <div class="operator-header-title">
+            <span>OPERATOR DOSSIER</span>
+            <span style="opacity:0.4;">//</span>
+            <span id="card-hero-role">ASSAULT</span>
+          </div>
+          <div class="operator-header-id" id="card-hero-serial">ID: OP-01-KNS</div>
+        </div>
+
+        <div class="portrait-stage">
+          <img id="card-hero-img" class="portrait-img" src="assets/kinesis.jpg" alt="Operator Portrait">
+          <div class="portrait-scan-line"></div>
+          <div class="portrait-overlay-bottom">
+            <div class="portrait-name-group">
+              <span class="portrait-code-badge" id="card-hero-en">KINESIS // ASSAULT</span>
+              <span class="portrait-hero-name" id="card-hero-name">キネシス</span>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+              <!-- Mini Barcode -->
+              <svg class="svg-barcode" viewBox="0 0 100 30">
+                <rect x="0" y="0" width="4" height="30" />
+                <rect x="7" y="0" width="2" height="30" />
+                <rect x="12" y="0" width="6" height="30" />
+                <rect x="22" y="0" width="3" height="30" />
+                <rect x="28" y="0" width="8" height="30" />
+                <rect x="40" y="0" width="4" height="30" />
+                <rect x="47" y="0" width="2" height="30" />
+                <rect x="52" y="0" width="5" height="30" />
+                <rect x="61" y="0" width="3" height="30" />
+                <rect x="67" y="0" width="7" height="30" />
+                <rect x="78" y="0" width="3" height="30" />
+                <rect x="85" y="0" width="6" height="30" />
+                <rect x="94" y="0" width="4" height="30" />
+              </svg>
+              <div class="portrait-role-badge">
+                <span id="card-hero-type-tag">突撃強襲</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Body Gauges & Specs -->
+        <div class="operator-card-body">
+          <!-- HP Gauge -->
+          <div class="gauge-field">
+            <div class="gauge-label-row">
+              <span class="gauge-name">HIT POINTS (HP)</span>
+              <span class="gauge-val" id="val-hp-text">95 / 95</span>
+            </div>
+            <div class="r2-gauge" data-seg>
+              <i id="gauge-hp-fill" style="width: 100%;"></i>
+            </div>
+          </div>
+
+          <!-- Energy / Move Gauge -->
+          <div class="gauge-field">
+            <div class="gauge-label-row">
+              <span class="gauge-name">MOBILITY THRUSTER (EN)</span>
+              <span class="gauge-val" id="val-en-text">100% [READY]</span>
+            </div>
+            <div class="r2-gauge" data-tone="ink" data-seg>
+              <i id="gauge-en-fill" style="width: 85%;"></i>
+            </div>
+          </div>
+
+          <!-- Ultimate Charge Gauge -->
+          <div class="gauge-field">
+            <div class="gauge-label-row">
+              <span class="gauge-name">EX-ULTIMATE GAUGE</span>
+              <span class="gauge-val" style="color:var(--red);" id="val-ult-text">85%</span>
+            </div>
+            <div class="r2-gauge" data-tone="red" data-seg>
+              <i id="gauge-ult-fill" style="width: 85%;"></i>
+            </div>
+          </div>
+
+          <!-- Passive Spec -->
+          <div class="passive-spec-box">
+            <div class="passive-spec-title">
+              <span style="color:var(--red);">▶</span>
+              <span id="card-passive-name">PASSIVE // 自律機動</span>
+            </div>
+            <div class="passive-spec-desc" id="card-passive-desc">
+              自軍ターン開始時、通常の行動トークンとは別に、自身専用の移動トークンを+1枚追加獲得する。
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- RIGHT: COMMAND & TACTICAL ACTION DECK -->
+      <section class="command-console-column">
+
+        <!-- Action Cards Grid -->
+        <div class="action-deck-card">
+          <div class="deck-header-row">
+            <div class="deck-title">
+              <span style="color:var(--red);">■</span>
+              <span>TACTICAL COMMAND DECK // 戦術行動発令</span>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <span class="r2-band-code" style="background:var(--ink); color:var(--k);">ACTION TOKEN: ×3</span>
+            </div>
+          </div>
+
+          <div class="action-button-grid">
+            <!-- Command 1: Move -->
+            <button class="command-card-btn active" onclick="executeCommand('MOVE')">
+              <div class="cmd-top-row">
+                <span class="cmd-slot-badge">ACT-01</span>
+                <span class="cmd-stock-tag">COST: 1 EN</span>
+              </div>
+              <div class="cmd-name">機動展開 (MOVE)</div>
+              <div class="cmd-desc">指定座標へユニットを推進移動。スラスター推進で隣接3マスへ展開。</div>
+            </button>
+
+            <!-- Command 2: Attack -->
+            <button class="command-card-btn" onclick="executeCommand('ATTACK')">
+              <div class="cmd-top-row">
+                <span class="cmd-slot-badge">ACT-02</span>
+                <span class="cmd-stock-tag">COST: 1 ATK</span>
+              </div>
+              <div class="cmd-name">通常射撃 (ATTACK)</div>
+              <div class="cmd-desc">射程内の敵ターゲットへ標準レールガン斉射。実効攻撃力 25 DMG。</div>
+            </button>
+
+            <!-- Command 3: Tactical Skill -->
+            <button class="command-card-btn" id="btn-skill-a" onclick="executeCommand('SKILL_A')">
+              <div class="cmd-top-row">
+                <span class="cmd-slot-badge">SKILL</span>
+                <span class="cmd-stock-tag" id="skill-a-stock">STOCK: ×2</span>
+              </div>
+              <div class="cmd-name" id="skill-a-name">オーバードライブ</div>
+              <div class="cmd-desc" id="skill-a-desc">発動ターン中、自身の移動範囲を拡張し通常攻撃力を+5増強する。</div>
+            </button>
+
+            <!-- Command 4: Ultimate EX Cutin -->
+            <button class="command-card-btn ult-btn" id="btn-skill-ult" onclick="triggerUltimateCutin()">
+              <div class="cmd-top-row">
+                <span class="cmd-slot-badge ult-badge">ULTIMATE</span>
+                <span class="cmd-stock-tag" style="color:var(--red);">100% READY</span>
+              </div>
+              <div class="cmd-name" style="color:var(--red);" id="skill-ult-name">フォース・バースト</div>
+              <div class="cmd-desc" id="skill-ult-desc">前方直線上の全敵を貫通し40大ダメージ＋敵コアへ25ダメージ。</div>
+            </button>
+          </div>
+
+          <!-- Simulation Toggles Bar -->
+          <div class="sim-control-bar">
+            <span class="sim-bar-title">SIMULATOR CONTROLS:</span>
+            <button class="btn" onclick="simulateDamage(20)">💥 -20 HP DAMAGE</button>
+            <button class="btn btn-mint" onclick="simulateHeal(25)">💚 +25 HP REPAIR</button>
+            <button class="btn" onclick="chargeUlt(25)">⚡ +25% ULT CHARGE</button>
+            <button class="btn btn-danger" onclick="triggerAlertAlarm()">🚨 TRIGGER ALARM</button>
+          </div>
+        </div>
+
+        <!-- Telemetry Log Stream Card -->
+        <div class="log-stream-card">
+          <div class="log-stream-header">
+            <div class="log-stream-title">
+              <span>●</span>
+              <span>TELEMETRY & COMBAT LOG STREAM</span>
+            </div>
+            <span style="font-family:var(--font-mono); font-size:11px; opacity:0.8;">LIVE BUFFER // 100 Hz</span>
+          </div>
+          <div class="log-stream-body" id="log-body">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- 4. FOOTER GUIDE STRIP -->
+    <footer class="r2-guide">
+      <span class="r2-guide-build">BUILD: 2026.10-BOT-V2.8</span>
+      <span class="r2-guide-tick">SYSTEM NOTICE: オペレーター兵装のパラメータ調整完了。作戦行動可能。</span>
+      <div class="r2-guide-keys">
+        <span><kbd>1-7</kbd> ユニット切替</span>
+        <span><kbd>SPACE</kbd> スキル発動</span>
+        <span><kbd>U</kbd> アルティメット演出</span>
+        <span><kbd>ESC</kbd> 待機</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- 5. DYNAMIC FULL-SCREEN CUT-IN OVERLAY (r2-cutin) -->
+  <div class="r2-cutin-overlay" id="cutin-overlay" onclick="closeCutin()">
+    <div class="r2-cutin-bar">
+      <div class="cutin-stripe-bg"></div>
+      <div class="r2-cutin-num" id="cutin-num">01</div>
+      <div class="r2-cutin-en" id="cutin-en">FORCE BURST</div>
+      <div class="r2-cutin-ja" id="cutin-ja">限界突破・最大出力</div>
+    </div>
+  </div>
+
+  <!-- Audio elements (Synthesized Web Audio API) -->
+  <script>
+    /* ==========================================================================
+       TACTICAL BOT DASHBOARD SCRIPT
+       ========================================================================== */
+
+    // Character Roster Data
+    const OPERATORS = [
+      {
+        key: 'kinesis',
+        id: 'OP-01-KNS',
+        name: 'キネシス',
+        en: 'KINESIS // ASSAULT',
+        role: 'ASSAULT',
+        roleJa: '突撃強襲',
+        hp: 95,
+        maxHp: 95,
+        atk: 25,
+        en: 100,
+        ult: 85,
+        statusText: 'OVERDRIVE',
+        statusJa: '作戦行動中 // 第一種戦闘配備',
+        img: 'assets/kinesis.jpg',
+        passiveTitle: 'PASSIVE // 自律機動',
+        passiveDesc: '自軍ターン開始時、通常の行動トークンとは別に、自身専用の移動トークンを+1枚追加獲得する。',
+        skillA: {
+          name: 'オーバードライブ',
+          stock: '×2',
+          desc: '発動ターン中、自身の移動範囲を拡張し通常攻撃力を+5増強する。'
+        },
+        ultSkill: {
+          name: 'フォース・バースト',
+          num: '01',
+          en: 'FORCE BURST',
+          ja: '限界突破・最大出力',
+          desc: '前方直線上の全敵を貫通し40大ダメージ＋敵コアへ25ダメージ。'
+        }
+      },
+      {
+        key: 'phase',
+        id: 'OP-02-PHS',
+        name: 'フェイズ',
+        en: 'PHASE // INFILTRATOR',
+        role: 'INFILTRATOR',
+        roleJa: '異次元潜入',
+        hp: 80,
+        maxHp: 80,
+        atk: 30,
+        en: 100,
+        ult: 100,
+        statusText: 'DIMENSION SHIFT',
+        statusJa: '虚数空間展開 // 弱体化ハザード散布中',
+        img: 'assets/phase.jpg',
+        passiveTitle: 'PASSIVE // シャドウ・オリジン',
+        passiveDesc: 'バトル開始時、初期配置マスに敵へ被ダメ1.5倍の弱体化を付与するディメンション・ゾーンを展開。',
+        skillA: {
+          name: 'テレポート (影転移)',
+          stock: '×2',
+          desc: '自軍のディメンション・ゾーン（空きマス）へ行動権消費なしで瞬時に帰還する。'
+        },
+        ultSkill: {
+          name: 'シャドウ・ドレイン',
+          num: '02',
+          en: 'SHADOW DRAIN',
+          ja: '影域侵蝕・生命吸収',
+          desc: 'このターンに敵へ与えた総ダメージを即座に自身のHPとして全吸収回復する。'
+        }
+      },
+      {
+        key: 'nitro',
+        id: 'OP-03-NTR',
+        name: 'ニトロ',
+        en: 'NITRO // HEAVY BOMBER',
+        role: 'BOMBER',
+        roleJa: '重装爆撃',
+        hp: 110,
+        maxHp: 110,
+        atk: 25,
+        en: 75,
+        ult: 60,
+        statusText: 'EXPLOSIVE LOCK',
+        statusJa: '重火器照準固定 // 地雷埋設待機',
+        img: 'assets/nitro.jpg',
+        passiveTitle: 'PASSIVE // アフターバーン',
+        passiveDesc: '自身が撃破された瞬間、周囲1マスの全敵ユニットに20ダメージの自爆炸裂を与える。',
+        skillA: {
+          name: 'マイン・プラント',
+          stock: '×2',
+          desc: '指定マスにステルス地雷を敷設（敵侵入時に即時20ダメージ接触起爆）。'
+        },
+        ultSkill: {
+          name: 'マキシマム・エクスプロージョン',
+          num: '03',
+          en: 'MAX EXPLOSION',
+          ja: '全弾装填・超広域殲滅',
+          desc: '自身を中心とする半径2マスの全敵に35大ダメージの壊滅的絨毯爆撃を行う。'
+        }
+      },
+      {
+        key: 'vector',
+        id: 'OP-04-VCT',
+        name: 'ヴェクター',
+        en: 'VECTOR // LONG SNIPER',
+        role: 'SNIPER',
+        roleJa: '精密狙撃',
+        hp: 100,
+        maxHp: 100,
+        atk: 30,
+        en: 90,
+        ult: 70,
+        statusText: 'TARGET ACQUIRED',
+        statusJa: '超長距離スコープ固定 // 射程+3',
+        img: 'assets/vector.jpg',
+        passiveTitle: 'PASSIVE // ファルコン・アイ',
+        passiveDesc: '直線上の敵に対する攻撃射程が+1マス拡張され、遮蔽物を挟まない限り先制可能。',
+        skillA: {
+          name: 'チャージ・ショット',
+          stock: '×1',
+          desc: '次ターンの攻撃威力を+15強化し、相手のシールドを貫通して直接HPを削る。'
+        },
+        ultSkill: {
+          name: 'オプティカル・ピアサー',
+          num: '04',
+          en: 'OPTICAL PIERCER',
+          ja: '軌道狙撃・極光貫通',
+          desc: 'マップ端まで貫通する超高出力ビームを照射し、直線上すべての敵に50ダメージ。'
+        }
+      },
+      {
+        key: 'iris',
+        id: 'OP-05-IRS',
+        name: 'アイリス',
+        en: 'IRIS // FIELD MEDIC',
+        role: 'SUPPORT',
+        roleJa: '広域衛生',
+        hp: 90,
+        maxHp: 90,
+        atk: 20,
+        en: 100,
+        ult: 95,
+        statusText: 'FIELD REPAIR',
+        statusJa: 'ナノマシン散布中 // 全軍HP監視',
+        img: 'assets/iris.jpg',
+        passiveTitle: 'PASSIVE // リペア・パルス',
+        passiveDesc: 'ターン終了時、周囲1マスの全味方ユニットのHPを10自動修復する。',
+        skillA: {
+          name: 'ナノ・シールド',
+          stock: '×2',
+          desc: '指定した味方単体に30耐久値のナノ粒子バリアを2ターンの間付与する。'
+        },
+        ultSkill: {
+          name: 'サンクチュアリ・フィールド',
+          num: '05',
+          en: 'SANCTUARY FIELD',
+          ja: '神域展開・全軍完全修復',
+          desc: '戦場全域の味方全員のHPを35回復し、すべての弱体化・スタンを解除する。'
+        }
+      },
+      {
+        key: 'toxin',
+        id: 'OP-06-TXN',
+        name: 'トキシン',
+        en: 'TOXIN // BIO-HAZARD',
+        role: 'SENTINEL',
+        roleJa: '毒性制圧',
+        hp: 105,
+        maxHp: 105,
+        atk: 25,
+        en: 80,
+        ult: 75,
+        statusText: 'BIOHAZARD ALERT',
+        statusJa: '毒素汚染領域拡大 // 毎ターン10DMG',
+        img: 'assets/toxin.jpg',
+        passiveTitle: 'PASSIVE // コロシブ・ミスト',
+        passiveDesc: '自身がダメージを受けるたび、攻撃者の周囲に猛毒トキシック・ゾーンを自動生成。',
+        skillA: {
+          name: 'トキシック・スプレイ',
+          stock: '×2',
+          desc: '前方扇状に毒素を散布し、対象マスを2ターンの間トキシック・ゾーンに変貌させる。'
+        },
+        ultSkill: {
+          name: 'バイオ・カタストロフ',
+          num: '06',
+          en: 'BIO CATASTROPHE',
+          ja: '猛毒充填・壊死波動',
+          desc: '戦場の全毒素マスを一斉起爆させ、ハザード内に滞在する全敵へ40ダメージ。'
+        }
+      },
+      {
+        key: 'glitch',
+        id: 'OP-07-GLT',
+        name: 'グリッチ',
+        en: 'GLITCH // CYBER DISRUPT',
+        role: 'CONTROLLER',
+        roleJa: '電脳攪乱',
+        hp: 85,
+        maxHp: 85,
+        atk: 25,
+        en: 95,
+        ult: 80,
+        statusText: 'FIREWALL BREACH',
+        statusJa: '電磁ノイズ投射 // 敵行動トークン封殺',
+        img: 'assets/glitch.jpg',
+        passiveTitle: 'PASSIVE // シグナル・ジャック',
+        passiveDesc: '敵のターン開始時、15%の確率で敵の行動トークンを1枚強制剥奪する。',
+        skillA: {
+          name: 'ジャミング・パルス',
+          stock: '×2',
+          desc: '敵ユニットを1ターンの間【沈黙】状態にし、スキル使用を完全に封じる。'
+        },
+        ultSkill: {
+          name: 'システム・オーバーロード',
+          num: '07',
+          en: 'SYSTEM OVERLOAD',
+          ja: '回線過負荷・神経遮断',
+          desc: '指定エリア内の敵全員に30ダメージ＋1ターンの間【武装解除】を付与。'
+        }
+      }
+    ];
+
+    let currentOp = OPERATORS[0];
+    let isSoundEnabled = true;
+    let tickCounter = 42;
+
+    // Web Audio Synthesizer for Industrial SFX
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function playBeep(freq = 880, type = 'sine', duration = 0.08) {
+      if (!isSoundEnabled) return;
+      try {
+        if (!audioCtx) audioCtx = new AudioCtx();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch(e) {}
+    }
+
+    function playHeavyClang() {
+      if (!isSoundEnabled) return;
+      try {
+        if (!audioCtx) audioCtx = new AudioCtx();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.35);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.4);
+      } catch(e) {}
+    }
+
+    // 1. Initialize Operator Chips
+    function initChips() {
+      const container = document.getElementById('operator-chips-container');
+      container.innerHTML = '';
+      OPERATORS.forEach((op, idx) => {
+        const chip = document.createElement('button');
+        chip.className = `r2-chip ${op.key === currentOp.key ? 'active' : ''}`;
+        chip.innerHTML = `<span>[0${idx+1}] ${op.name}</span>`;
+        chip.onclick = () => selectOperator(op);
+        container.appendChild(chip);
+      });
+    }
+
+    // 2. Select Operator
+    function selectOperator(op) {
+      currentOp = op;
+      playBeep(1200, 'sine', 0.06);
+
+      // Update chips active state
+      document.querySelectorAll('.r2-chip').forEach((el, idx) => {
+        el.classList.toggle('active', OPERATORS[idx].key === op.key);
+      });
+
+      // Update Card UI
+      document.getElementById('card-hero-img').src = op.img;
+      document.getElementById('card-hero-name').innerText = op.name;
+      document.getElementById('card-hero-en').innerText = op.en;
+      document.getElementById('card-hero-role').innerText = op.role;
+      document.getElementById('card-hero-type-tag').innerText = op.roleJa;
+      document.getElementById('card-hero-serial').innerText = `ID: ${op.id}`;
+
+      // Update Status Strip
+      const statusEl = document.getElementById('main-status-text');
+      statusEl.innerText = op.statusText;
+      statusEl.dataset.state = (op.key === 'phase' || op.key === 'toxin') ? 'engaged' : 'overdrive';
+      document.getElementById('status-ja-badge').innerText = op.statusJa.split(' // ')[0];
+      document.getElementById('status-ja-sub').innerText = op.statusJa.split(' // ')[1] || `SYNC: 99.8%`;
+
+      // Update KPIs
+      document.getElementById('kpi-status-code').innerText = op.id.split('-').pop();
+      document.getElementById('kpi-hp').innerText = op.hp;
+      document.getElementById('kpi-hp-sub').innerText = `/ ${op.maxHp} MAX`;
+      document.getElementById('kpi-atk').innerText = op.atk;
+      document.getElementById('kpi-ult').innerText = `${op.ult}%`;
+
+      // Update Gauges
+      updateGauges();
+
+      // Update Passives & Skills
+      document.getElementById('card-passive-name').innerText = op.passiveTitle;
+      document.getElementById('card-passive-desc').innerText = op.passiveDesc;
+      document.getElementById('skill-a-name').innerText = op.skillA.name;
+      document.getElementById('skill-a-desc').innerText = op.skillA.desc;
+      document.getElementById('skill-a-stock').innerText = `STOCK: ${op.skillA.stock}`;
+      document.getElementById('skill-ult-name').innerText = op.ultSkill.name;
+      document.getElementById('skill-ult-desc').innerText = op.ultSkill.desc;
+
+      addLog(`OPERATOR SWITCH: [${op.id}] ${op.name} (${op.role}) LINK ESTABLISHED`, 'info');
+    }
+
+    // Update Gauge fills
+    function updateGauges() {
+      const hpPct = Math.max(0, Math.min(100, (currentOp.hp / currentOp.maxHp) * 100));
+      document.getElementById('gauge-hp-fill').style.width = `${hpPct}%`;
+      document.getElementById('val-hp-text').innerText = `${currentOp.hp} / ${currentOp.maxHp}`;
+      document.getElementById('kpi-hp').innerText = currentOp.hp;
+
+      document.getElementById('gauge-en-fill').style.width = `${currentOp.en}%`;
+      document.getElementById('val-en-text').innerText = `${currentOp.en}% [READY]`;
+
+      document.getElementById('gauge-ult-fill').style.width = `${currentOp.ult}%`;
+      document.getElementById('val-ult-text').innerText = `${currentOp.ult}%`;
+      document.getElementById('kpi-ult').innerText = `${currentOp.ult}%`;
+    }
+
+    // Set Status Mode manually
+    function setStatusMode(mode) {
+      playBeep(mode === 'engaged' ? 440 : 880, 'sawtooth', 0.1);
+      const statusEl = document.getElementById('main-status-text');
+      statusEl.dataset.state = mode;
+
+      if (mode === 'overdrive') {
+        statusEl.innerText = 'OVERDRIVE';
+        document.getElementById('status-ja-badge').innerText = '作戦行動中 // 第一種戦闘配備';
+        addLog(`SYSTEM MODE SET: OVERDRIVE - ALL LIMITERS DISENGAGED`, 'action');
+      } else if (mode === 'engaged') {
+        statusEl.innerText = 'ENGAGED';
+        document.getElementById('status-ja-badge').innerText = '交戦中 // 敵性対抗プロトコル稼働';
+        addLog(`SYSTEM MODE SET: ENGAGED - COMBAT IN PROGRESS`, 'warn');
+      } else {
+        statusEl.innerText = 'STANDBY';
+        document.getElementById('status-ja-badge').innerText = '作戦待機中 // セーフティロック有効';
+        addLog(`SYSTEM MODE SET: STANDBY - SAFE PROTOCOL`, 'info');
+      }
+    }
+
+    // Execute Command simulation
+    function executeCommand(type) {
+      playBeep(type === 'MOVE' ? 660 : 920, 'square', 0.08);
+      if (type === 'MOVE') {
+        currentOp.en = Math.max(10, currentOp.en - 20);
+        updateGauges();
+        addLog(`[COMMAND: MOVE] ${currentOp.name} EXECUTED MOBILITY VECTOR SHIFT (-20 EN)`, 'action');
+      } else if (type === 'ATTACK') {
+        playHeavyClang();
+        addLog(`[COMMAND: ATTACK] ${currentOp.name} FIRED RAILGUN VOLLEY -> DEALT ${currentOp.atk} DMG`, 'warn');
+        chargeUlt(15);
+      } else if (type === 'SKILL_A') {
+        playBeep(1400, 'sine', 0.15);
+        addLog(`[COMMAND: SKILL] ${currentOp.name} ACTIVATED『${currentOp.skillA.name}』`, 'skill');
+      }
+    }
+
+    // Trigger Dynamic Cutin Overlay
+    function triggerUltimateCutin() {
+      playHeavyClang();
+      const overlay = document.getElementById('cutin-overlay');
+      document.getElementById('cutin-num').innerText = currentOp.ultSkill.num;
+      document.getElementById('cutin-en').innerText = currentOp.ultSkill.en;
+      document.getElementById('cutin-ja').innerText = currentOp.ultSkill.ja;
+
+      overlay.classList.add('active');
+      addLog(`🚨 [ULTIMATE EX] ${currentOp.name} UNLEASHED『${currentOp.ultSkill.name}』!!`, 'warn');
+
+      currentOp.ult = 0;
+      updateGauges();
+
+      setTimeout(() => {
+        closeCutin();
+      }, 2000);
+    }
+
+    function closeCutin() {
+      document.getElementById('cutin-overlay').classList.remove('active');
+    }
+
+    // Simulation helpers
+    function simulateDamage(amount) {
+      playHeavyClang();
+      currentOp.hp = Math.max(0, currentOp.hp - amount);
+      updateGauges();
+      addLog(`[SIM DAMAGE] ${currentOp.name} SUSTAINED -${amount} DMG (HP: ${currentOp.hp}/${currentOp.maxHp})`, 'warn');
+      if (currentOp.hp <= 30) {
+        setStatusMode('engaged');
+      }
+    }
+
+    function simulateHeal(amount) {
+      playBeep(1200, 'sine', 0.12);
+      currentOp.hp = Math.min(currentOp.maxHp, currentOp.hp + amount);
+      updateGauges();
+      addLog(`[SIM REPAIR] NANO-INJECTION +${amount} HP RESTORED (HP: ${currentOp.hp}/${currentOp.maxHp})`, 'info');
+    }
+
+    function chargeUlt(amount) {
+      playBeep(980, 'triangle', 0.08);
+      currentOp.ult = Math.min(100, currentOp.ult + amount);
+      updateGauges();
+      addLog(`[ULT CHARGE] REACTION CORE CHARGE +${amount}% (NOW: ${currentOp.ult}%)`, 'info');
+    }
+
+    function triggerAlertAlarm() {
+      playHeavyClang();
+      setStatusMode('engaged');
+      addLog(`[EMERGENCY ALARM] RED ALERT DETECTED - ALL UNITS PREPARE FOR IMPACT`, 'warn');
+    }
+
+    // Add Telemetry Log Entry
+    function addLog(text, tag = 'info') {
+      const body = document.getElementById('log-body');
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+
+      const row = document.createElement('div');
+      row.className = 'log-row';
+      row.innerHTML = `
+        <span class="log-time">[${timeStr}]</span>
+        <span class="log-tag ${tag}">${tag.toUpperCase()}</span>
+        <span class="log-text">${text}</span>
+      `;
+      body.prepend(row);
+    }
+
+    // Live Clock & Ticks
+    setInterval(() => {
+      const now = new Date();
+      document.getElementById('clock-display').innerText = now.toTimeString().split(' ')[0];
+      tickCounter = (tickCounter + 1) % 10000;
+      document.getElementById('system-tick').innerText = String(tickCounter).padStart(4, '0');
+    }, 1000);
+
+    // Audio Toggle
+    document.getElementById('btn-toggle-sound').onclick = function() {
+      isSoundEnabled = !isSoundEnabled;
+      this.innerText = isSoundEnabled ? '🔊 AUDIO ON' : '🔇 AUDIO OFF';
+      this.classList.toggle('btn-primary', isSoundEnabled);
+    };
+
+    // Reset Demo
+    document.getElementById('btn-reset-demo').onclick = function() {
+      OPERATORS.forEach(op => {
+        op.hp = op.maxHp;
+        op.en = 100;
+        op.ult = (op.key === 'phase' ? 100 : 85);
+      });
+      selectOperator(OPERATORS[0]);
+      addLog(`DEMO RESET TO INITIAL PARAMETERS`, 'info');
+    };
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.key >= '1' && e.key <= '7') {
+        const idx = parseInt(e.key) - 1;
+        if (OPERATORS[idx]) selectOperator(OPERATORS[idx]);
+      } else if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        executeCommand('SKILL_A');
+      } else if (e.key === 'u' || e.key === 'U') {
+        triggerUltimateCutin();
+      } else if (e.key === 'Escape') {
+        closeCutin();
+      }
+    });
+
+    // Boot Up
+    window.addEventListener('DOMContentLoaded', () => {
+      initChips();
+      selectOperator(OPERATORS[0]);
+      addLog(`TACTICAL COMBAT BOT DASHBOARD INITIALIZED`, 'info');
+      addLog(`READY FOR OPERATOR COMMAND INPUT`, 'info');
+    });
+  </script>
+</body>
+</html>

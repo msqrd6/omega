@@ -1,0 +1,2774 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#08090c">
+  <title>INSPECTOR UI LAB // キャラ詳細・戦績ログ ショーケース</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #07080b;
+      --bg-panel: #11141b;
+      --bg-card: #181c26;
+      --border: #2c3344;
+      --ink: #0a0c10;
+      --white: #f3f5ef;
+      --muted: #8b94a5;
+      --lime: #d8ff00;
+      --orange: #ff4625;
+      --amber: #ffc400;
+      --cyan: #00e5ff;
+      --purple: #b366ff;
+      --emerald: #2ee59d;
+
+      --role-assault: #ff5a36;
+      --role-sentinel: #00d8ff;
+      --role-disruptor: #b366ff;
+      --role-support: #2ee59d;
+      --role-core: #ffc400;
+      --role-object: #7dd3fc;
+
+      --num: "Oswald", Impact, "Arial Narrow", sans-serif;
+      --display: Impact, "Arial Black", "Arial Narrow", sans-serif;
+      --jp: "Zen Kaku Gothic New", "Yu Gothic UI", "Meiryo", sans-serif;
+      --mono: Consolas, "Courier New", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: radial-gradient(circle at 30% 15%, #1c2230 0%, #0a0c11 55%, #050608 100%);
+      color: var(--white);
+      font-family: var(--jp);
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(#ffffff07 1px, transparent 1px),
+        linear-gradient(#ffffff03 1px, transparent 1px),
+        linear-gradient(90deg, #ffffff03 1px, transparent 1px);
+      background-size: 16px 16px, 64px 64px, 64px 64px;
+      z-index: 0;
+    }
+
+    .app-shell {
+      position: relative;
+      z-index: 1;
+      max-width: 1540px;
+      margin: 0 auto;
+      padding: 16px 22px 44px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ========================================================================
+       HEADER & CONTROLS
+       ======================================================================== */
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      background: rgba(17, 20, 27, 0.92);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 0 #000, 0 16px 32px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(8px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: 8px;
+      background: #1b202c;
+      border: 1px solid #353f54;
+      color: var(--white);
+      text-decoration: none;
+      font: 800 12px var(--jp);
+      transition: 0.14s;
+    }
+    .back-link:hover { border-color: var(--lime); color: var(--lime); }
+
+    .brand-copy { display: flex; flex-direction: column; gap: 2px; }
+    .brand-tag { font: 900 10px var(--mono); letter-spacing: 0.16em; color: var(--lime); }
+    .brand-copy h1 { margin: 0; font-size: 19px; font-weight: 900; letter-spacing: 0.03em; line-height: 1.1; }
+    .brand-copy h1 span { color: var(--muted); font-size: 12px; font-weight: 700; margin-left: 8px; }
+
+    .controls-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding: 4px;
+      background: #0a0c11;
+      border: 1px solid #262d3d;
+      border-radius: 9px;
+    }
+
+    .ctrl-label {
+      font: 900 9.5px var(--mono);
+      color: var(--muted);
+      padding: 0 7px 0 5px;
+      letter-spacing: 0.07em;
+      white-space: nowrap;
+    }
+
+    .ctrl-btn {
+      border: 1px solid transparent;
+      background: transparent;
+      color: #b7c0d0;
+      padding: 4px 9px;
+      border-radius: 6px;
+      font: 800 11px var(--jp);
+      cursor: pointer;
+      transition: 0.12s;
+      white-space: nowrap;
+    }
+    .ctrl-btn:hover { color: var(--white); background: #1b202b; }
+    .ctrl-btn.active {
+      background: var(--lime);
+      color: #08090c;
+      border-color: #000;
+      box-shadow: 0 2px 0 #000;
+    }
+    .ctrl-btn.active.enemy-pill { background: var(--orange); color: #fff; }
+
+    .unit-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 14px;
+      background: rgba(17, 20, 27, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    /* Preset Selector */
+    .preset-bar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 1024px) { .preset-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 600px)  { .preset-bar { grid-template-columns: 1fr; } }
+
+    .preset-card {
+      text-align: left;
+      padding: 11px 13px;
+      border-radius: 12px;
+      background: var(--bg-panel);
+      border: 1.5px solid var(--border);
+      color: var(--white);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      transition: 0.14s;
+      box-shadow: 0 4px 0 #000;
+    }
+    .preset-card:hover { border-color: #606d8a; transform: translateY(-1px); }
+    .preset-card.active {
+      border-color: var(--lime);
+      background: linear-gradient(135deg, #1b2114 0%, #11141b 70%);
+      box-shadow: 0 4px 0 #000, 0 0 0 1px var(--lime), 0 0 20px rgba(216, 255, 0, 0.14);
+    }
+    .preset-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .preset-code { font: 900 10px var(--mono); letter-spacing: 0.12em; color: var(--lime); }
+    .preset-card:not(.active) .preset-code { color: var(--muted); }
+    .preset-badge {
+      font: 900 9px var(--mono);
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #0a0c10;
+      border: 1px solid #30384b;
+      color: #a4b0c5;
+    }
+    .preset-card.active .preset-badge { background: var(--lime); color: #000; border-color: #000; }
+    .preset-card strong { font-size: 13.5px; font-weight: 900; letter-spacing: 0.02em; }
+    .preset-card small { font-size: 11px; color: var(--muted); line-height: 1.35; }
+
+    /* ========================================================================
+       STAGE: EXACT 540×752 INSPECTOR PANELS (SIDE BY SIDE OR TABBED)
+       ======================================================================== */
+    .stage-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 24px;
+      padding: 8px 0;
+    }
+
+    .panel-frame-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-caption {
+      font: 900 11px var(--mono);
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-caption b { color: var(--white); font-family: var(--jp); }
+
+    .inspector-scale-box {
+      width: calc(540px * var(--pscale, 1));
+      height: calc(752px * var(--pscale, 1));
+      position: relative;
+      flex: none;
+    }
+    .endturn-scale-box {
+      width: calc(540px * var(--pscale, 1));
+      height: calc(66px * var(--pscale, 1));
+      position: relative;
+      flex: none;
+      margin-top: 6px;
+    }
+    .sim-endturn-wrap {
+      width: 540px;
+      height: 66px;
+      transform: scale(var(--pscale, 1));
+      transform-origin: top left;
+    }
+    .sim-endturn-btn {
+      --accent: var(--lime);
+      position: relative;
+      width: 540px;
+      height: 66px;
+      border-radius: 12px;
+      border: 2px solid var(--accent);
+      background:
+        repeating-linear-gradient(-45deg, #ffffff04 0 10px, transparent 10px 20px),
+        #0c0d10;
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      cursor: pointer;
+      overflow: hidden;
+      user-select: none;
+      box-shadow: 0 7px 0 #000, 0 0 18px color-mix(in srgb, var(--accent) 16%, transparent);
+      transition: transform 0.12s, border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+    }
+    .sim-endturn-btn[data-team="RED"] {
+      --accent: var(--orange);
+    }
+    .sim-endturn-btn:hover:not(.disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 9px 0 #000, 0 0 26px color-mix(in srgb, var(--accent) 30%, transparent);
+    }
+    .sim-endturn-btn.disabled {
+      opacity: 0.45;
+      border-color: #34363e;
+      box-shadow: 0 4px 0 #000;
+      cursor: not-allowed;
+    }
+    .sim-endturn-btn .et-fill {
+      position: absolute;
+      inset: 0;
+      background: var(--accent);
+      transform: scaleX(0);
+      transform-origin: left;
+      pointer-events: none;
+      transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .sim-endturn-btn:active:not(.disabled) .et-fill,
+    .sim-endturn-btn.is-holding:not(.disabled) .et-fill {
+      transform: scaleX(1);
+    }
+    .sim-endturn-btn .et-content,
+    .sim-endturn-btn .et-icon {
+      position: relative;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .sim-endturn-btn .et-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .sim-endturn-btn .et-content strong {
+      font: italic 800 25px/1 var(--num);
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      transition: color 0.18s;
+    }
+    .sim-endturn-btn .et-content small {
+      font: 900 10px/1 var(--jp);
+      letter-spacing: 0.08em;
+      background: #1d1e24;
+      border: 1px solid #30323b;
+      color: #eef0f5;
+      padding: 5px 9px;
+      border-radius: 4px;
+      transform: skewX(-8deg);
+    }
+    .sim-endturn-btn .et-content small > span {
+      display: inline-block;
+      transform: skewX(8deg);
+    }
+    .sim-endturn-btn .et-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      color: var(--accent);
+      transition: color 0.18s;
+    }
+    .sim-endturn-btn.disabled .et-content strong,
+    .sim-endturn-btn.disabled .et-icon {
+      color: #6b6e79;
+    }
+    .sim-endturn-btn.is-holding:not(.disabled) .et-content strong,
+    .sim-endturn-btn.is-holding:not(.disabled) .et-icon {
+      color: #08090c;
+    }
+    .sim-endturn-btn[data-team="RED"].is-holding:not(.disabled) .et-content strong,
+    .sim-endturn-btn[data-team="RED"].is-holding:not(.disabled) .et-icon {
+      color: #ffffff;
+    }
+    .sim-endturn-btn.is-holding:not(.disabled) .et-content small {
+      background: #08090c;
+      border-color: #08090c;
+      color: var(--accent);
+    }
+
+    /* Exact 540 × 752 container matching index.html */
+    .sim-inspector {
+      --accent: var(--lime);
+      --role-color: var(--role-assault);
+      width: 540px;
+      height: 752px;
+      transform: scale(var(--pscale, 1));
+      transform-origin: top left;
+      border: 2px solid #2e3545;
+      border-radius: 16px;
+      background: #13161d;
+      box-shadow: 0 10px 0 #000, 0 24px 48px #00000090;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .sim-inspector[data-team="RED"] {
+      --accent: var(--orange);
+    }
+    .sim-inspector[data-role="ASSAULT"]   { --role-color: var(--role-assault); }
+    .sim-inspector[data-role="SENTINEL"]  { --role-color: var(--role-sentinel); }
+    .sim-inspector[data-role="DISRUPTOR"] { --role-color: var(--role-disruptor); }
+    .sim-inspector[data-role="SUPPORT"]   { --role-color: var(--role-support); }
+    .sim-inspector[data-role="CORE"]      { --role-color: var(--role-core); }
+    .sim-inspector[data-role="OBJECT"]    { --role-color: var(--role-object); }
+
+    .svg-ic { width: 1em; height: 1em; display: inline-block; flex: none; }
+
+    /* Shared scrollbar */
+    .insp-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #363e52 transparent;
+    }
+
+    /* ========================================================================
+       PRESET 01: CLEAN TACTICAL (洗練タクティカル・統一HUD型)
+       - 駒デザイン(CLEAN MEDAL)と完全統一した色・フォント・アイコン言語
+       ======================================================================== */
+    .st-tactical .st-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #0a0c11;
+      border-bottom: 1.5px solid #252b3b;
+      flex: none;
+    }
+    .st-tactical .st-tab {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1.5px solid #262d3d;
+      background: #141821;
+      color: var(--muted);
+      cursor: pointer;
+      transition: 0.12s;
+    }
+    .st-tactical .st-tab span { font: italic 700 13.5px/1 var(--num); letter-spacing: 0.08em; }
+    .st-tactical .st-tab small { font: 800 10px var(--jp); opacity: 0.85; }
+    .st-tactical .st-tab.is-active {
+      background: var(--lime);
+      border-color: #000;
+      color: #08090c;
+      box-shadow: 0 2px 0 #000;
+    }
+    .st-tactical .st-tab-badge {
+      font: 700 10px/1 var(--mono);
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #080a0f;
+      color: var(--lime);
+    }
+
+    /* Tactical Hero Header */
+    .st-tactical .ct-hero {
+      position: relative;
+      height: 158px;
+      flex: none;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 82% 55%, color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 56%),
+        repeating-linear-gradient(-45deg, #ffffff04 0 12px, transparent 12px 24px),
+        linear-gradient(125deg, #0d1016 0%, #151a24 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .st-tactical .ct-hero-art {
+      position: absolute;
+      right: 6px;
+      bottom: -36px;
+      width: 224px;
+      height: 224px;
+      object-fit: contain;
+      filter: drop-shadow(-6px 4px 0 rgba(0,0,0,0.75));
+      pointer-events: none;
+    }
+    .st-tactical .ct-hero-emblem {
+      position: absolute;
+      right: 36px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 108px;
+      height: 108px;
+      color: var(--accent);
+      opacity: 0.85;
+      filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) 40%, transparent));
+    }
+    .st-tactical .ct-hero-top {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .st-tactical .ct-team-chip {
+      font: italic 700 11px/1 var(--num);
+      letter-spacing: 0.1em;
+      padding: 4px 9px;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #08090c;
+      border: 1.5px solid #000;
+      box-shadow: 0 2px 0 #000;
+    }
+    .st-tactical[data-team="RED"] .ct-team-chip { color: #fff; }
+    .st-tactical .ct-role-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3.5px 9px 3.5px 6px;
+      border-radius: 999px;
+      background: #0a0c10e6;
+      border: 1.5px solid var(--role-color);
+      color: var(--role-color);
+      font: 800 10.5px/1 var(--jp);
+    }
+    .st-tactical .ct-role-chip span { color: var(--white); }
+
+    .st-tactical .ct-hero-title {
+      position: relative;
+      z-index: 2;
+      max-width: 280px;
+    }
+    .st-tactical .ct-hero-code {
+      font: 800 10px var(--mono);
+      letter-spacing: 0.16em;
+      color: var(--muted);
+    }
+    .st-tactical .ct-hero-title h2 {
+      margin: 2px 0 0;
+      font-size: 29px;
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: 0.02em;
+      color: #fff;
+      text-shadow: 0 2px 10px #000;
+    }
+
+    /* Unified Stat Strip */
+    .st-tactical .ct-stats-bar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+      padding: 12px 20px;
+      background: #0c0f15;
+      border-bottom: 1px solid #232a3a;
+      flex: none;
+    }
+    .st-tactical .ct-hp-block {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .st-tactical .ct-stat-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .st-tactical .ct-stat-lbl {
+      font: 900 10px var(--mono);
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+    .st-tactical .ct-hp-num {
+      font: italic 600 26px/0.95 var(--num);
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+    .st-tactical .ct-hp-num small {
+      font: 700 12px var(--mono);
+      color: var(--muted);
+      margin-left: 2px;
+    }
+    .st-tactical .ct-hp-track {
+      height: 5px;
+      border-radius: 3px;
+      background: #050608;
+      border: 1px solid #222938;
+      overflow: hidden;
+    }
+    .st-tactical .ct-hp-track i {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+    }
+    .st-tactical .ct-atk-block {
+      padding: 6px 14px;
+      border-radius: 8px;
+      background: #141822;
+      border: 1.5px solid #2b3345;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .st-tactical .ct-atk-num {
+      font: italic 600 24px/0.95 var(--num);
+      color: var(--amber);
+      font-variant-numeric: tabular-nums;
+    }
+    .st-tactical .ct-atk-num.is-none { color: #5b657a; }
+
+    /* Status & Terrain Pills */
+    .st-tactical .ct-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px 20px 2px;
+    }
+    .st-tactical .ct-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 9px;
+      border-radius: 6px;
+      font: 800 11px var(--jp);
+      border: 1px solid #30394c;
+      background: #141822;
+      color: #d7dfed;
+    }
+    .st-tactical .ct-chip.buff    { border-color: #d8ff0066; background: #d8ff0016; color: var(--lime); }
+    .st-tactical .ct-chip.debuff  { border-color: #ff462577; background: #ff46251a; color: #ff8d75; }
+    .st-tactical .ct-chip.shield  { border-color: #00e5ff77; background: #00e5ff16; color: var(--cyan); }
+    .st-tactical .ct-chip.terrain { border-color: #b366ff77; background: #b366ff18; color: #d8adff; }
+
+    /* Ability Deck */
+    .st-tactical .ct-abilities {
+      padding: 12px 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .st-tactical .ct-card {
+      position: relative;
+      display: grid;
+      grid-template-columns: 70px 1fr;
+      gap: 12px;
+      align-items: start;
+      padding: 12px 14px;
+      border-radius: 11px;
+      background: #181c26;
+      border: 1.5px solid #2b3346;
+      border-left: 4px solid #455068;
+      text-align: left;
+      color: var(--white);
+      width: 100%;
+      transition: 0.14s;
+    }
+    .st-tactical .ct-card.is-passive {
+      border-left-color: var(--cyan);
+      background: linear-gradient(135deg, #101820 0%, #161b25 100%);
+    }
+    .st-tactical .ct-card.is-skill {
+      border-left-color: var(--accent);
+      cursor: pointer;
+    }
+    .st-tactical .ct-card.is-ult {
+      border-left-color: var(--amber);
+      cursor: pointer;
+    }
+    .st-tactical .ct-card.is-armed {
+      border-color: var(--lime);
+      background: #202815;
+      box-shadow: 0 0 0 1px var(--lime), 0 0 18px #d8ff0028;
+    }
+    .st-tactical .ct-card.is-disabled {
+      opacity: 0.56;
+      cursor: default;
+    }
+    .st-tactical .ct-card:not(.is-disabled).is-skill:hover,
+    .st-tactical .ct-card:not(.is-disabled).is-ult:hover {
+      transform: translateY(-1px);
+      background: #202634;
+    }
+
+    .st-tactical .ct-slot-col {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      align-items: flex-start;
+    }
+    .st-tactical .ct-slot-badge {
+      font: italic 700 14px/1 var(--num);
+      letter-spacing: 0.08em;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: #0c0f15;
+      border: 1px solid #323a4d;
+      color: var(--white);
+    }
+    .st-tactical .is-passive .ct-slot-badge { color: var(--cyan); border-color: #00e5ff55; font-size: 11px; }
+    .st-tactical .is-skill .ct-slot-badge   { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+    .st-tactical .is-ult .ct-slot-badge     { color: var(--amber); border-color: #ffc40055; }
+
+    .st-tactical .ct-pips {
+      display: flex;
+      gap: 4px;
+      padding-left: 2px;
+    }
+    .st-tactical .ct-pip {
+      width: 9px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+    .st-tactical .is-ult .ct-pip { background: var(--amber); }
+    .st-tactical .ct-pip.used { background: #2d3446; }
+
+    .st-tactical .ct-card-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .st-tactical .ct-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .st-tactical .ct-card-top strong { font-size: 14px; font-weight: 900; color: #fff; }
+    .st-tactical .ct-state-pill {
+      font: 800 10px var(--mono);
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: #0b0d12;
+      border: 1px solid #2e3648;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .st-tactical .is-armed .ct-state-pill {
+      background: var(--lime);
+      color: #08090c;
+      border-color: #000;
+    }
+    .st-tactical .ct-card-desc {
+      font-size: 12px;
+      line-height: 1.48;
+      color: #c2cbd9;
+      font-weight: 700;
+    }
+
+    /* Tactical Battle Log */
+    .st-tactical .ct-log-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 16px;
+      background: #0d1017;
+      border-bottom: 1px solid #242b3b;
+      flex: none;
+    }
+    .st-tactical .ct-log-filters { display: flex; gap: 5px; }
+    .st-tactical .ct-filter-btn {
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: #151923;
+      border: 1px solid #293142;
+      color: var(--muted);
+      font: 900 10px var(--mono);
+      cursor: pointer;
+    }
+    .st-tactical .ct-filter-btn.active {
+      background: var(--lime);
+      color: #08090c;
+      border-color: #000;
+    }
+    .st-tactical .ct-log-list {
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .st-tactical .ct-turn-sep {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0 1px;
+      font: 900 10px var(--mono);
+      letter-spacing: 0.14em;
+      color: var(--muted);
+    }
+    .st-tactical .ct-turn-sep::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #242b3b;
+    }
+    .st-tactical .ct-log-item {
+      display: grid;
+      grid-template-columns: 62px 1fr;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 11px;
+      border-radius: 9px;
+      background: #171b25;
+      border: 1px solid #283042;
+      border-left: 3.5px solid var(--lime);
+    }
+    .st-tactical .ct-log-item[data-kind="attack"] { border-left-color: var(--orange); }
+    .st-tactical .ct-log-item[data-kind="skill"]  { border-left-color: var(--cyan); }
+    .st-tactical .ct-log-item[data-kind="ult"]    { border-left-color: var(--amber); }
+    .st-tactical .ct-log-item[data-kind="system"] { border-left-color: var(--purple); }
+    .st-tactical .ct-log-tag {
+      font: 900 9.5px/1 var(--mono);
+      padding: 4px 0;
+      text-align: center;
+      border-radius: 4px;
+      background: #0b0d12;
+      color: var(--lime);
+      border: 1px solid #293142;
+    }
+    .st-tactical .ct-log-item[data-kind="attack"] .ct-log-tag { color: var(--orange); }
+    .st-tactical .ct-log-item[data-kind="skill"]  .ct-log-tag { color: var(--cyan); }
+    .st-tactical .ct-log-item[data-kind="ult"]    .ct-log-tag { color: var(--amber); }
+    .st-tactical .ct-log-item[data-kind="system"] .ct-log-tag { color: var(--purple); }
+    .st-tactical .ct-log-text {
+      font-size: 12px;
+      font-weight: 700;
+      color: #d6deec;
+      line-height: 1.4;
+    }
+    .st-tactical .ct-log-text b.dmg  { color: #ff7a5c; font-weight: 900; }
+    .st-tactical .ct-log-text b.heal { color: var(--emerald); font-weight: 900; }
+    .st-tactical .ct-log-text b.buff { color: var(--cyan); font-weight: 900; }
+
+    /* ========================================================================
+       PRESET 02: SLEEK DOSSIER (ミニマル・コンパクトシート型)
+       - 絵と文字を分離して可読性を極限まで高めたノイズレス構成
+       - 戦績ログは高密度タイムラインで一画面に12件以上を一覧表示
+       ======================================================================== */
+    .st-dossier .ds-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 8px 12px 0;
+      background: #0a0c11;
+      border-bottom: 1.5px solid #242b3b;
+      flex: none;
+    }
+    .st-dossier .ds-tab {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 9px 12px;
+      border: 0;
+      border-bottom: 2.5px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .st-dossier .ds-tab span { font: 700 13px var(--num); letter-spacing: 0.08em; }
+    .st-dossier .ds-tab small { font: 800 10.5px var(--jp); }
+    .st-dossier .ds-tab.is-active {
+      color: var(--white);
+      border-bottom-color: var(--lime);
+    }
+    .st-dossier .ds-tab-count {
+      font: 900 10px var(--mono);
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: #1b2130;
+      color: var(--lime);
+    }
+
+    /* Split clean header (portrait left, data right) */
+    .st-dossier .ds-head {
+      display: grid;
+      grid-template-columns: 112px 1fr;
+      gap: 16px;
+      padding: 16px 20px;
+      background: #0d1016;
+      border-bottom: 1px solid #242b3b;
+      flex: none;
+    }
+    .st-dossier .ds-portrait-box {
+      width: 112px;
+      height: 112px;
+      border-radius: 12px;
+      background: radial-gradient(circle at 50% 35%, #3c4c15 0%, #151b0b 82%);
+      border: 2px solid var(--accent);
+      overflow: hidden;
+      position: relative;
+      display: grid;
+      place-items: center;
+    }
+    .st-dossier[data-team="RED"] .ds-portrait-box {
+      background: radial-gradient(circle at 50% 35%, #5c1f18 0%, #200d0c 82%);
+    }
+    .st-dossier .ds-portrait-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transform: translateY(-2%) scale(1.26);
+      transform-origin: 50% 15%;
+    }
+    .st-dossier .ds-portrait-box svg.emblem {
+      width: 56px;
+      height: 56px;
+      color: var(--accent);
+    }
+    .st-dossier .ds-role-corner {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #090b10;
+      border: 1.5px solid var(--role-color);
+      color: var(--role-color);
+    }
+
+    .st-dossier .ds-meta {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 0;
+    }
+    .st-dossier .ds-meta-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .st-dossier .ds-role-text {
+      font: 900 10.5px var(--mono);
+      letter-spacing: 0.1em;
+      color: var(--role-color);
+    }
+    .st-dossier .ds-team-text {
+      font: 900 10px var(--mono);
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+      color: var(--accent);
+    }
+    .st-dossier .ds-meta h2 {
+      margin: 2px 0 6px;
+      font-size: 26px;
+      font-weight: 900;
+      line-height: 1.05;
+      color: #fff;
+    }
+    .st-dossier .ds-metrics {
+      display: flex;
+      align-items: flex-end;
+      gap: 18px;
+    }
+    .st-dossier .ds-hp-wrap { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+    .st-dossier .ds-num-row { display: flex; align-items: baseline; justify-content: space-between; }
+    .st-dossier .ds-num-row span { font: 900 9.5px var(--mono); color: var(--muted); }
+    .st-dossier .ds-num-row b { font: italic 600 22px/0.95 var(--num); color: #fff; }
+    .st-dossier .ds-num-row b small { font: 700 11px var(--mono); color: var(--muted); }
+    .st-dossier .ds-bar { height: 4px; border-radius: 2px; background: #1c2230; overflow: hidden; }
+    .st-dossier .ds-bar i { display: block; height: 100%; background: var(--accent); }
+    .st-dossier .ds-atk-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+    .st-dossier .ds-atk-wrap span { font: 900 9.5px var(--mono); color: var(--muted); }
+    .st-dossier .ds-atk-wrap b { font: italic 600 22px/0.95 var(--num); color: var(--amber); }
+    .st-dossier .ds-atk-wrap b.is-none { color: #5b657a; }
+
+    .st-dossier .ds-body {
+      padding: 12px 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .st-dossier .ds-status-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .st-dossier .ds-tag {
+      font: 800 10.5px var(--jp);
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: #161b24;
+      border: 1px solid #2b3345;
+      color: #cbd5e1;
+    }
+    .st-dossier .ds-tag.buff { color: var(--lime); border-color: #d8ff0055; }
+    .st-dossier .ds-tag.debuff { color: #ff856d; border-color: #ff462566; }
+    .st-dossier .ds-tag.shield { color: var(--cyan); border-color: #00e5ff66; }
+
+    .st-dossier .ds-skill-list { display: flex; flex-direction: column; gap: 8px; }
+    .st-dossier .ds-skill-row {
+      padding: 11px 13px;
+      border-radius: 10px;
+      background: #171b24;
+      border: 1px solid #272f40;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      width: 100%;
+      text-align: left;
+      color: var(--white);
+    }
+    .st-dossier .ds-skill-row.interactive { cursor: pointer; }
+    .st-dossier .ds-skill-row.interactive:hover:not(.disabled) { border-color: var(--accent); background: #1d2330; }
+    .st-dossier .ds-skill-row.armed { border-color: var(--lime); background: #1e2614; box-shadow: inset 0 0 0 1px var(--lime); }
+    .st-dossier .ds-skill-row.disabled { opacity: 0.52; cursor: default; }
+    .st-dossier .ds-skill-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .st-dossier .ds-skill-title { display: flex; align-items: center; gap: 8px; }
+    .st-dossier .ds-kind {
+      font: 900 9.5px var(--mono);
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #0c0f15;
+      color: var(--cyan);
+      border: 1px solid #1d404c;
+    }
+    .st-dossier .ds-kind.skill { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+    .st-dossier .ds-kind.ult   { color: var(--amber); border-color: #ffc40044; }
+    .st-dossier .ds-skill-title strong { font-size: 13.5px; font-weight: 900; }
+    .st-dossier .ds-stock { font: 800 10.5px var(--mono); color: var(--muted); }
+    .st-dossier .ds-skill-row.armed .ds-stock { color: var(--lime); }
+    .st-dossier .ds-skill-desc { font-size: 11.5px; line-height: 1.48; color: #b7c1d4; font-weight: 700; }
+
+    /* Sleek Timeline Log */
+    .st-dossier .ds-log-wrap {
+      padding: 12px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .st-dossier .ds-log-turn {
+      font: 900 10px var(--mono);
+      letter-spacing: 0.14em;
+      color: var(--lime);
+      padding: 8px 0 4px;
+      border-bottom: 1px solid #222938;
+      margin-bottom: 4px;
+    }
+    .st-dossier .ds-log-row {
+      display: grid;
+      grid-template-columns: 10px 46px 1fr;
+      gap: 10px;
+      align-items: baseline;
+      padding: 6px 4px;
+      border-bottom: 1px solid #1b202c;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #cfd7e6;
+      font-weight: 700;
+    }
+    .st-dossier .ds-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--lime);
+      transform: translateY(-1px);
+    }
+    .st-dossier .ds-log-row[data-kind="attack"] .ds-dot { background: var(--orange); }
+    .st-dossier .ds-log-row[data-kind="skill"]  .ds-dot { background: var(--cyan); }
+    .st-dossier .ds-log-row[data-kind="ult"]    .ds-dot { background: var(--amber); }
+    .st-dossier .ds-log-row[data-kind="system"] .ds-dot { background: var(--purple); }
+    .st-dossier .ds-log-cat {
+      font: 900 9.5px var(--mono);
+      color: var(--muted);
+    }
+    .st-dossier .ds-log-row[data-kind="attack"] .ds-log-cat { color: #ff866b; }
+    .st-dossier .ds-log-row[data-kind="skill"]  .ds-log-cat { color: var(--cyan); }
+    .st-dossier .ds-log-row[data-kind="ult"]    .ds-log-cat { color: var(--amber); }
+
+    /* ========================================================================
+       PRESET 03: ARCADE HUD (ZZZ ハイコントラスト・コマンド型)
+       - 斜めスラッシュと高い視認性を活かしたZZZ寄りの力強いレイアウト
+       ======================================================================== */
+    .sim-inspector.st-arcade {
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      overflow: visible;
+    }
+    .st-arcade .ar-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: end;
+      gap: 6px;
+      height: 46px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      flex: none;
+    }
+    .st-arcade .ar-tab {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 40px;
+      border: 1.5px solid #2b2c32;
+      border-bottom: none;
+      border-radius: 16px 10px 0 0;
+      background: #111216;
+      color: #828693;
+      cursor: pointer;
+      transition: background 0.14s, color 0.14s, border-color 0.14s, height 0.14s;
+    }
+    .st-arcade .ar-tab:last-child {
+      border-radius: 10px 16px 0 0;
+    }
+    .st-arcade .ar-tab:hover:not(.is-active) {
+      background: #181a20;
+      border-color: #3e414d;
+      color: #cfd3de;
+      height: 42px;
+    }
+    .st-arcade .ar-tab span { font: italic 700 16px/1 var(--num); letter-spacing: 0.1em; }
+    .st-arcade .ar-tab.is-active {
+      height: 46px;
+      background: var(--lime);
+      border: 2px solid var(--lime);
+      border-bottom: none;
+      color: #08090c;
+      box-shadow: none;
+    }
+    .st-arcade .ar-badge {
+      font: 900 10px/1 var(--mono);
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #08080a;
+      color: var(--lime);
+    }
+    .st-arcade .ar-panel-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: #08080a;
+      border: 2px solid #2b2c32;
+      border-top: 2.5px solid var(--lime);
+      border-radius: 0 0 16px 16px;
+      box-shadow: 0 10px 0 #000, 0 24px 48px #00000090;
+      overflow: hidden;
+    }
+
+    /* 上部ヒーロー：立ち絵バナー（名前はバナー左部へ）＋統合ユニットドック（ZZZ風ブラックベース・凹型HP/ATK＋隙間のないフル幅HPバー＋States＋Passive一体化） */
+    .st-arcade .ar-piece-hero {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      background: transparent;
+      flex: none;
+    }
+    .st-arcade .ar-banner {
+      position: relative;
+      height: 156px;
+      overflow: hidden;
+      flex: none;
+      background:
+        repeating-linear-gradient(-45deg, #ffffff05 0 12px, transparent 12px 24px),
+        linear-gradient(118deg, #0b0c0e 0%, #15161b 58%, color-mix(in srgb, var(--accent) 88%, #000) 58.3%, var(--accent) 100%);
+      padding: 14px 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+    .st-arcade .ar-banner img {
+      position: absolute;
+      right: 10px;
+      bottom: -26px;
+      width: 226px;
+      height: 226px;
+      object-fit: contain;
+      filter: drop-shadow(-8px 6px 0 #000000aa);
+    }
+    .st-arcade .ar-banner svg.emblem {
+      position: absolute;
+      right: 52px;
+      top: 45%;
+      transform: translateY(-50%);
+      width: 88px;
+      height: 88px;
+      color: #08090c;
+    }
+    .st-arcade .ar-pills {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .st-arcade .ar-banner-name {
+      position: relative;
+      z-index: 2;
+      margin: 14px 0 0;
+      max-width: 260px;
+      font: 900 26px/1.1 var(--jp);
+      color: #ffffff;
+      letter-spacing: 0.02em;
+      text-shadow: 0 2px 10px #000000cc;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .st-arcade .ar-team {
+      font: italic 700 12px/1 var(--num);
+      letter-spacing: 0.1em;
+      padding: 4px 10px;
+      background: var(--accent);
+      color: #08090c;
+      border: 2px solid #000;
+      border-radius: 4px;
+      transform: skewX(-8deg);
+      box-shadow: 0 2px 0 #000;
+    }
+    .st-arcade[data-team="RED"] .ar-team { color: #fff; }
+    .st-arcade .ar-role-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      background: #090a0ceb;
+      border: 1.5px solid var(--role-color);
+      color: var(--role-color);
+      border-radius: 4px;
+      transform: skewX(-8deg);
+      font: 900 10.5px/1 var(--jp);
+    }
+    .st-arcade .ar-role-pill > * { transform: skewX(8deg); }
+    .st-arcade .ar-role-pill span { color: #fff; }
+
+    /* HP / HPバー / ATK / States / Passive 統合ドック */
+    .st-arcade .ar-piece-dock {
+      position: relative;
+      z-index: 4;
+      margin: -46px 0 0;
+      display: flex;
+      flex-direction: column;
+      overflow: visible;
+    }
+    .st-arcade .ar-dock-cap-wrap {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .st-arcade .ar-dock-cap-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: calc(100% + 1px);
+      z-index: 0;
+      overflow: visible;
+      filter: drop-shadow(0 -2px 6px #00000099);
+      pointer-events: none;
+    }
+    .st-arcade .ar-dock-values {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 13px 20px 6px;
+      min-height: 48px;
+    }
+    .st-arcade .ar-dock-stat {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .st-arcade .ar-dock-stat.atk-side {
+      gap: 7px;
+      padding-top: 8px;
+    }
+    .st-arcade .ar-dk-lbl {
+      font: italic 700 11.5px/1 var(--num);
+      letter-spacing: 0.1em;
+      color: #8b8e99;
+    }
+    .st-arcade .ar-dk-hp {
+      font: italic 700 35px/0.86 var(--num);
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 2px 0 #000;
+    }
+    .st-arcade .ar-dk-hp.has-shield {
+      color: #38e8ff;
+      text-shadow: 0 2px 0 #000;
+    }
+    .st-arcade .ar-dk-hp small {
+      font: 700 12px var(--mono);
+      color: #8b8e99;
+      margin-left: 2px;
+    }
+    .st-arcade .ar-dk-atk {
+      font: italic 600 22px/0.9 var(--num);
+      color: var(--amber);
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 1px 0 #000;
+    }
+    .st-arcade .ar-dk-atk.is-buffed {
+      color: #ff4d2e;
+      text-shadow: 0 1px 0 #000;
+    }
+    .st-arcade .ar-dk-atk.is-none {
+      color: #555864;
+    }
+    .st-arcade .ar-unit-sheet-body {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 0 0 15px;
+      background: linear-gradient(180deg, #101115 0%, #121318 100%);
+      border: 1px solid #262830;
+      border-top: none;
+      border-radius: 0 0 16px 16px;
+      box-shadow: 0 6px 16px #00000077;
+    }
+    .st-arcade .ar-dock-bar-wrap {
+      padding: 0 20px;
+      margin: 2px 0 10px;
+      overflow: visible;
+    }
+    .st-arcade .ar-sheet-sec {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 0 20px;
+    }
+    .st-arcade .ar-sheet-sec.passive-sec {
+      gap: 4px;
+      padding-top: 11px;
+    }
+    .st-arcade .ar-sheet-eyebrow {
+      font: 800 9.5px/1 var(--mono);
+      letter-spacing: 0.14em;
+      color: #727683;
+      user-select: none;
+    }
+    .st-arcade .ar-states-dock {
+      display: flex;
+      align-items: center;
+      min-height: 22px;
+    }
+    .st-arcade .ar-passive-inline {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .st-arcade {
+      background: #08080a;
+    }
+    .st-arcade .ar-skew-bar {
+      display: flex;
+      height: 7px;
+      margin: 0;
+      background: #1a1b21;
+      border: 1px solid #2b2d36;
+      transform: skewX(-8deg);
+      overflow: hidden;
+    }
+    .st-arcade .ar-skew-bar i { display: block; height: 100%; background: var(--accent); flex: none; }
+    .st-arcade .ar-skew-bar i.shield-fill {
+      background: linear-gradient(90deg, #00bfff 0%, #3eeeff 100%);
+      box-shadow: inset 1px 0 0 #071018;
+    }
+    .st-arcade .ar-state-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+      flex: 1;
+      min-width: 0;
+    }
+    .st-arcade .ar-state-empty {
+      font: 700 9.5px/1 var(--mono);
+      letter-spacing: 0.06em;
+      color: #556078;
+      padding: 3px 7px;
+      border: 1px dashed #242c3d;
+      border-radius: 3px;
+      background: #0b0e14;
+    }
+    .st-arcade .ar-st-ic {
+      width: 10.5px;
+      height: 10.5px;
+      flex: none;
+    }
+    .st-arcade .ar-st-val {
+      font: italic 700 11.5px/1 var(--num);
+      letter-spacing: 0.02em;
+    }
+    .st-arcade .ar-st-turn {
+      font: italic 700 10px/1 var(--num);
+      padding: 1.5px 4px;
+      border-radius: 2px;
+      background: #00000055;
+      color: #c8d2e4;
+    }
+
+    /* 案A: アイコン＋値のみの小型バッジ */
+    .st-arcade .ar-tag-a {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 4px;
+      background: #0b0f17;
+      border: 1px solid #2b354a;
+      color: #edf3fc;
+      font: 700 10.5px/1 var(--jp);
+      box-sizing: border-box;
+    }
+    .st-arcade .ar-tag-a.shield  { border-color: #00e5ff66; background: #00e5ff14; color: #aef6ff; }
+    .st-arcade .ar-tag-a.shield .ar-st-ic  { color: var(--cyan); }
+    .st-arcade .ar-tag-a.buff    { border-color: #ff4d2e77; background: #ff46251a; color: #ffb2a3; }
+    .st-arcade .ar-tag-a.buff .ar-st-ic    { color: #ff5c3d; }
+    .st-arcade .ar-tag-a.debuff  { border-color: #b366ff66; background: #b366ff16; color: #e2caff; }
+    .st-arcade .ar-tag-a.debuff .ar-st-ic  { color: #c58cff; }
+    .st-arcade .ar-tag-a.terrain { border-color: #ffc40066; background: #ffc40014; color: #ffe8a3; }
+    .st-arcade .ar-tag-a.terrain .ar-st-ic { color: var(--amber); }
+
+    /* 案B: すっきり1枠＋左アクセントバー（小型） */
+    .st-arcade .ar-tag-b {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: 22px;
+      padding: 0 7px 0 6px;
+      border-radius: 3px;
+      background: #0c0d10;
+      border: 1px solid #292b33;
+      border-left: 2.5px solid #555966;
+      color: #eef0f5;
+      font: 700 10.5px/1 var(--jp);
+      box-sizing: border-box;
+    }
+    .st-arcade .ar-tag-b.shield  { border-left-color: var(--cyan); }
+    .st-arcade .ar-tag-b.shield .ar-st-ic, .st-arcade .ar-tag-b.shield .ar-st-val { color: #4ceeff; }
+    .st-arcade .ar-tag-b.buff    { border-left-color: #ff4d2e; }
+    .st-arcade .ar-tag-b.buff .ar-st-ic, .st-arcade .ar-tag-b.buff .ar-st-val { color: #ff6245; }
+    .st-arcade .ar-tag-b.debuff  { border-left-color: var(--purple); }
+    .st-arcade .ar-tag-b.debuff .ar-st-ic { color: #cfa8ff; }
+    .st-arcade .ar-tag-b.terrain { border-left-color: var(--amber); }
+    .st-arcade .ar-tag-b.terrain .ar-st-ic { color: var(--amber); }
+
+    /* 案C: 斜めスラントチップ（高さ統一・小型・ボタン/タブ角度統一） */
+    .st-arcade .ar-tag-c {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 3px;
+      background: #121722;
+      border: 1px solid #303a4f;
+      transform: skewX(-8deg);
+      color: #f0f4fc;
+      font: 700 10.5px/1 var(--jp);
+      box-sizing: border-box;
+    }
+    .st-arcade .ar-tag-c > * { transform: skewX(8deg); display: inline-flex; align-items: center; gap: 4px; line-height: 1; }
+    .st-arcade .ar-tag-c .ar-st-turn { margin-left: 3px; padding: 1.5px 4px; font-size: 9.5px; }
+    .st-arcade .ar-tag-c.shield  { border-color: #00e5ff88; background: linear-gradient(135deg, #09202b, #0e1622); }
+    .st-arcade .ar-tag-c.shield .ar-st-ic  { color: var(--cyan); }
+    .st-arcade .ar-tag-c.buff    { border-color: #ff4d2e99; background: linear-gradient(135deg, #2a100c, #17131a); }
+    .st-arcade .ar-tag-c.buff .ar-st-ic    { color: #ff5a3c; }
+    .st-arcade .ar-tag-c.debuff  { border-color: #b366ff88; background: linear-gradient(135deg, #1d112b, #14141f); }
+    .st-arcade .ar-tag-c.debuff .ar-st-ic  { color: #cb99ff; }
+    .st-arcade .ar-tag-c.terrain { border-color: #ffc40088; background: linear-gradient(135deg, #241d09, #16161d); }
+    .st-arcade .ar-tag-c.terrain .ar-st-ic { color: var(--amber); }
+
+    /* パッシブ専用枠（外枠と直結し、左下・右下だけ丸めた非ボタン・ドック形状 / 20px左軸アラインメント統一） */
+    .st-arcade .ar-passive-band {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 0;
+      padding: 13px 20px 15px;
+      border: 1px dashed #00e5ff3c;
+      border-top: 1px solid #1b2434;
+      border-radius: 0 0 16px 16px;
+      background: linear-gradient(180deg, #0b131b 0%, #101722 100%);
+      box-shadow: 0 4px 10px #00000044, inset 0 -4px 12px #00e5ff0a;
+      color: var(--white);
+      flex: none;
+    }
+    .st-arcade .ar-passive-tag {
+      min-width: 58px;
+      padding-top: 2px;
+      font: italic 900 13px/1 var(--num);
+      letter-spacing: 0.1em;
+      color: #ffffff;
+      transform: skewX(-8deg);
+      flex: none;
+      user-select: none;
+    }
+    .st-arcade .ar-passive-body {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .st-arcade .ar-passive-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .st-arcade .ar-passive-head strong {
+      font-size: 14.5px;
+      font-weight: 900;
+      letter-spacing: 0.02em;
+      color: #fff;
+    }
+    .st-arcade .ar-passive-sub {
+      font: 800 10px/1 var(--mono);
+      letter-spacing: 0.06em;
+      padding: 3px 7px;
+      border-radius: 4px;
+      color: var(--cyan);
+      background: #091319;
+      border: 1px solid #1a5666;
+      white-space: nowrap;
+      flex: none;
+    }
+    .st-arcade .ar-passive-desc {
+      font-size: 11.5px;
+      line-height: 1.46;
+      color: #b7bac6;
+      font-weight: 600;
+    }
+    .st-arcade .ar-state-tag.terrain .ar-state-key { color: #caa2ff; background: #b366ff14; }
+
+    /* スキル・ULTボタン（斜めボタン枠＋左上に飛び出す SKILL / ULT ラベル＋〇アイコンストック） */
+    .st-arcade .ar-skills {
+      padding: 24px 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+    .st-arcade .ar-card {
+      position: relative;
+      display: block;
+      padding: 16px 18px 13px;
+      border-radius: 10px;
+      background: #141519;
+      border: 2px solid #2c2e36;
+      box-shadow: 0 4px 0 #00000090;
+      width: 100%;
+      text-align: left;
+      color: var(--white);
+      transform: skewX(-6deg);
+      overflow: visible;
+      transition: background 0.14s, border-color 0.14s, transform 0.12s, box-shadow 0.14s;
+    }
+    .st-arcade .ar-card.ult {
+      background: linear-gradient(135deg, #1f1b12 0%, #141519 100%);
+      border-color: #59471b;
+    }
+    .st-arcade .ar-card.interactive { cursor: pointer; }
+    .st-arcade .ar-card.interactive:hover:not(.disabled):not(.armed) {
+      border-color: var(--lime);
+      background: #1d1f25;
+      transform: skewX(-6deg) translateY(-2px);
+      box-shadow: 0 6px 0 #00000095;
+    }
+    .st-arcade .ar-card.ult.interactive:hover:not(.disabled):not(.armed) {
+      border-color: var(--amber);
+      background: linear-gradient(135deg, #272014 0%, #191a20 100%);
+    }
+    .st-arcade .ar-card.armed,
+    .st-arcade .ar-card.armed:hover {
+      background:
+        repeating-linear-gradient(-45deg, #00000010 0 10px, transparent 10px 20px),
+        var(--lime);
+      border-color: #000;
+      color: #08090c;
+      transform: skewX(-6deg) translateY(-2px);
+      box-shadow: 0 6px 0 #000, 0 0 22px #d8ff0050;
+    }
+    .st-arcade .ar-card.disabled {
+      opacity: 0.45;
+      filter: grayscale(0.4);
+      cursor: default;
+    }
+    /* ボタン枠の左上に飛び出す SKILL / ULT ラベル枠 */
+    .st-arcade .ar-tag-tab {
+      position: absolute;
+      top: -11px;
+      left: 16px;
+      z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px 12px;
+      border-radius: 4px;
+      background: #0c0f16;
+      border: 2px solid var(--accent);
+      box-shadow: 0 2px 0 #000;
+      transform: skewX(-2deg);
+      user-select: none;
+    }
+    .st-arcade .ar-tag-tab span {
+      font: italic 900 12.5px/1 var(--num);
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      transform: skewX(8deg);
+      display: inline-block;
+    }
+    .st-arcade .ar-card.ult .ar-tag-tab {
+      background: #141008;
+      border-color: var(--amber);
+    }
+    .st-arcade .ar-card.ult .ar-tag-tab span {
+      color: var(--amber);
+    }
+    .st-arcade .ar-card.armed .ar-tag-tab {
+      background: #08090c;
+      border-color: #000;
+    }
+    .st-arcade .ar-card.armed .ar-tag-tab span {
+      color: var(--lime);
+    }
+    .st-arcade .ar-card-body {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transform: skewX(6deg);
+    }
+    .st-arcade .ar-card-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .st-arcade .ar-card-top strong { font-size: 15.5px; font-weight: 900; letter-spacing: 0.02em; color: var(--white); }
+    .st-arcade .ar-card.armed .ar-card-top strong { color: #08090c; }
+    .st-arcade .ar-stock-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      flex: none;
+    }
+    .st-arcade .ar-dots {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .st-arcade .ar-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      background: var(--lime);
+      box-shadow: none;
+    }
+    .st-arcade .ar-card.ult .ar-dot {
+      background: var(--amber);
+      box-shadow: none;
+    }
+    .st-arcade .ar-card.armed .ar-dot {
+      background: #08090c;
+      box-shadow: none;
+    }
+    .st-arcade .ar-dot.used {
+      background: transparent;
+      border: 1.5px solid #56627c;
+      box-shadow: none;
+    }
+    .st-arcade .ar-card.armed .ar-dot.used {
+      background: transparent;
+      border: 1.5px solid #08090c99;
+      box-shadow: none;
+    }
+    .st-arcade .ar-stock-state {
+      font: 800 10px/1 var(--mono);
+      letter-spacing: 0.05em;
+      padding: 3px 7px;
+      border-radius: 4px;
+      background: #0d0f14;
+      border: 1px solid #2e3545;
+      color: var(--muted);
+    }
+    .st-arcade .ar-card.armed .ar-stock-state {
+      background: #08090c;
+      border-color: #08090c;
+      color: var(--lime);
+    }
+    .st-arcade .ar-card.ult:not(.disabled) .ar-stock-state.ready {
+      color: var(--amber);
+      border-color: #59471b;
+    }
+    .st-arcade .ar-card-desc { font-size: 11.8px; line-height: 1.48; color: #aeb1bc; font-weight: 600; }
+    .st-arcade .ar-card.armed .ar-card-desc { color: #1a2107; font-weight: 700; }
+    .st-arcade .ar-card-body { position: relative; z-index: 1; }
+
+    /* ULT READY（未押下）：アンバー待機強化 ／ ULT 選択中（armed）：固定青×黄グラデ＋斜めストライプ＋枠イルミネーション */
+    .st-arcade .ar-card.ult.is-ready:not(.armed) {
+      border-color: #9e771f;
+      background: linear-gradient(135deg, #261f12 0%, #16171b 100%);
+      box-shadow: 0 4px 0 #00000090, inset 0 0 14px #ffc40018;
+    }
+    .st-arcade .ar-card.ult.armed {
+      border: 3px solid transparent;
+      background:
+        repeating-linear-gradient(-45deg, #00000012 0 10px, transparent 10px 20px) padding-box,
+        linear-gradient(115deg, #1698ff 0%, #24e6ff 46%, #ffe838 100%) padding-box,
+        linear-gradient(90deg, #00e5ff 0%, #ffe600 25%, #0066ff 50%, #d8ff00 75%, #00e5ff 100%) border-box;
+      background-size: 100% 100%, 100% 100%, 260% 100%;
+      background-position: 0 0, 0 0, 0% 50%;
+      color: #06090f;
+      transform: skewX(-6deg) translateY(-2px);
+      box-shadow: 0 6px 0 #000, 0 0 22px #00e5ff77, 0 0 30px #ffe60044;
+      animation: arUltBorderFlow 2.0s linear infinite;
+    }
+    .st-arcade .ar-card.ult.armed:hover {
+      box-shadow: 0 6px 0 #000, 0 0 24px #00e5ff80, 0 0 32px #ffe60048;
+    }
+    .st-arcade .ar-card.ult.armed .ar-tag-tab {
+      background: linear-gradient(120deg, #0099ff 0%, #00e5ff 45%, #ffe600 100%);
+      border: 2.5px solid #000;
+      box-shadow: 0 3px 0 #000;
+    }
+    .st-arcade .ar-card.ult.armed .ar-tag-tab span {
+      color: #07090d;
+      text-shadow: 0 1px 0 #ffffff80;
+    }
+    .st-arcade .ar-card.ult.armed .ar-card-top strong {
+      color: #06090f;
+      text-shadow: none;
+    }
+    .st-arcade .ar-card.ult.armed .ar-card-desc {
+      color: #091520;
+      font-weight: 700;
+      text-shadow: none;
+    }
+    .st-arcade .ar-card.ult.armed .ar-dot {
+      background: #06090f;
+      border: 0;
+      box-shadow: none;
+    }
+    .st-arcade .ar-card.ult.armed .ar-dot.used {
+      background: transparent;
+      border: 1.5px solid #06090f99;
+      box-shadow: none;
+    }
+    @keyframes arUltBorderFlow {
+      0%   { background-position: 0 0, 0 0, 0% 50%; }
+      100% { background-position: 0 0, 0 0, 260% 50%; }
+    }
+
+    .st-arcade .ar-log-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 11px 20px 10px;
+      background: #0c0d10;
+      border-bottom: 1px solid #1b1d23;
+      flex-shrink: 0;
+    }
+    .st-arcade .ar-filter-btn {
+      appearance: none;
+      cursor: pointer;
+      height: 23px;
+      padding: 0 9px;
+      border-radius: 4px;
+      border: 1px solid #24262e;
+      background: #131419;
+      color: #8b8f9c;
+      font: 800 9.5px/1 var(--mono);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: background .12s, color .12s, border-color .12s;
+    }
+    .st-arcade .ar-filter-btn:hover { color: #d5d7df; border-color: #353844; }
+    .st-arcade .ar-filter-btn.is-active {
+      background: var(--lime);
+      border-color: var(--lime);
+      color: #050507;
+      font-weight: 900;
+    }
+    .st-arcade .ar-log-list {
+      padding: 12px 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .st-arcade .ar-log-group { display: flex; flex-direction: column; }
+    .st-arcade .ar-log-turn {
+      font: 900 9.5px/1 var(--mono);
+      letter-spacing: 0.14em;
+      color: #727683;
+      text-transform: uppercase;
+      padding: 0 0 6px;
+    }
+    .st-arcade .ar-log-rows {
+      background: #101115;
+      border: 1px solid #1e2027;
+      border-radius: 9px;
+      padding: 2px 12px;
+    }
+    .st-arcade .ar-log-row {
+      display: grid;
+      grid-template-columns: 54px 1fr;
+      align-items: baseline;
+      gap: 9px;
+      padding: 8px 0;
+      border-bottom: 1px solid #1b1c23;
+    }
+    .st-arcade .ar-log-row:last-child { border-bottom: 0; }
+    .st-arcade .ar-log-kind {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 19px;
+      padding: 0 5px;
+      border-radius: 3px;
+      background: #0b0c0f;
+      border: 1px solid #252730;
+      border-left: 2.5px solid var(--lime);
+      font: 800 9px/1 var(--mono);
+      letter-spacing: 0.04em;
+      color: #e4e6ed;
+      white-space: nowrap;
+      align-self: start;
+      margin-top: 1px;
+    }
+    .st-arcade .ar-log-row[data-kind="attack"] .ar-log-kind { border-left-color: var(--orange); color: #ffb5a3; }
+    .st-arcade .ar-log-row[data-kind="skill"]  .ar-log-kind { border-left-color: var(--cyan);   color: #9ff4ff; }
+    .st-arcade .ar-log-row[data-kind="ult"]    .ar-log-kind { border-left-color: var(--amber);  color: #ffe099; }
+    .st-arcade .ar-log-row[data-kind="system"] .ar-log-kind { border-left-color: var(--purple); color: #dec2ff; }
+    .st-arcade .ar-log-row[data-kind="move"]   .ar-log-kind { border-left-color: var(--lime);   color: #e8ff8a; }
+    .st-arcade .ar-log-row p {
+      margin: 0;
+      font-size: 11.2px;
+      font-weight: 700;
+      color: #d5d7df;
+      line-height: 1.44;
+    }
+    .st-arcade .ar-log-row p b.dmg  { color: #ff7a5c; font-weight: 900; }
+    .st-arcade .ar-log-row p b.heal { color: #4ff0a8; font-weight: 900; }
+    .st-arcade .ar-log-row p b.buff { color: #5ce6ff; font-weight: 900; }
+    .st-arcade .ar-log-empty {
+      padding: 24px 0;
+      text-align: center;
+      font: 800 10.5px var(--mono);
+      color: #6b6f7b;
+      letter-spacing: 0.08em;
+    }
+
+    /* ========================================================================
+       PRESET 04: CURRENT index.html REFERENCE
+       ======================================================================== */
+    .st-legacy .inspector-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #0b0d12;
+      border-bottom: 2px solid #262c3a;
+      flex: none;
+    }
+    .st-legacy .inspector-tab {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 38px;
+      border: 1.5px solid #282f3e;
+      border-radius: 8px;
+      background: #151922;
+      color: var(--muted);
+      transform: skewX(-8deg);
+      cursor: pointer;
+    }
+    .st-legacy .inspector-tab > * { transform: skewX(8deg); }
+    .st-legacy .inspector-tab span { font: italic 14px/1 var(--display); letter-spacing: 0.08em; }
+    .st-legacy .inspector-tab small { font: 800 10px var(--jp); opacity: 0.85; }
+    .st-legacy .inspector-tab.is-active { background: var(--lime); border-color: #000; color: #0b0d11; box-shadow: 0 3px 0 #000; }
+    .st-legacy .log-badge { font: 900 10px/1 var(--mono); background: #0b0d12; color: var(--lime); padding: 3px 6px; border-radius: 4px; }
+    .st-legacy .inspector-hero {
+      position: relative;
+      height: 184px;
+      overflow: hidden;
+      background:
+        repeating-linear-gradient(-45deg, #ffffff06 0 14px, transparent 14px 28px),
+        linear-gradient(120deg, #181f14 0%, #283614 58%, var(--lime) 58.2%, #b5d900 100%);
+      border-bottom: 3px solid var(--lime);
+      flex: none;
+    }
+    .st-legacy[data-team="RED"] .inspector-hero {
+      background:
+        repeating-linear-gradient(-45deg, #ffffff06 0 14px, transparent 14px 28px),
+        linear-gradient(120deg, #211417 0%, #3b181c 58%, var(--orange) 58.2%, #c92c12 100%);
+      border-bottom-color: var(--orange);
+    }
+    .st-legacy .hero-art { position: absolute; width: 256px; height: 256px; object-fit: contain; right: 4px; bottom: -42px; filter: drop-shadow(-8px 6px 0 #000000aa); }
+    .st-legacy .team-tag {
+      position: absolute; top: 14px; left: 16px; font: italic 13px/1 var(--display); letter-spacing: 0.1em;
+      background: var(--lime); color: #0b0d11; border: 2px solid #000; padding: 4px 10px; border-radius: 4px;
+      transform: skewX(-12deg); box-shadow: 0 3px 0 #000;
+    }
+    .st-legacy[data-team="RED"] .team-tag { background: var(--orange); color: #fff; }
+    .st-legacy .hero-name {
+      position: absolute; bottom: 0; left: 0; right: 0; padding: 28px 22px 14px;
+      background: linear-gradient(transparent, #090b0ef2 78%);
+    }
+    .st-legacy .hero-name > span { font: 800 11px var(--jp); color: var(--lime); }
+    .st-legacy[data-team="RED"] .hero-name > span { color: #ff856d; }
+    .st-legacy .hero-name h2 { font-size: 28px; font-weight: 900; margin: 4px 0 0; }
+    .st-legacy .inspector-stats {
+      display: grid; grid-template-columns: 1fr 116px; gap: 18px; padding: 16px 22px;
+      background: #0f1218; border-bottom: 1px solid #262c3a; flex: none;
+    }
+    .st-legacy .inspector-stats > div { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+    .st-legacy .inspector-stats > div > span:first-child { font: italic 13px var(--display); letter-spacing: 0.1em; color: var(--muted); }
+    .st-legacy .inspector-stats strong { font: italic 30px/1 var(--display); }
+    .st-legacy .inspector-stats strong small { font: 700 12px var(--mono); color: var(--muted); }
+    .st-legacy .mini-hp { width: 100%; height: 6px; background: #07080a; transform: skewX(-16deg); overflow: hidden; }
+    .st-legacy .mini-hp i { display: block; height: 100%; background: var(--lime); }
+    .st-legacy[data-team="RED"] .mini-hp i { background: var(--orange); }
+    .st-legacy .card-skills { display: flex; flex-direction: column; gap: 10px; padding: 14px 22px 20px; }
+    .st-legacy .card-passive {
+      display: flex; gap: 14px; padding: 13px 16px; border: 1.5px dashed #00e5ff66; border-radius: 12px;
+      background: linear-gradient(135deg, #0d151c 0%, #121822 100%);
+    }
+    .st-legacy .card-skill {
+      display: flex; gap: 14px; padding: 14px 16px; border: 2px solid #2e3546; border-radius: 12px;
+      background: var(--bg-card); color: var(--white); text-align: left; width: 100%;
+    }
+    .st-legacy .card-skill-tag { min-width: 58px; font: italic 900 15px/1 var(--display); transform: skewX(-8deg); color: #fff; }
+    .st-legacy .command-top { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; width: 100%; }
+    .st-legacy .command-copy { flex: 1; display: flex; flex-direction: column; }
+    .st-legacy .skill-name { font-size: 14px; font-weight: 900; }
+    .st-legacy .command-sub { font: 800 10.5px var(--mono); color: var(--muted); }
+    .st-legacy .skill-description { font-size: 12px; color: #b9c3d4; line-height: 1.45; }
+    .st-legacy .log-panel { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+    .st-legacy .battle-log-entry {
+      background: var(--bg-card); border: 1.5px solid #2d3446; border-left: 5px solid var(--lime);
+      border-radius: 10px; padding: 10px 14px;
+    }
+    .st-legacy .battle-log-entry[data-kind="attack"] { border-left-color: var(--orange); }
+    .st-legacy .battle-log-entry[data-kind="skill"]  { border-left-color: var(--cyan); }
+    .st-legacy .battle-log-entry[data-kind="ult"]    { border-left-color: var(--amber); }
+    .st-legacy .battle-log-entry[data-kind="system"] { border-left-color: var(--purple); }
+    .st-legacy .battle-log-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .st-legacy .battle-log-meta span { font: 900 10px var(--mono); background: #0d0f14; color: var(--lime); padding: 2px 6px; border-radius: 4px; }
+    .st-legacy .battle-log-meta strong { font-size: 12px; font-weight: 900; }
+    .st-legacy .battle-log-entry p { margin: 0; font-size: 13px; font-weight: 700; color: #d0d7e6; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header -->
+    <header class="topbar">
+      <div class="brand">
+        <a class="back-link" href="../../index.html">← index.html へ戻る</a>
+        <div class="brand-copy">
+          <span class="brand-tag">TACTICS: CORE BREAK // INSPECTOR &amp; LOG LAB</span>
+          <h1>キャラ詳細・戦績ログ ショーケース <span>実寸 540×752px 右パネル比較</span></h1>
+        </div>
+      </div>
+
+      <div class="controls-strip">
+        <div class="ctrl-group" role="group" aria-label="表示モード">
+          <span class="ctrl-label">VIEW</span>
+          <button class="ctrl-btn active" data-view="both">2枚並べて表示</button>
+          <button class="ctrl-btn" data-view="single">1枚 (タブ切替)</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="パネル倍率">
+          <span class="ctrl-label">SCALE</span>
+          <button class="ctrl-btn" data-pscale="0.85">85%</button>
+          <button class="ctrl-btn active" data-pscale="1">100% 実寸</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="陣営">
+          <span class="ctrl-label">TEAM</span>
+          <button class="ctrl-btn active" data-team="BLUE">ALLY</button>
+          <button class="ctrl-btn" data-team="RED">ENEMY</button>
+        </div>
+
+        <div class="ctrl-group" role="group" aria-label="状態サンプル">
+          <span class="ctrl-label">STATE</span>
+          <button class="ctrl-btn" data-ustate="normal">通常</button>
+          <button class="ctrl-btn active" data-ustate="rich">バフ/シールド/地形</button>
+          <button class="ctrl-btn" data-ustate="armed">SKILL選択中</button>
+          <button class="ctrl-btn" data-ustate="ult_armed">ULT選択中</button>
+          <button class="ctrl-btn" data-ustate="disabled">待機中</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Unit Quick Selector -->
+    <section class="unit-strip" aria-label="プレビュー対象の切り替え">
+      <div class="ctrl-group" style="flex-wrap:wrap;">
+        <span class="ctrl-label">UNIT</span>
+        <button class="ctrl-btn active" data-unit="KINESIS">キネシス (アサルト)</button>
+        <button class="ctrl-btn" data-unit="VECTOR">ベクター (センチネル)</button>
+        <button class="ctrl-btn" data-unit="CYPHER">サイファー (ディスラプター)</button>
+        <button class="ctrl-btn" data-unit="IRIS">アイリス (サポート)</button>
+        <button class="ctrl-btn" data-unit="CORE">防衛コア</button>
+        <button class="ctrl-btn" data-unit="TURRET">自動タレット</button>
+      </div>
+      <div class="ctrl-group" role="group" aria-label="状態タグ案の比較">
+        <span class="ctrl-label">TAG案</span>
+        <button class="ctrl-btn" data-tagstyle="a">案A: SVG+日本語</button>
+        <button class="ctrl-btn active" data-tagstyle="b">案B: 1枠すっきり</button>
+        <button class="ctrl-btn" data-tagstyle="c">案C: 斜めHUD</button>
+      </div>
+    </section>
+
+    <!-- Design Presets -->
+    <section class="preset-bar" aria-label="UIデザイン案の切り替え">
+      <button class="preset-card" data-preset="tactical">
+        <div class="preset-card-top">
+          <span class="preset-code">DESIGN 01</span>
+          <span class="preset-badge">ALT</span>
+        </div>
+        <strong>CLEAN TACTICAL（統一タクティカル型）</strong>
+        <small>新駒UIのフォント・色体系と完全統一。ログはフィルタ付き＆ターン区切り＋数値ハイライト</small>
+      </button>
+
+      <button class="preset-card" data-preset="dossier">
+        <div class="preset-card-top">
+          <span class="preset-code">DESIGN 02</span>
+          <span class="preset-badge">ULTRA CLEAN</span>
+        </div>
+        <strong>SLEEK DOSSIER（ミニマル・シート型）</strong>
+        <small>絵と文字を左右分離して視認性を最大化。戦績ログは一画面に12件以上入る高密度タイムライン</small>
+      </button>
+
+      <button class="preset-card active" data-preset="arcade">
+        <div class="preset-card-top">
+          <span class="preset-code">DESIGN 03</span>
+          <span class="preset-badge">SELECTED BASE</span>
+        </div>
+        <strong>ARCADE HUD（ハイコントラスト・コマンド型）</strong>
+        <small>HP下のパッシブ専用枠、〇アイコンストック、テレメトリー型状態タグ、英語のみタブ構成</small>
+      </button>
+
+      <button class="preset-card" data-preset="legacy">
+        <div class="preset-card-top">
+          <span class="preset-code">REFERENCE</span>
+          <span class="preset-badge">CURRENT</span>
+        </div>
+        <strong>CURRENT index.html（現行UI比較）</strong>
+        <small>現在の index.html 右パネルの表示。情報密度やスキャンのしやすさを比較する用</small>
+      </button>
+    </section>
+
+    <!-- Inspector Stage -->
+    <div id="stage-wrap" class="stage-wrap"></div>
+  </div>
+
+  <script>
+    const SVG_ICONS = {
+      ASSAULT:   '<path d="m13 2-9 12h7l-1 8 10-13h-8Z"/>',
+      SENTINEL:  '<path d="m12 2 8 3v6c0 5-8 11-8 11S4 16 4 11V5Z"/>',
+      DISRUPTOR: '<circle cx="12" cy="12" r="5.5"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>',
+      SUPPORT:   '<path d="M8.5 3h7v5.5H21v7h-5.5V21h-7v-5.5H3v-7h5.5Z"/>',
+      CORE:      '<path d="m12 2 9 10-9 10L3 12Z"/><path d="m12 7 4 5-4 5-4-5Z"/>',
+      OBJECT:    '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v6m6 0v10M3 15h18"/>',
+      TURRET:    '<path d="M12 3v4M6 11h12l-1.5-4h-9ZM4 20h16M7 20l1.5-9h7L17 20"/><circle cx="12" cy="14" r="1.5"/>',
+      ST_SHIELD: '<path d="m12 2 8 3v6c0 5-8 11-8 11S4 16 4 11V5Z"/>',
+      ST_ATK:    '<path d="M12 19V5M5 12l7-7 7 7"/>',
+      ST_DEBUFF: '<path d="M12 5v14M19 12l-7 7-7-7"/>',
+      ST_ZONE:   '<polygon points="12 3 21 9 12 15 3 9"/><polyline points="3 14 12 20 21 14"/>'
+    };
+
+    function svgIcon(name) {
+      return `<svg class="svg-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG_ICONS[name] || SVG_ICONS.ASSAULT}</svg>`;
+    }
+
+    const UNITS = {
+      KINESIS: {
+        key: 'KINESIS', slug: 'kinesis', name: 'キネシス', role: 'ASSAULT', roleName: 'アサルト',
+        hp: 75, maxHp: 95, atk: 25,
+        passive: { name: 'ライトニング・ステップ', desc: '毎自軍ターン開始時、キネシス専用の【追加移動トークン (+1 MOVE)】を獲得（チームの移動枠を消費せず移動可能）。' },
+        skillA: { name: 'オーバードライブ', stock: 2, maxStock: 2, desc: '自身に【攻撃力増強 (+5 / このターン中)】を付与する（通常ATK 25 ➔ 30）。' },
+        ult: { name: 'ライトニング・ラッシュ', desc: '自身にキネシス専用の【追加攻撃トークン (+1 ATTACK)】を即座に 1枚 付与する！' }
+      },
+      VECTOR: {
+        key: 'VECTOR', slug: 'vector', name: 'ベクター', role: 'SENTINEL', roleName: 'センチネル',
+        hp: 100, maxHp: 100, atk: 15,
+        passive: { name: 'バンカー・スナイパー', desc: 'オブジェクト（防壁・タレット）またはコアに隣接時、自身に攻撃力増強 (+10) を常時付与（ATK 15 ➔ 25）。' },
+        skillA: { name: 'フォース・バリケード', stock: 2, maxStock: 3, desc: '半径2マス以内の指定空きマスに「バリケード（オブジェクト / HP 30）」を設置する。' },
+        ult: { name: 'バリケード・バッファー', desc: '『フォース・バリケード』のストックを全回復（最大3回まで再装填）する！' }
+      },
+      CYPHER: {
+        key: 'CYPHER', slug: 'cypher', name: 'サイファー', role: 'DISRUPTOR', roleName: 'ディスラプター',
+        hp: 65, maxHp: 95, atk: 20,
+        passive: { name: 'ホライゾン・シフト', desc: '周囲8マス移動に加え、左右の横一直線方向へ障害物に衝突する直前まで無制限にスライド移動可能。' },
+        skillA: { name: 'シグナル・ジャミング', stock: 1, maxStock: 2, desc: '前方一直線上の初弾に干渉。味方なら【攻撃力増強 (+15)】, 敵なら【攻撃阻害 (1T)】を付与！' },
+        ult: { name: 'フルスペクトラム・ブラックアウト', desc: 'すべての敵ユニットに【行動阻害 (1T)】および【攻撃阻害 (1T)】を一斉付与！' }
+      },
+      IRIS: {
+        key: 'IRIS', slug: 'iris', name: 'アイリス', role: 'SUPPORT', roleName: 'サポート',
+        hp: 90, maxHp: 90, atk: 14,
+        passive: { name: 'ナノ・エンハンスメント', desc: '毎自軍ターン終了時、前方一直線上で最も近い負傷した味方ユニット1体のHPを 5 自動回復。' },
+        skillA: { name: 'ライフ・リペア', stock: 2, maxStock: 2, desc: '半径3マス以内の味方ユニット1体を指定し、HPを 30 大回復する。' },
+        ult: { name: 'オーバーチャージ・オーラ', desc: '自軍の全ユニットおよび防衛コアに【シールド増強 (+15 / 2T)】を一斉付与！' }
+      },
+      CORE: {
+        key: 'CORE', slug: 'core', name: '防衛コア', role: 'CORE', roleName: 'コア',
+        hp: 80, maxHp: 100, atk: 0, emblem: 'CORE',
+        desc: '自軍の最重要防衛目標。移動・攻撃は不可。破壊されると即座に敗北！シールド付与可能。'
+      },
+      TURRET: {
+        key: 'TURRET', slug: 'turret', name: '自動タレット', role: 'OBJECT', roleName: 'オブジェクト',
+        hp: 20, maxHp: 20, atk: 10, emblem: 'TURRET',
+        desc: 'ヴァルカンが設置した自動砲台。自軍ターン終了時に周囲8マスのすべての敵へ 10 ダメージを自動射撃！'
+      }
+    };
+
+    const SAMPLE_LOGS = [
+      { turn: '03', kind: 'ult',    tag: 'ULT',    label: 'ULTIMATE', text: 'アイリス が【オーバーチャージ・オーラ】を発動！全味方に シールド +15 付与', html: 'アイリス が【オーバーチャージ・オーラ】を発動！全味方に <b class="buff">シールド +15</b> 付与' },
+      { turn: '03', kind: 'attack', tag: 'COMBAT', label: 'COMBAT',   text: 'キネシス の攻撃 → フェイズ に 30 ダメージ！', html: 'キネシス の攻撃 → フェイズ に <b class="dmg">30 DMG</b>！' },
+      { turn: '03', kind: 'skill',  tag: 'SKILL',  label: 'SKILL',    text: 'キネシス が【オーバードライブ】を発動（ATK 25 ➔ 30）', html: 'キネシス が【オーバードライブ】を発動（<b class="buff">ATK 25 ➔ 30</b>）' },
+      { turn: '03', kind: 'move',   tag: 'BLUE',   label: 'BLUE',     text: 'キネシス が D2 → D4 へ自律移動（専用トークン消費）', html: 'キネシス が D2 → D4 へ移動（専用トークン消費）' },
+      { turn: '02', kind: 'system', tag: 'SYSTEM', label: 'SYSTEM',   text: 'BLUE TURN 03 開始（行動トークン回復：移動1・攻撃1）', html: 'BLUE TURN 03 開始（トークン回復：移動1・攻撃1）' },
+      { turn: '02', kind: 'attack', tag: 'RED',    label: 'RED',      text: 'フェイズ が C5 → D5 へ移動し、ニトロ に 30 ダメージ！', html: 'フェイズ が D5 へ移動し、ニトロ に <b class="dmg">30 DMG</b>！' },
+      { turn: '02', kind: 'skill',  tag: 'SKILL',  label: 'SKILL',    text: 'アイリス が ニトロ に【ライフ・リペア】発動（HP +30 回復）', html: 'アイリス が ニトロ に【ライフ・リペア】発動（<b class="heal">HP +30 回復</b>）' },
+      { turn: '02', kind: 'skill',  tag: 'SKILL',  label: 'SKILL',    text: 'ベクター が E3 に【フォース・バリケード (HP 30)】を設置', html: 'ベクター が E3 に【フォース・バリケード】を設置' },
+      { turn: '01', kind: 'attack', tag: 'COMBAT', label: 'COMBAT',   text: 'トキシン の攻撃 → ベクター に 15 ダメージ', html: 'トキシン の攻撃 → ベクター に <b class="dmg">15 DMG</b>' },
+      { turn: '01', kind: 'move',   tag: 'BLUE',   label: 'BLUE',     text: 'グリッチ が グラビティ・ワープ で D3 へ跳躍（周囲に弱体化付与）', html: 'グリッチ が D3 へワープ（周囲に <b class="dmg">弱体化</b> 付与）' },
+      { turn: '01', kind: 'system', tag: 'SYSTEM', label: 'SYSTEM',   text: 'BATTLE START // 全ユニット初期配置完了', html: 'BATTLE START // 全ユニット初期配置完了' }
+    ];
+
+    const state = {
+      preset: 'arcade',     // tactical | dossier | arcade | legacy
+      view: 'both',         // both | single
+      singleTab: 'details', // details | log
+      pscale: 1,
+      team: 'BLUE',         // BLUE | RED
+      ustate: 'rich',       // normal | rich | armed | ult_armed | disabled
+      unitKey: 'KINESIS',
+      tagStyle: 'b',        // a | b | c
+      logFilter: 'ALL'      // ALL | combat | skill | turn
+    };
+
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    function getUnitContext() {
+      const u = UNITS[state.unitKey];
+      const hp = state.ustate === 'normal' ? u.maxHp : u.hp;
+      const hpPctExact = Math.max(0, Math.min(100, (hp / u.maxHp) * 100));
+      const pct = Math.round(hpPctExact);
+      const isArmed = state.ustate === 'armed';
+      const isUltArmed = state.ustate === 'ult_armed';
+      const showRich = state.ustate === 'rich' || isArmed || isUltArmed;
+      const effectiveAtk = (showRich && u.atk > 0) ? u.atk + 5 : u.atk;
+      const shield = showRich ? 15 : 0;
+      const displayHp = hp + shield;
+      const shieldUnits = (hp < u.maxHp && shield > 0) ? Math.min(u.maxHp - hp, shield) : 0;
+      const shieldPctExact = Math.max(0, Math.min(100 - hpPctExact, (shieldUnits / u.maxHp) * 100));
+      const isDisabled = state.ustate === 'disabled' || state.team === 'RED';
+      return { u, hp, pct, hpPctExact, shield, displayHp, shieldPctExact, effectiveAtk, showRich, isArmed, isUltArmed, isDisabled };
+    }
+
+    function filteredLogs() {
+      if (state.logFilter === 'ALL') return SAMPLE_LOGS;
+      if (state.logFilter === 'combat') return SAMPLE_LOGS.filter(l => l.kind === 'attack');
+      if (state.logFilter === 'skill') return SAMPLE_LOGS.filter(l => l.kind === 'skill' || l.kind === 'ult');
+      if (state.logFilter === 'turn') return SAMPLE_LOGS.filter(l => l.kind === 'system');
+      return SAMPLE_LOGS;
+    }
+
+    function arDotsHtml(rem, max) {
+      let out = '<span class="ar-dots">';
+      for (let i = 0; i < max; i++) {
+        out += `<i class="ar-dot ${i >= rem ? 'used' : ''}"></i>`;
+      }
+      return out + '</span>';
+    }
+
+    function arStatesHtml(showRich, hasAtk) {
+      if (!showRich) return `<span class="ar-state-empty">状態効果なし</span>`;
+      const stIcon = (key) => `<svg class="ar-st-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${SVG_ICONS[key]}</svg>`;
+      if (state.tagStyle === 'b') {
+        return `
+          <span class="ar-tag-b shield">${stIcon('ST_SHIELD')}<b class="ar-st-val">+15</b><em class="ar-st-turn">2T</em></span>
+          ${hasAtk ? `<span class="ar-tag-b buff">${stIcon('ST_ATK')}<b class="ar-st-val">+5</b><em class="ar-st-turn">1T</em></span>` : ''}
+          <span class="ar-tag-b debuff">${stIcon('ST_DEBUFF')}<span>弱体化</span><em class="ar-st-turn">1T</em></span>
+          <span class="ar-tag-b terrain">${stIcon('ST_ZONE')}<span>ディメンション</span></span>
+        `;
+      }
+      if (state.tagStyle === 'c') {
+        return `
+          <span class="ar-tag-c shield"><span>${stIcon('ST_SHIELD')}<b class="ar-st-val">+15</b></span><em class="ar-st-turn">2T</em></span>
+          ${hasAtk ? `<span class="ar-tag-c buff"><span>${stIcon('ST_ATK')}<b class="ar-st-val">+5</b></span><em class="ar-st-turn">1T</em></span>` : ''}
+          <span class="ar-tag-c debuff"><span>${stIcon('ST_DEBUFF')}<span>弱体化</span></span><em class="ar-st-turn">1T</em></span>
+          <span class="ar-tag-c terrain"><span>${stIcon('ST_ZONE')}<span>ディメンション</span></span></span>
+        `;
+      }
+      return `
+        <span class="ar-tag-a shield">${stIcon('ST_SHIELD')}<b class="ar-st-val">+15</b><em class="ar-st-turn">2T</em></span>
+        ${hasAtk ? `<span class="ar-tag-a buff">${stIcon('ST_ATK')}<b class="ar-st-val">+5</b><em class="ar-st-turn">1T</em></span>` : ''}
+        <span class="ar-tag-a debuff">${stIcon('ST_DEBUFF')}<span>弱体化</span><em class="ar-st-turn">1T</em></span>
+        <span class="ar-tag-a terrain">${stIcon('ST_ZONE')}<span>ディメンション</span></span>
+      `;
+    }
+
+    function pipsHtml(rem, max) {
+      let out = '<span class="ct-pips">';
+      for (let i = 0; i < max; i++) {
+        out += `<i class="ct-pip ${i >= rem ? 'used' : ''}"></i>`;
+      }
+      return out + '</span>';
+    }
+
+    // =========================================================================
+    // RENDERERS FOR EACH PRESET (DETAILS & LOG)
+    // =========================================================================
+    function renderTabs(preset, activeTab) {
+      if (preset === 'tactical') {
+        return `
+          <div class="st-tabs">
+            <button class="st-tab ${activeTab === 'details' ? 'is-active' : ''}" data-switchtab="details">
+              <span>UNIT INFO</span><small>キャラ詳細</small>
+            </button>
+            <button class="st-tab ${activeTab === 'log' ? 'is-active' : ''}" data-switchtab="log">
+              <span>BATTLE LOG</span><small>戦績ログ</small><b class="st-tab-badge">${SAMPLE_LOGS.length}</b>
+            </button>
+          </div>
+        `;
+      }
+      if (preset === 'dossier') {
+        return `
+          <div class="ds-tabs">
+            <button class="ds-tab ${activeTab === 'details' ? 'is-active' : ''}" data-switchtab="details">
+              <span>UNIT INFO</span><small>キャラ詳細</small>
+            </button>
+            <button class="ds-tab ${activeTab === 'log' ? 'is-active' : ''}" data-switchtab="log">
+              <span>BATTLE LOG</span><small>戦績ログ</small><b class="ds-tab-count">${SAMPLE_LOGS.length}</b>
+            </button>
+          </div>
+        `;
+      }
+      if (preset === 'arcade') {
+        return `
+          <div class="ar-tabs">
+            <button class="ar-tab ${activeTab === 'details' ? 'is-active' : ''}" data-switchtab="details">
+              <span>UNIT INFO</span>
+            </button>
+            <button class="ar-tab ${activeTab === 'log' ? 'is-active' : ''}" data-switchtab="log">
+              <span>BATTLE LOG</span><b class="ar-badge">${SAMPLE_LOGS.length}</b>
+            </button>
+          </div>
+        `;
+      }
+      return `
+        <div class="inspector-tabs">
+          <button class="inspector-tab ${activeTab === 'details' ? 'is-active' : ''}" data-switchtab="details">
+            <span>UNIT INFO</span><small>キャラ詳細</small>
+          </button>
+          <button class="inspector-tab ${activeTab === 'log' ? 'is-active' : ''}" data-switchtab="log">
+            <span>BATTLE LOG</span><small>戦績ログ</small><b class="log-badge">${SAMPLE_LOGS.length}</b>
+          </button>
+        </div>
+      `;
+    }
+
+    function renderDetailsBody(preset) {
+      const { u, hp, pct, hpPctExact, shield, displayHp, shieldPctExact, effectiveAtk, showRich, isArmed, isUltArmed, isDisabled } = getUnitContext();
+      const teamLabel = state.team === 'BLUE' ? 'ALLY' : 'ENEMY';
+      const hasAtk = u.atk > 0;
+      const atkText = hasAtk ? String(effectiveAtk) : '—';
+      const artHtml = u.emblem
+        ? `<svg class="${preset === 'tactical' ? 'ct-hero-emblem' : 'emblem'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${SVG_ICONS[u.emblem]}</svg>`
+        : `<img class="${preset === 'tactical' ? 'ct-hero-art' : 'hero-art'}" src="../../assets/${u.slug}-urban-anime-v2.png" alt="${esc(u.name)}">`;
+
+      const skillStateText = isArmed ? 'ACTIVE · 対象を選択' : isDisabled ? (state.team === 'RED' ? '敵ユニット' : '待機中') : `×${u.skillA?.stock ?? 0}`;
+      const ultStateText = isDisabled ? (state.team === 'RED' ? '敵ユニット' : '待機中') : (showRich ? '×1 · READY' : '×1 · ULT不足');
+
+      if (preset === 'tactical') {
+        return `
+          <div class="ct-hero">
+            ${artHtml}
+            <div class="ct-hero-top">
+              <span class="ct-team-chip">${teamLabel}</span>
+              <span class="ct-role-chip">${svgIcon(u.role)}<span>${esc(u.roleName)}</span></span>
+            </div>
+            <div class="ct-hero-title">
+              <div class="ct-hero-code">${esc(u.key)} // ${esc(u.role)}</div>
+              <h2>${esc(u.name)}</h2>
+            </div>
+          </div>
+
+          <div class="ct-stats-bar">
+            <div class="ct-hp-block">
+              <div class="ct-stat-head">
+                <span class="ct-stat-lbl">HP</span>
+                <span class="ct-hp-num">${hp}<small>/${u.maxHp}</small></span>
+              </div>
+              <div class="ct-hp-track"><i style="width:${pct}%"></i></div>
+            </div>
+            <div class="ct-atk-block">
+              <span class="ct-stat-lbl">ATK</span>
+              <span class="ct-atk-num ${hasAtk ? '' : 'is-none'}">${atkText}</span>
+            </div>
+          </div>
+
+          <div class="insp-scroll">
+            ${showRich ? `
+              <div class="ct-chips">
+                <span class="ct-chip shield">🛡️ SHIELD +15 (2T)</span>
+                ${hasAtk ? `<span class="ct-chip buff">▲ ATK +5 (1T)</span>` : ''}
+                <span class="ct-chip debuff">▼ 弱体化 (1T)</span>
+                <span class="ct-chip terrain">◆ 足元: ディメンション・ゾーン</span>
+              </div>
+            ` : ''}
+
+            <div class="ct-abilities">
+              ${u.desc ? `<div class="ct-card is-passive"><div class="ct-slot-col"><span class="ct-slot-badge">SPEC</span></div><div class="ct-card-body"><div class="ct-card-top"><strong>ユニット仕様</strong></div><div class="ct-card-desc">${esc(u.desc)}</div></div></div>` : ''}
+              ${u.passive ? `
+                <div class="ct-card is-passive">
+                  <div class="ct-slot-col"><span class="ct-slot-badge">PASSIVE</span></div>
+                  <div class="ct-card-body">
+                    <div class="ct-card-top"><strong>${esc(u.passive.name)}</strong><span class="ct-state-pill">常時発動</span></div>
+                    <div class="ct-card-desc">${esc(u.passive.desc)}</div>
+                  </div>
+                </div>
+              ` : ''}
+              ${u.skillA ? `
+                <button class="ct-card is-skill ${isArmed ? 'is-armed' : ''} ${isDisabled ? 'is-disabled' : ''}" data-toggle-armed>
+                  <div class="ct-slot-col">
+                    <span class="ct-slot-badge">SKILL</span>
+                    ${pipsHtml(u.skillA.stock, u.skillA.maxStock)}
+                  </div>
+                  <div class="ct-card-body">
+                    <div class="ct-card-top"><strong>${esc(u.skillA.name)}</strong><span class="ct-state-pill">${skillStateText}</span></div>
+                    <div class="ct-card-desc">${esc(u.skillA.desc)}</div>
+                  </div>
+                </button>
+              ` : ''}
+              ${u.ult ? `
+                <button class="ct-card is-ult ${!showRich || isDisabled ? 'is-disabled' : ''}">
+                  <div class="ct-slot-col">
+                    <span class="ct-slot-badge">ULT</span>
+                    ${pipsHtml(showRich ? 1 : 0, 1)}
+                  </div>
+                  <div class="ct-card-body">
+                    <div class="ct-card-top"><strong>${esc(u.ult.name)}</strong><span class="ct-state-pill">${ultStateText}</span></div>
+                    <div class="ct-card-desc">${esc(u.ult.desc)}</div>
+                  </div>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      if (preset === 'dossier') {
+        const artInner = u.emblem
+          ? `<svg class="emblem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${SVG_ICONS[u.emblem]}</svg>`
+          : `<img src="../../assets/${u.slug}-urban-anime-v2.png" alt="${esc(u.name)}">`;
+        return `
+          <div class="ds-head">
+            <div class="ds-portrait-box">
+              ${artInner}
+              <span class="ds-role-corner">${svgIcon(u.role)}</span>
+            </div>
+            <div class="ds-meta">
+              <div>
+                <div class="ds-meta-top">
+                  <span class="ds-role-text">${esc(u.role)} / ${esc(u.roleName)}</span>
+                  <span class="ds-team-text">${teamLabel}</span>
+                </div>
+                <h2>${esc(u.name)}</h2>
+              </div>
+              <div class="ds-metrics">
+                <div class="ds-hp-wrap">
+                  <div class="ds-num-row"><span>HP</span><b>${hp}<small>/${u.maxHp}</small></b></div>
+                  <div class="ds-bar"><i style="width:${pct}%"></i></div>
+                </div>
+                <div class="ds-atk-wrap">
+                  <span>ATK</span>
+                  <b class="${hasAtk ? '' : 'is-none'}">${atkText}</b>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="insp-scroll ds-body">
+            ${showRich ? `
+              <div class="ds-status-row">
+                <span class="ds-tag shield">SHIELD +15 (2T)</span>
+                ${hasAtk ? `<span class="ds-tag buff">ATK +5 (1T)</span>` : ''}
+                <span class="ds-tag debuff">弱体化 (1T)</span>
+                <span class="ds-tag">足元: ディメンション</span>
+              </div>
+            ` : ''}
+
+            <div class="ds-skill-list">
+              ${u.desc ? `<div class="ds-skill-row"><div class="ds-skill-head"><span class="ds-skill-title"><span class="ds-kind">SPEC</span><strong>ユニット仕様</strong></span></div><div class="ds-skill-desc">${esc(u.desc)}</div></div>` : ''}
+              ${u.passive ? `
+                <div class="ds-skill-row">
+                  <div class="ds-skill-head">
+                    <span class="ds-skill-title"><span class="ds-kind">PASSIVE</span><strong>${esc(u.passive.name)}</strong></span>
+                    <span class="ds-stock">PERMANENT</span>
+                  </div>
+                  <div class="ds-skill-desc">${esc(u.passive.desc)}</div>
+                </div>
+              ` : ''}
+              ${u.skillA ? `
+                <button class="ds-skill-row interactive ${isArmed ? 'armed' : ''} ${isDisabled ? 'disabled' : ''}" data-toggle-armed>
+                  <div class="ds-skill-head">
+                    <span class="ds-skill-title"><span class="ds-kind skill">SKILL</span><strong>${esc(u.skillA.name)}</strong></span>
+                    <span class="ds-stock">${skillStateText}</span>
+                  </div>
+                  <div class="ds-skill-desc">${esc(u.skillA.desc)}</div>
+                </button>
+              ` : ''}
+              ${u.ult ? `
+                <button class="ds-skill-row interactive ${!showRich || isDisabled ? 'disabled' : ''}">
+                  <div class="ds-skill-head">
+                    <span class="ds-skill-title"><span class="ds-kind ult">ULT</span><strong>${esc(u.ult.name)}</strong></span>
+                    <span class="ds-stock">${ultStateText}</span>
+                  </div>
+                  <div class="ds-skill-desc">${esc(u.ult.desc)}</div>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      if (preset === 'arcade') {
+        const arSkillSub = '';
+        const arUltRem = showRich ? 1 : 0;
+        const arUltReady = Boolean(showRich && !isDisabled);
+        const arUltSub = '';
+        const passiveBody = u.passive
+          ? `
+            <div class="ar-sheet-sec passive-sec">
+              <div class="ar-sheet-eyebrow">PASSIVE</div>
+              <div class="ar-passive-inline">
+                <div class="ar-passive-head">
+                  <strong>${esc(u.passive.name)}</strong>
+                </div>
+                <div class="ar-passive-desc">${esc(u.passive.desc)}</div>
+              </div>
+            </div>
+          `
+          : u.desc
+            ? `
+              <div class="ar-sheet-sec passive-sec">
+                <div class="ar-sheet-eyebrow">SPEC</div>
+                <div class="ar-passive-inline">
+                  <div class="ar-passive-head">
+                    <strong>ユニット仕様</strong>
+                  </div>
+                  <div class="ar-passive-desc">${esc(u.desc)}</div>
+                </div>
+              </div>
+            `
+            : '';
+        return `
+          <div class="ar-piece-hero">
+            <div class="ar-banner">
+              ${artHtml}
+              <div class="ar-pills">
+                <span class="ar-role-pill">${svgIcon(u.role)}<span>${esc(u.roleName)}</span></span>
+              </div>
+              <h2 class="ar-banner-name">${esc(u.name)}</h2>
+            </div>
+
+            <div class="ar-piece-dock">
+              <div class="ar-dock-cap-wrap">
+                <svg class="ar-dock-cap-svg" viewBox="0 0 536 48" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M 0,2 L 144,2 Q 150,2 154,8 L 166,34 Q 170,40 176,40 L 434,40 Q 440,40 444,35 L 453,16 Q 457,10 463,10 L 536,10 L 536,48 L 0,48 Z" fill="#101115" stroke="none"/>
+                  <path d="M 0,2 L 144,2 Q 150,2 154,8 L 166,34 Q 170,40 176,40 L 434,40 Q 440,40 444,35 L 453,16 Q 457,10 463,10 L 536,10" fill="none" stroke="#3c3e47" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+                </svg>
+                <div class="ar-dock-values">
+                  <div class="ar-dock-stat hp-side">
+                    <span class="ar-dk-lbl">HP</span>
+                    <strong class="ar-dk-hp ${shield > 0 ? 'has-shield' : ''}">${displayHp}<small>/${u.maxHp}</small></strong>
+                  </div>
+                  <div class="ar-dock-stat atk-side">
+                    <span class="ar-dk-lbl">ATK</span>
+                    <strong class="ar-dk-atk ${hasAtk ? (showRich ? 'is-buffed' : '') : 'is-none'}">${atkText}</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="ar-unit-sheet-body">
+                <div class="ar-dock-bar-wrap">
+                  <div class="ar-skew-bar"><i class="hp-fill" style="width:${hpPctExact.toFixed(2)}%"></i>${shieldPctExact > 0 ? `<i class="shield-fill" style="width:${shieldPctExact.toFixed(2)}%"></i>` : ''}</div>
+                </div>
+                <div class="ar-sheet-sec">
+                  <div class="ar-sheet-eyebrow">STATES</div>
+                  <div class="ar-states-dock">
+                    <div class="ar-state-strip">
+                      ${arStatesHtml(showRich, hasAtk)}
+                    </div>
+                  </div>
+                </div>
+                ${passiveBody}
+              </div>
+            </div>
+          </div>
+
+          <div class="insp-scroll ar-skills">
+            ${u.skillA ? `
+              <button class="ar-card interactive ${isArmed ? 'armed' : ''} ${isDisabled ? 'disabled' : ''}" data-toggle-armed="skill">
+                <span class="ar-tag-tab"><span>SKILL</span></span>
+                <div class="ar-card-body">
+                  <div class="ar-card-top">
+                    <strong>${esc(u.skillA.name)}</strong>
+                    <span class="ar-stock-wrap">
+                      ${arDotsHtml(u.skillA.stock, u.skillA.maxStock)}
+                      ${arSkillSub ? `<span class="ar-stock-state">${arSkillSub}</span>` : ''}
+                    </span>
+                  </div>
+                  <div class="ar-card-desc">${esc(u.skillA.desc)}</div>
+                </div>
+              </button>
+            ` : ''}
+            ${u.ult ? `
+              <button class="ar-card ult interactive ${arUltReady ? 'is-ready' : ''} ${isUltArmed && !isDisabled ? 'armed' : ''} ${!showRich || isDisabled ? 'disabled' : ''}" data-toggle-armed="ult">
+                <span class="ar-tag-tab"><span>ULT</span></span>
+                <div class="ar-card-body">
+                  <div class="ar-card-top">
+                    <strong>${esc(u.ult.name)}</strong>
+                    <span class="ar-stock-wrap">
+                      ${arDotsHtml(arUltRem, 1)}
+                    </span>
+                  </div>
+                  <div class="ar-card-desc">${esc(u.ult.desc)}</div>
+                </div>
+              </button>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      // Legacy reference
+      return `
+        <div class="inspector-hero">
+          ${artHtml}
+          <span class="team-tag">${teamLabel}</span>
+          <div class="hero-name"><span>${esc(u.roleName)}</span><h2>${esc(u.name)}</h2></div>
+        </div>
+        <div class="inspector-stats">
+          <div><span>HP</span><strong>${hp}<small>/${u.maxHp}</small></strong><span class="mini-hp"><i style="width:${pct}%"></i></span></div>
+          <div><span>ATK</span><strong>${hasAtk ? effectiveAtk : 0}</strong></div>
+        </div>
+        <div class="insp-scroll card-skills">
+          ${u.passive ? `<div class="card-passive"><span class="card-skill-tag">PASSIVE</span><span class="command-copy"><span class="command-top"><strong class="skill-name">${esc(u.passive.name)}</strong><small class="command-sub">PERMANENT</small></span><span class="skill-description">${esc(u.passive.desc)}</span></span></div>` : ''}
+          ${u.skillA ? `<button class="card-skill"><span class="card-skill-tag">SKILL</span><span class="command-copy"><span class="command-top"><strong class="skill-name">${esc(u.skillA.name)}</strong><small class="command-sub">${skillStateText}</small></span><span class="skill-description">${esc(u.skillA.desc)}</span></span></button>` : ''}
+          ${u.ult ? `<button class="card-skill"><span class="card-skill-tag">ULT</span><span class="command-copy"><span class="command-top"><strong class="skill-name">${esc(u.ult.name)}</strong><small class="command-sub">${ultStateText}</small></span><span class="skill-description">${esc(u.ult.desc)}</span></span></button>` : ''}
+        </div>
+      `;
+    }
+
+    function renderLogBody(preset) {
+      const logs = filteredLogs();
+      if (preset === 'tactical') {
+        let lastTurn = null;
+        const rows = logs.map(l => {
+          const sep = l.turn !== lastTurn ? `<div class="ct-turn-sep">TURN ${l.turn}</div>` : '';
+          lastTurn = l.turn;
+          return `${sep}<div class="ct-log-item" data-kind="${l.kind}"><span class="ct-log-tag">${l.tag}</span><div class="ct-log-text">${l.html}</div></div>`;
+        }).join('');
+        return `
+          <div class="ct-log-toolbar">
+            <div class="ct-log-filters">
+              <button class="ct-filter-btn ${state.logFilter === 'ALL' ? 'active' : ''}" data-logfilter="ALL">ALL (${SAMPLE_LOGS.length})</button>
+              <button class="ct-filter-btn ${state.logFilter === 'combat' ? 'active' : ''}" data-logfilter="combat">COMBAT</button>
+              <button class="ct-filter-btn ${state.logFilter === 'skill' ? 'active' : ''}" data-logfilter="skill">SKILL/ULT</button>
+              <button class="ct-filter-btn ${state.logFilter === 'turn' ? 'active' : ''}" data-logfilter="turn">SYSTEM</button>
+            </div>
+          </div>
+          <div class="insp-scroll ct-log-list">${rows}</div>
+        `;
+      }
+
+      if (preset === 'dossier') {
+        let lastTurn = null;
+        const rows = logs.map(l => {
+          const sep = l.turn !== lastTurn ? `<div class="ds-log-turn">TURN ${l.turn}</div>` : '';
+          lastTurn = l.turn;
+          return `${sep}<div class="ds-log-row" data-kind="${l.kind}"><span class="ds-dot"></span><span class="ds-log-cat">${l.tag}</span><span>${l.html}</span></div>`;
+        }).join('');
+        return `<div class="insp-scroll ds-log-wrap">${rows}</div>`;
+      }
+
+      if (preset === 'arcade') {
+        const filters = [
+          { key: 'ALL', label: `ALL (${SAMPLE_LOGS.length})` },
+          { key: 'combat', label: 'COMBAT' },
+          { key: 'skill', label: 'SKILL / ULT' },
+          { key: 'turn', label: 'SYSTEM' }
+        ].map(f => `<button type="button" class="ar-filter-btn ${state.logFilter === f.key ? 'is-active' : ''}" data-logfilter="${f.key}">${f.label}</button>`).join('');
+
+        const groups = [];
+        for (const l of logs) {
+          let g = groups[groups.length - 1];
+          if (!g || g.turn !== l.turn) {
+            g = { turn: l.turn, items: [] };
+            groups.push(g);
+          }
+          g.items.push(l);
+        }
+
+        const bodyHtml = groups.length
+          ? groups.map(g => `
+              <section class="ar-log-group">
+                <div class="ar-log-turn">TURN ${g.turn}</div>
+                <div class="ar-log-rows">
+                  ${g.items.map(l => `
+                    <div class="ar-log-row" data-kind="${l.kind}">
+                      <span class="ar-log-kind">${l.tag}</span>
+                      <p>${l.html}</p>
+                    </div>
+                  `).join('')}
+                </div>
+              </section>
+            `).join('')
+          : `<div class="ar-log-empty">NO LOG ENTRIES</div>`;
+
+        return `
+          <div class="ar-log-toolbar">${filters}</div>
+          <div class="insp-scroll ar-log-list">${bodyHtml}</div>
+        `;
+      }
+
+      // Legacy reference
+      const rows = logs.map(l => `
+        <div class="battle-log-entry" data-kind="${l.kind}">
+          <div class="battle-log-meta"><span>TURN ${l.turn}</span><strong>${l.label}</strong></div>
+          <p>${esc(l.text)}</p>
+        </div>
+      `).join('');
+      return `<div class="insp-scroll log-panel">${rows}</div>`;
+    }
+
+    function renderEndTurnBtn() {
+      const isDisabled = state.ustate === 'disabled';
+      const isEnemy = state.team === 'RED';
+      return `
+        <div class="endturn-scale-box">
+          <div class="sim-endturn-wrap">
+            <button type="button" class="sim-endturn-btn ${isDisabled ? 'disabled' : ''}" data-team="${state.team}" data-endturn-preview aria-label="ターン終了。長押しで確定">
+              <span class="et-fill"></span>
+              <span class="et-content">
+                <strong>${isEnemy ? 'ENEMY TURN' : 'END TURN'}</strong>
+                <small><span>${isDisabled ? '相手ターン' : '長押しで確定'}</span></small>
+              </span>
+              <span class="et-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="5 4 15 12 5 20 5 4"/>
+                  <line x1="19" y1="5" x2="19" y2="19"/>
+                </svg>
+              </span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderInspectorBox(preset, mode, caption, showEndTurn = false) {
+      const u = UNITS[state.unitKey];
+      const presetCls = preset === 'tactical' ? 'st-tactical' : preset === 'dossier' ? 'st-dossier' : preset === 'arcade' ? 'st-arcade' : 'st-legacy';
+      const bodyHtml = mode === 'details' ? renderDetailsBody(preset) : renderLogBody(preset);
+      const innerHtml = preset === 'arcade'
+        ? `${renderTabs(preset, mode)}<div class="ar-panel-body">${bodyHtml}</div>`
+        : `${renderTabs(preset, mode)}${bodyHtml}`;
+      return `
+        <div class="panel-frame-col">
+          <div class="panel-caption">${caption}</div>
+          <div class="inspector-scale-box">
+            <div class="sim-inspector ${presetCls}" data-team="${state.team}" data-role="${u.role}">
+              ${innerHtml}
+            </div>
+          </div>
+          ${showEndTurn ? renderEndTurnBtn() : ''}
+        </div>
+      `;
+    }
+
+    function renderAll() {
+      document.documentElement.style.setProperty('--pscale', state.pscale);
+      const wrap = document.getElementById('stage-wrap');
+      if (state.view === 'both') {
+        wrap.innerHTML =
+          renderInspectorBox(state.preset, 'details', '<b>キャラ詳細</b> · 540×752px + END TURN', true) +
+          renderInspectorBox(state.preset, 'log', '<b>戦績ログ</b> · 540×752px', false);
+      } else {
+        wrap.innerHTML = renderInspectorBox(state.preset, state.singleTab, '<b>統合パネル（タブ切替テスト）</b> · 540×752px + END TURN', true);
+      }
+
+      wrap.querySelectorAll('[data-switchtab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (state.view === 'single') {
+            state.singleTab = btn.dataset.switchtab;
+            renderAll();
+          }
+        });
+      });
+
+      wrap.querySelectorAll('[data-logfilter]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.logFilter = btn.dataset.logfilter;
+          renderAll();
+        });
+      });
+
+      wrap.querySelectorAll('[data-toggle-armed]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (btn.classList.contains('is-disabled') || btn.classList.contains('disabled')) return;
+          const slot = btn.dataset.toggleArmed || 'skill';
+          const next = slot === 'ult' ? 'ult_armed' : 'armed';
+          state.ustate = state.ustate === next ? 'rich' : next;
+          syncStateButtons();
+          renderAll();
+        });
+      });
+
+      wrap.querySelectorAll('[data-endturn-preview]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (btn.classList.contains('disabled')) return;
+          btn.classList.toggle('is-holding');
+        });
+      });
+    }
+
+    function syncStateButtons() {
+      document.querySelectorAll('[data-ustate]').forEach(b => {
+        b.classList.toggle('active', b.dataset.ustate === state.ustate);
+      });
+    }
+
+    function bindGroup(attr, handler) {
+      const btns = [...document.querySelectorAll(`[data-${attr}]`)];
+      btns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          btns.forEach(b => b.classList.remove('active', 'enemy-pill'));
+          btn.classList.add('active');
+          if (attr === 'team' && btn.dataset.team === 'RED') btn.classList.add('enemy-pill');
+          handler(btn.dataset[attr]);
+          renderAll();
+        });
+      });
+    }
+
+    bindGroup('preset', val => { state.preset = val; });
+    bindGroup('view', val => { state.view = val; });
+    bindGroup('pscale', val => { state.pscale = parseFloat(val); });
+    bindGroup('team', val => { state.team = val; });
+    bindGroup('ustate', val => { state.ustate = val; });
+    bindGroup('unit', val => { state.unitKey = val; });
+    bindGroup('tagstyle', val => { state.tagStyle = val; });
+
+    const params = new URLSearchParams(window.location.search);
+    const initPreset = params.get('preset');
+    if (initPreset && ['tactical', 'dossier', 'arcade', 'legacy'].includes(initPreset)) {
+      state.preset = initPreset;
+      document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === initPreset));
+    }
+    const initUstate = params.get('ustate');
+    if (initUstate && ['normal', 'rich', 'armed', 'ult_armed', 'disabled'].includes(initUstate)) {
+      state.ustate = initUstate;
+      syncStateButtons();
+    }
+    const initTag = params.get('tag');
+    if (initTag && ['a', 'b', 'c'].includes(initTag)) {
+      state.tagStyle = initTag;
+      document.querySelectorAll('[data-tagstyle]').forEach(b => b.classList.toggle('active', b.dataset.tagstyle === initTag));
+    }
+    const initUnit = params.get('unit');
+    if (initUnit && UNITS[initUnit]) {
+      state.unitKey = initUnit;
+      document.querySelectorAll('[data-unit]').forEach(b => b.classList.toggle('active', b.dataset.unit === initUnit));
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>

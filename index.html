@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#dfe4ec">
-  <title>TACTICS — ANCHOR BROKEN</title>
+  <meta name="theme-color" content="#181818">
+  <title>MONOLITH</title>
   <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=lab-white-2">
-  <link rel="stylesheet" href="urban-battle.css?v=lab-white-5">
+  <link rel="stylesheet" href="style.css?v=lab-white-4">
+  <link rel="stylesheet" href="urban-battle.css?v=lab-white-20">
+  <link rel="stylesheet" href="battle-effects.css?v=juice-2">
   <script>
     if (window.location.protocol === 'file:') {
       window.addEventListener('DOMContentLoaded', () => {
@@ -24,10 +25,11 @@
   </script>
 </head>
 <body>
-  <main id="battle-stage" data-screen="home" aria-label="MONOLITH // LAPSE">
+  <main id="battle-stage" data-screen="home" aria-label="MONOLITH">
     <div id="game-content">
       <section id="screen-title" class="game-screen active" aria-label="ホーム">
         <div id="home-screen-view" class="home-screen-view"></div>
+        <button id="battle-se-toggle" type="button" aria-label="効果音" aria-pressed="true">SE ON</button>
       </section>
       <section id="screen-pick" class="game-screen" aria-label="ユニット選択">
         <div id="select-screen-view" class="select-screen-view">
@@ -36,8 +38,16 @@
               <div class="sel-head-left">
                 <button type="button" class="sel-back-btn" onclick="window.__returnToTitle()"><span data-icon="home"></span><span>HOME</span></button>
                 <div class="sel-title-group">
-                  <span id="pick-header-badge" class="sel-eyebrow">SOLO</span>
+                  <span id="pick-header-badge" class="sel-eyebrow">SOLO // ALLY</span>
                   <h2 id="pick-screen-title" class="sel-title">出撃部隊編成</h2>
+                </div>
+                <div id="pick-team-tabs" class="sel-team-tabs" role="group" aria-label="編成陣営切替">
+                  <button type="button" class="sel-team-tab is-ally is-active" data-pick-team="ALLY" aria-pressed="true">自軍 <b>5/5</b></button>
+                  <button type="button" class="sel-team-tab is-enemy" data-pick-team="ENEMY" aria-pressed="false">敵軍 <b>5/5</b></button>
+                </div>
+                <div id="pick-order-tabs" class="sel-order-tabs" role="group" aria-label="先行・後攻切替">
+                  <button type="button" class="sel-order-tab is-first is-active" data-pick-order="P1" aria-pressed="true">先攻</button>
+                  <button type="button" class="sel-order-tab is-second" data-pick-order="P2" aria-pressed="false">後攻</button>
                 </div>
                 <span id="draft-counter-badge" class="sel-count-pill">0 / 5</span>
               </div>
@@ -101,10 +111,10 @@
 
           <div id="core-bar-enemy" class="core-bar enemy" aria-label="敵軍のULTゲージ">
             <span class="core-ult-sheen" aria-hidden="true"></span>
-            <span class="core-tag">ENEMY ULT</span>
+            <span class="core-tag">ULT</span>
             <div class="core-metric ult-metric">
               <span class="metric-label">ULT</span>
-              <span class="core-gauge ult-gauge"><i id="enemy-ult-bar"></i></span>
+              <span class="core-gauge ult-gauge"><i id="enemy-ult-bar" style="height:0%"></i></span>
               <strong id="enemy-ult-text">0%</strong>
             </div>
           </div>
@@ -114,14 +124,15 @@
             <div id="urban-coord-rows" class="coord-rows" aria-hidden="true"><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
             <div id="board" class="board-grid board" role="group" aria-label="7×7の戦術盤面"></div>
             <div id="board-fx-layer" class="board-fx-layer" aria-hidden="true"></div>
+            <div id="battle-board-effects" class="board-fx-layer" aria-hidden="true"></div>
           </div>
 
           <div id="core-bar-ally" class="core-bar ally" aria-label="自軍のULTゲージ">
             <span class="core-ult-sheen" aria-hidden="true"></span>
-            <span class="core-tag">ALLY ULT</span>
+            <span class="core-tag">ULT</span>
             <div class="core-metric ult-metric">
               <span class="metric-label">ULT</span>
-              <span class="core-gauge ult-gauge"><i id="ally-ult-bar"></i></span>
+              <span class="core-gauge ult-gauge"><i id="ally-ult-bar" style="height:0%"></i></span>
               <strong id="ally-ult-text">0%</strong>
             </div>
           </div>
@@ -216,7 +227,7 @@
         </div>
         <div class="uci-frame-flash"></div>
       </div>
-      <div id="finisher-overlay" class="finisher-overlay" hidden aria-hidden="true">
+      <div id="finisher-overlay" class="finisher-overlay" role="dialog" aria-modal="true" aria-labelledby="fn-title" tabindex="-1" hidden>
         <div class="fn-vignette"></div>
         <div class="fn-slow-motes" id="fn-slow-motes"></div>
         <div class="fn-letterbox top"></div>
@@ -254,9 +265,10 @@
       <div class="zzz-modal-body">
         <div class="rule-item"><strong>VICTORY // 勝利条件</strong><p>敵の<strong>アンカーを破壊</strong>する、または敵の<strong>ユニットを全滅</strong>させると即座に勝利。</p></div>
         <div class="rule-item"><strong>ORDERS // 行動オーダー</strong><p>毎ターン共通MOVE・ATKが各1枚。専用のEX MOVE・EX ATKは本人が優先して消費します。</p></div>
-        <div class="rule-item"><strong>ULTIMATE // 必殺技ゲージ</strong><p>共通ATKオーダーによる通常攻撃と直接チャージ効果で蓄積。EX ATKでは蓄積せず、100 DMGで各ユニットが１試合に１回ウルトを発動できます。</p></div>
-        <div class="rule-item"><strong>OBJECTS // 設置物</strong><p>防壁・タレットは通行不可・攻撃可能。自軍の防壁はインスペクターからいつでも撤去可能。</p></div>
-        <div class="rule-item"><strong>HAZARDS &amp; TRAPS // 地形効果</strong><p>１マスにゾーン１つと各陣営のマイン１つずつを置けます。侵入したユニットに対して敵陣営のマインだけが作動します。トキシック・マインは、作動時にゾーンがなくスモッグが生存中なら毒床を展開します。</p></div>
+        <div class="rule-item"><strong>ULTIMATE // 必殺技ゲージ</strong><p>共通ATKオーダーによる通常攻撃で実際に減らしたHP分を蓄積します。シールド吸収分、超過ダメージ、EX ATKは加算されません。100 DMGで各ユニットが1試合に1回ウルトを発動できます。</p></div>
+        <div class="rule-item"><strong>OBJECTS // 設置物</strong><p>バリケード・タレットは通行不可・攻撃可能。自軍ターン中は、自軍の設置物をインスペクターの破壊ボタンで破壊できます。</p></div>
+        <div class="rule-item"><strong>HAZARDS // 地形効果</strong><p>トキシック・ゾーンは両軍それぞれの手番終了時に、ゾーン上の敵ユニットに5ダメージを与えます。ゾーンは1マスに1つです。</p></div>
+        <div class="rule-item"><strong>STATES // 状態効果</strong><p>TURNは手番が交代するたびに1増えます。状態の1Tは次の手番終了までを表します。攻撃力とシールドのバフは加算し、同種のデバフは1件分の効果が発動します。スキル阻害中は固有パッシブ・通常スキル・ウルトが無効になります。</p></div>
       </div>
       <button class="zzz-confirm-btn full-width" onclick="window.__toggleRulesModal(false)"><span>CLOSE</span></button>
     </div>
@@ -335,6 +347,6 @@
   </div>
 
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script type="module" src="js/main.js?v=lab-white-1"></script>
+  <script type="module" src="js/main.js?v=lab-white-12"></script>
 </body>
 </html>

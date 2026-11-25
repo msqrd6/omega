@@ -2,9 +2,9 @@
    DisruptorUnits.js: ディスラプター (Disruptor) ロール ユニットクラス群
    (グリッチ, プリズム, ハイヴ)
    ============================================================== */
-import { BeamUnit } from './BeamUnit.js?v=lab-white-1';
 import { UnitEntity } from './UnitEntity.js?v=lab-white-1';
-import { HERO_TYPES, inBounds, ROWS, COLS } from '../config.js?v=lab-white-1';
+import { HERO_TYPES } from '../config.js?v=lab-white-3';
+import { allyLandingCells, boardCells, diagonalDirections, diagonalRay, getSkillImpact, isEmptyAt, occupants } from '../battle-targets.js';
 
 // ==========================================
 // 1. グリッチ (Glitch / DISRUPTOR)
@@ -31,80 +31,32 @@ export class GlitchUnit extends UnitEntity {
     });
   }
 
-  getSkillTargets(slot, context = {}) {
-    const { board } = context;
-    if (slot === 'A') {
-      const targets = [];
-      for (let ar = 0; ar < ROWS; ar++) {
-        for (let ac = 0; ac < COLS; ac++) {
-          const ally = board[ar][ac];
-          if (ally && ally.owner === this.owner && ally.isUnit() && board.flat().some(enemy => enemy && enemy.owner !== this.owner && Math.max(Math.abs(enemy.r - ar), Math.abs(enemy.c - ac)) === 1)) {
-            for (let dr = -1; dr <= 1; dr++) {
-              for (let dc = -1; dc <= 1; dc++) {
-                if (dr === 0 && dc === 0) continue;
-                const nr = ar + dr, nc = ac + dc;
-                if (inBounds(nr, nc) && !board[nr][nc]) {
-                  if (!targets.some(t => t.r === nr && t.c === nc)) {
-                    targets.push({ r: nr, c: nc });
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      return targets;
-    } else if (slot === 'ULT') {
-      const targets = [];
-      for (let tr = 0; tr < ROWS; tr++) {
-        for (let tc = 0; tc < COLS; tc++) {
-          if (!board[tr][tc]) targets.push({ r: tr, c: tc });
-        }
-      }
-      return targets;
-    }
-    return [];
+  getSkillTargets(slot, { board }) {
+    const cells = boardCells();
+    if (slot === 'ULT') return cells.filter(pos => isEmptyAt(board, pos));
+    return occupants(board, cells, this.owner, 'ally', ['UNIT'])
+      .filter(ally => ally !== this)
+      .map(({ r, c }) => ({ r, c }));
   }
 
-  executeSkill(slot, targetPos, context = {}) {
-    const { board, addLog, playPassivePopupFX } = context;
-    const enemyOwner = (this.owner === 'P1') ? 'P2' : 'P1';
-
-    if (!context.warpUnit(this, targetPos)) return;
-
+  executeSkill(slot, target, { board, warpUnit, swapUnits, playPassivePopupFX }) {
     if (slot === 'A') {
-      addLog(`🌀 ${this.name} が『グラビティ・ワープ』発動！味方アサルトの隣接マスへ空間跳躍！`, 'skill');
-    } else if (slot === 'ULT') {
-      addLog(`✨ ${this.name} がウルト『緊急回避』発動！任意の空きマスへ完全脱出！`, 'skill');
+      swapUnits(this, board[target.r][target.c]);
+      return;
     }
+    warpUnit(this, target);
+    const { targets } = getSkillImpact(this, slot, target, board);
+    for (const enemy of targets) {
+      enemy.applyDebuff('silence', 1);
+      playPassivePopupFX(enemy, { label: 'スキル阻害', kind: 'debuff', delayMs: 220 });
+    }
+  }
 
-    // パッシブ『ディメンション・チャージ』: ワープ着地時、半径1マスの敵ユニットに弱体化付与
-    let count = 0;
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        if (dr === 0 && dc === 0) continue;
-        const nr = targetPos.r + dr, nc = targetPos.c + dc;
-        if (inBounds(nr, nc)) {
-          const u = board[nr][nc];
-          if (u && u.owner === enemyOwner && u.isUnit()) {
-            u.applyDebuff('vulnerable', 1, { expiresOn: this.owner });
-            if (slot === 'ULT') u.applyDebuff('disarm', 1);
-            if (playPassivePopupFX) {
-              playPassivePopupFX({ r: nr, c: nc }, {
-                label: '弱体化 x1.5!',
-                kind: 'debuff',
-                color: '#ea580c',
-                color2: '#ffd447',
-                delayMs: 160
-              });
-            }
-            count++;
-          }
-        }
-      }
-    }
-    if (count > 0) {
-      addLog(`🌀⚡ グリッチのパッシブ『ディメンション・チャージ』発動！ワープ着地点周囲の敵 ${count} 体に【弱体化 (このターン中 / 被ダメ1.5倍)】を付与！`, 'skill');
+  onWarp({ board, playPassivePopupFX }) {
+    const { targets } = getSkillImpact(this, 'A', this, board);
+    for (const enemy of targets) {
+      enemy.applyDebuff('vulnerable');
+      playPassivePopupFX(enemy, { label: '弱体化 ×1.5', kind: 'debuff', color: '#ea580c' });
     }
   }
 }
@@ -112,7 +64,7 @@ export class GlitchUnit extends UnitEntity {
 // ==========================================
 // 2. プリズム (Cypher / PRISM)
 // ==========================================
-export class PrismUnit extends BeamUnit {
+export class PrismUnit extends UnitEntity {
   constructor(owner, r, c) {
     const def = HERO_TYPES.PRISM;
     super({
@@ -134,35 +86,28 @@ export class PrismUnit extends BeamUnit {
     });
   }
 
-  mark = 'trace';
-  directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
-
-  getMarkedTargets(board, slot) {
-    return this.getMarkedPieces(board).filter(piece =>
-      piece.owner !== this.owner && (slot === 'ULT' || !piece.isAnchor()));
+  getSkillTargets() {
+    return diagonalDirections(this);
   }
 
-  executeSkill(slot, targetPos, { board, dealDamage, checkDeath, onGameOver, playBeamFX, playCombatPopupFX, playMarkPulseFX }) {
-    const ult = slot === 'ULT';
-    const casterPos = { r: this.r, c: this.c };
-    for (const enemy of this.getMarkedTargets(board, slot)) {
-      const enemyPos = { r: enemy.r, c: enemy.c };
-      enemy.applyDebuff(ult ? 'bind' : 'silence', 1, { allowNonUnit: true });
-      const dealt = dealDamage(this, enemy, ult ? 20 : 10, enemyPos);
-      checkDeath(enemyPos.r, enemyPos.c, this.owner, onGameOver, this);
-      if (ult) {
-        playMarkPulseFX?.(enemyPos, '#ff3ec8', 860);
-        playBeamFX?.(casterPos, enemyPos, { kind: 'debuff', color: '#8d7bff', color2: '#ff3ec8', delayMs: 860 });
-      } else {
-        playMarkPulseFX?.(enemyPos, '#a855f7');
-        playBeamFX?.(casterPos, enemyPos, { kind: 'debuff', color: '#a855f7', color2: '#f2b8ff' });
-        playCombatPopupFX?.('dmg', enemyPos, dealt, casterPos, undefined, {
-          skipLunge: true,
-          delayMs: 80,
-          color: '#a855f7',
-          color2: '#f2b8ff',
-          label: dealt > 0 ? `-${dealt} DMG · 阻害` : '🛡️ SHIELD · 阻害'
-        });
+  executeSkill(slot, target, { board, hit, playBeamFX, playPassivePopupFX }) {
+    const { cells, targets } = getSkillImpact(this, slot, target, board);
+    playBeamFX(this, cells.at(-1), { kind: slot === 'ULT' ? 'attack' : 'debuff', color: '#a855f7' });
+    for (const piece of targets) {
+      if (slot === 'ULT') hit(this, piece, this.skills.ULT.damage);
+      else {
+        piece.applyDebuff('bind', 1);
+        playPassivePopupFX(piece, { label: '行動阻害', kind: 'debuff' });
+      }
+    }
+  }
+
+  onTurnEnd({ board, hit, playBeamFX }) {
+    for (const direction of diagonalDirections(this)) {
+      const cells = diagonalRay(this, direction);
+      playBeamFX(this, cells.at(-1), { kind: 'attack', color: '#a855f7' });
+      for (const piece of occupants(board, cells, this.owner, 'enemy', ['UNIT', 'OBJECT'])) {
+        hit(this, piece, 5);
       }
     }
   }
@@ -191,22 +136,22 @@ export class HiveUnit extends UnitEntity {
   }
 
   getSkillTargets(slot, { board }) {
-    const assaults = board.flat().filter(unit => unit?.owner === this.owner && unit.isAssault?.());
-    return board.flatMap((row, r) => row.flatMap((piece, c) =>
-      !piece && (slot === 'ULT' || assaults.some(unit => Math.max(Math.abs(r - unit.r), Math.abs(c - unit.c)) === 1))
-        ? [{ r, c }] : []));
+    return slot === 'A'
+      ? allyLandingCells(this, board, true)
+      : boardCells().filter(pos => isEmptyAt(board, pos));
   }
 
-  executeSkill(slot, target, { board, spawnUnit }) {
+  executeSkill(slot, target, { board, spawnUnit, playPassivePopupFX }) {
     const bit = spawnUnit('BIT', this.owner, target.r, target.c);
     bit.summonerId = this.id;
-    if (slot === 'ULT') {
-      const { shieldVal, atkBonus } = this.skills.ULT;
-      for (const ally of board.flat()) {
-        if (ally?.owner !== this.owner || ally.typeKey !== 'BIT') continue;
-        ally.applyBuff('shield', shieldVal, 1);
-        ally.applyBuff('atk_up', atkBonus, 1);
-      }
+    if (slot !== 'ULT') return;
+
+    const { shieldVal, atkBonus } = this.skills.ULT;
+    const { targets } = getSkillImpact(this, slot, target, board);
+    for (const ally of targets) {
+      ally.applyBuff('shield', shieldVal, 1);
+      ally.applyBuff('atk_up', atkBonus);
+      playPassivePopupFX(ally, { label: `SHIELD +${shieldVal} / ATK +${atkBonus}` });
     }
   }
 }

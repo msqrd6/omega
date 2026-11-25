@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0e1015">
+  <title>TACTICS</title>
+  <link rel="stylesheet" href="ui-polish.css">
+  <script src="battle-ui.js" defer></script>
+</head>
+<body>
+<div id="game-viewport">
+  <main id="game-screen" aria-label="TACTICS">
+    <div id="game-content">
+      <!-- 左上：ターン表示＆リセット -->
+      <header class="top-left-hud">
+        <div class="turn-display">
+          <span>TURN</span>
+          <strong id="turn-number">03</strong>
+        </div>
+        <button id="reset-button" class="icon-button" data-action="reset" title="リセット" aria-label="リセット">
+          <span data-icon="reset"></span>
+        </button>
+      </header>
+
+      <!-- 中央：トークンバー ＋ 敵コア(上) ＋ 盤面 ＋ 味方コア(下) -->
+      <section class="battlefield" aria-label="戦術盤面">
+        <div class="token-bar" aria-label="行動トークン">
+          <span class="token-bar-label">TOKENS</span>
+          <div id="turn-tokens" class="turn-tokens"></div>
+        </div>
+
+        <div class="core-bar enemy" aria-label="敵コアステータス">
+          <span class="core-tag">ENEMY CORE</span>
+          <div class="core-metric">
+            <span class="metric-label">HP</span>
+            <span class="core-gauge"><i id="enemy-core-fill"></i></span>
+            <strong id="enemy-core-hp"></strong>
+          </div>
+          <div class="core-metric ult-metric">
+            <span class="metric-label">ULT</span>
+            <span class="core-gauge ult-gauge"><i id="enemy-ult-fill"></i></span>
+            <strong id="enemy-ult-value"></strong>
+          </div>
+        </div>
+
+        <div id="board-frame" class="board-frame">
+          <div class="coord-cols" aria-hidden="true"><span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span></div>
+          <div class="coord-rows" aria-hidden="true"><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
+          <div id="board-grid" class="board-grid" role="group" aria-label="7×7の戦術盤面"></div>
+        </div>
+
+        <div class="core-bar ally" aria-label="味方コアステータス">
+          <span class="core-tag">ALLY CORE</span>
+          <div class="core-metric">
+            <span class="metric-label">HP</span>
+            <span class="core-gauge"><i id="ally-core-fill"></i></span>
+            <strong id="ally-core-hp"></strong>
+          </div>
+          <div class="core-metric ult-metric">
+            <span class="metric-label">ULT</span>
+            <span class="core-gauge ult-gauge"><i id="ally-ult-fill"></i></span>
+            <strong id="ally-ult-value"></strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- 右側：選択キャラ情報・戦績ログタブ -->
+      <aside id="inspector" class="inspector" aria-label="選択情報">
+        <div class="inspector-tabs" role="tablist" aria-label="情報切り替え">
+          <button id="tab-details" class="inspector-tab" role="tab" aria-selected="true" aria-controls="panel-details" data-action="inspector-tab" data-tab="details">
+            <span>UNIT INFO</span><small>キャラ詳細</small>
+          </button>
+          <button id="tab-log" class="inspector-tab" role="tab" aria-selected="false" aria-controls="panel-log" data-action="inspector-tab" data-tab="log" tabindex="-1">
+            <span>BATTLE LOG</span><small>戦績ログ</small><b id="battle-log-count" class="log-badge">0</b>
+          </button>
+        </div>
+
+        <div id="panel-details" class="inspector-panel" role="tabpanel" aria-labelledby="tab-details">
+          <div id="inspector-hero" class="inspector-hero"></div>
+          <div id="inspector-stats" class="inspector-stats"></div>
+          <div id="inspector-status" class="inspector-status"></div>
+          <div id="inspector-terrain" class="inspector-terrain"></div>
+          <div class="card-skills" aria-label="能力・スキル">
+            <div id="card-passive" class="card-passive" role="region" aria-label="パッシブ能力">
+              <span class="card-skill-tag passive">PASSIVE</span>
+              <span class="command-copy">
+                <span class="command-top"><strong class="skill-name passive-name"></strong><small class="command-sub passive-sub">PERMANENT · 常時</small></span>
+                <span class="skill-description passive-desc"></span>
+              </span>
+            </div>
+            <button id="command-skill" class="card-skill" data-action="command" data-mode="skill">
+              <span class="card-skill-tag skill">SKILL</span>
+              <span class="command-copy">
+                <span class="command-top"><strong class="skill-name"></strong><small class="command-sub"></small></span>
+                <span class="skill-description"></span>
+              </span>
+            </button>
+            <button id="command-ult" class="card-skill card-ult" data-action="command" data-mode="ult">
+              <span class="card-skill-tag ult">ULT</span>
+              <span class="command-copy">
+                <span class="command-top"><strong class="skill-name"></strong><small class="command-sub"></small></span>
+                <span class="skill-description"></span>
+              </span>
+            </button>
+          </div>
+          <div class="inspector-actions">
+            <button id="remove-button" class="remove-button" data-action="remove" hidden>防壁を撤去</button>
+          </div>
+        </div>
+
+        <div id="panel-log" class="inspector-panel log-panel" role="tabpanel" aria-labelledby="tab-log" hidden>
+          <ol id="battle-log-list" class="battle-log-list"></ol>
+        </div>
+      </aside>
+
+      <!-- 右下：ターン終了ボタン -->
+      <button id="end-turn" class="end-turn hold-turn" aria-label="ターン終了。長押しで確定">
+        <span class="hold-fill"></span>
+        <span class="hold-content"><strong>END TURN</strong><small>長押しで確定</small></span>
+        <span class="hold-icon" data-icon="endturn"></span>
+      </button>
+    </div>
+
+    <div id="live-announcement" class="sr-only" aria-live="polite"></div>
+  </main>
+</div>
+</body>
+</html>
